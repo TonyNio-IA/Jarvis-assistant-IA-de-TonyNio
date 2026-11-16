@@ -4,6 +4,8 @@
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, thinking, answering, reminder" width="320"></p>
 
+**▶ Video demo (6 min, in French): [watch on YouTube](https://www.youtube.com/watch?v=3Xd91q7618U)**
+
 **Jarvis is a voice assistant for Windows 11 that speaks and understands French.** Say "Jarvis", then your request: it answers aloud and acts on your PC. It opens apps, manages windows, plays music, sets reminders, reads or translates copied text, and describes what is on screen. Simple requests are handled on the PC in about a second; everything else is sent to Claude.
 
 An animated reactor sits in a corner of the screen and shows what Jarvis is doing: listening, thinking, answering.

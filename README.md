@@ -4,6 +4,8 @@
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
 
+**▶ Démonstration en vidéo (6 min) : [Je parle à mon PC et il m'obéit : j'ai créé mon propre JARVIS](https://www.youtube.com/watch?v=3Xd91q7618U)**
+
 **Jarvis est un assistant vocal en français pour Windows 11.** Tu dis « Jarvis », il comprend ta demande, y répond à voix haute et agit sur ton PC : ouvrir une application, gérer les fenêtres, lancer de la musique, poser un rappel, lire ou traduire un texte copié, décrire ce qui est à l'écran. Les demandes simples sont traitées sur le PC en une seconde ; les autres sont confiées à Claude.
 
 Un réacteur animé, toujours visible dans un coin de l'écran, montre ce qu'il fait : il écoute, il réfléchit, il répond.
