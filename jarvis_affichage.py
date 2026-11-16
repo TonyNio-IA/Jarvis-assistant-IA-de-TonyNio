@@ -5,8 +5,13 @@ Même visuel que l'ancien affichage, mais dessiné avec pygame, beaucoup plus
 rapide : environ 5 ms par image au lieu de 37. Le réacteur peut donc tourner
 à 60 images par seconde quand Jarvis est actif.
 
-Sous le réacteur, le panneau affiche l'état de Jarvis et des jauges :
+Autour du réacteur, une couronne de graduations réagit au vrai son : le spectre de
+ta voix quand Jarvis écoute, celui de sa voix quand il répond. Une onde part du cœur
+à chaque réveil, et un léger halo lumineux entoure les filaments.
+
+Sous le réacteur, le panneau affiche l'état de Jarvis, l'heure et des jauges :
 processeur, mémoire, carte graphique, réseau (et température si le PC la fournit).
+Pendant l'écoute, les mots compris s'y affichent au fur et à mesure.
 """
 
 import ctypes
@@ -26,6 +31,8 @@ import jarvis_voix
 
 CLE = (1, 2, 3)          # couleur rendue invisible (transparence de la fenêtre)
 ELARGISSEMENT = 30       # largeur ajoutée au panneau de chaque côté du réacteur
+NB_GRADUATIONS = 72      # traits de la couronne extérieure (ils dessinent le spectre du son)
+HALO = True              # léger halo lumineux autour des filaments (False = dessin net, un peu plus rapide)
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
 user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_wchar_p]
@@ -77,8 +84,9 @@ class Affichage:
         try:                                  # dernière position choisie à la souris
             with open(source.FICHIER_POSITION, encoding="utf-8") as f:
                 px, py = (int(v) for v in f.read().split(","))
-            if 0 <= px <= largeur_ecran - self.w and 0 <= py <= hauteur_ecran - self.h:
-                x, y = px, py
+            # Une position qui dépasse un peu du bord est ramenée dans l'écran (avant, elle était ignorée)
+            x = max(0, min(largeur_ecran - self.w, px))
+            y = max(0, min(hauteur_ecran - self.h, py))
         except (OSError, ValueError):
             pass
 
@@ -105,6 +113,20 @@ class Affichage:
         self._dernier_actif = 0.0
         self._dernier_premier_plan = time.time()
         self.glisse = None
+        self._etat_prec = None
+        self._onde = -10.0                         # moment du dernier réveil (onde qui part du cœur)
+        self._niveaux = np.zeros(NB_GRADUATIONS)   # hauteur lissée de chaque graduation
+        self._jauges = {}                          # valeurs lissées des jauges
+        ang = np.arange(NB_GRADUATIONS) * (2 * math.pi / NB_GRADUATIONS)
+        self._grad_cos, self._grad_sin = np.cos(ang), np.sin(ang)
+        # Chaque graduation suit une bande du spectre : graves en bas, aigus en haut, en miroir gauche/droite
+        haut = (np.arange(NB_GRADUATIONS) + NB_GRADUATIONS // 4) % NB_GRADUATIONS
+        self._grad_bande = np.abs(haut - NB_GRADUATIONS / 2) / (NB_GRADUATIONS / 2)   # 0 = haut, 1 = bas
+        petit = max(8, self.d // 4)
+        self._halo_petit = (petit, petit)
+        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.m, self.d, self.d)
+        self._masque = pygame.Surface((self.d, self.d))
+        self._masque.set_colorkey((255, 0, 255))
 
         n = self.n = 160
         th = np.arange(n + 1) * (2 * math.pi / n)
@@ -235,8 +257,14 @@ class Affichage:
         self.angle += vitesse * 0.6 * dt
         ph = self.angle
 
+        if e != self._etat_prec:
+            if e == "ecoute" or (e == "reponse" and self._etat_prec != "traitement"):
+                self._onde = maintenant
+            self._etat_prec = e
+
         cx, cy = self.w / 2, self.m + self.d / 2
-        R = self.d / 2 - 3 * s
+        Rext = self.d / 2 - 2 * s          # bord de la couronne de graduations
+        R = Rext * 0.83                    # le réacteur lui-même
         R0 = R * 0.68
         ligne, aaligne, cercle = pygame.draw.lines, pygame.draw.aalines, self._cercle
         surf.fill(CLE)
@@ -244,7 +272,7 @@ class Affichage:
         # Fond : le contour du disque ondule lui aussi (il n'est plus un cercle fixe),
         # puis dégradé sombre, plus lumineux au centre
         ondulation = 0.022 + amplitude * 0.12
-        contour = self._filament(cx, cy, R * 0.955, ondulation,
+        contour = self._filament(cx, cy, R * 0.975, ondulation,
                                  [(4, 0.6, ph * 0.7), (7, 0.4, -ph * 1.1)])
         pygame.draw.polygon(surf, teinte(0.03), contour)
         aaligne(surf, teinte(0.22 * eclat), True, contour)
@@ -323,9 +351,75 @@ class Affichage:
                 if scint >= 0.35:
                     cercle(surf, teinte(force * scint, blanc), pts[i], (0.9 + 0.9 * scint) * s)
 
-        self._panneau(surf, teinte, blanc, eclat, titre, cx)
+        # Onde de réveil : un cercle part du cœur et s'efface en atteignant le bord
+        age = maintenant - self._onde
+        if 0 <= age < 0.8:
+            p = age / 0.8
+            cercle(surf, teinte((1 - p) ** 1.5, blanc), (cx, cy), R * (0.12 + 0.8 * (1 - (1 - p) ** 2)),
+                   max(1, int(2 * s)))
 
-    def _panneau(self, surf, teinte, blanc, eclat, titre, cx):
+        # Halo : le dessin est réduit puis agrandi (ce qui le rend flou) et ajouté par-dessus
+        if HALO:
+            zone = self._zone
+            petit = pygame.transform.smoothscale(surf.subsurface(zone), self._halo_petit)
+            petit.fill((150, 150, 150), special_flags=pygame.BLEND_MULT)      # halo adouci
+            surf.blit(pygame.transform.smoothscale(petit, zone.size), zone, special_flags=pygame.BLEND_ADD)
+            # ... puis tout ce qui dépasse du contour redevient transparent
+            self._masque.fill(CLE)
+            pygame.draw.polygon(self._masque, (255, 0, 255), contour - (zone.x, zone.y))
+            surf.blit(self._masque, zone)
+            aaligne(surf, teinte(0.22 * eclat), True, contour)
+
+        self._couronne(surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext)
+        self._panneau(surf, teinte, blanc, eclat, titre, cx, dt)
+
+    def _couronne(self, surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext):
+        """Couronne de graduations autour du réacteur : elle dessine le spectre du son en direct."""
+        s, n = self.s, NB_GRADUATIONS
+        if e == "reponse":
+            spectre, gain = jarvis_voix.spectre, 1.0
+        elif e == "ecoute":
+            spectre, gain = jarvis_claude.spectre_micro, 1.0
+        else:
+            spectre, gain = None, 0.0
+        if spectre is not None and len(spectre):
+            bandes = np.asarray(spectre, dtype=float)
+            cible = np.interp(self._grad_bande * (len(bandes) - 1), np.arange(len(bandes)), bandes[::-1]) * gain
+        elif e == "traitement":            # une comète fait le tour pendant que Jarvis réfléchit
+            cible = np.maximum(0, np.cos((np.arange(n) * (2 * math.pi / n) - t * 5) / 2)) ** 24 * 0.9
+        elif e == "erreur":
+            cible = np.full(n, 0.35 + 0.35 * math.sin(t * 6))
+        else:                              # veille : une lente respiration parcourt la couronne
+            cible = 0.12 + 0.10 * np.sin(t * 1.1 + np.arange(n) * (4 * math.pi / n))
+        monte = cible > self._niveaux
+        self._niveaux += (cible - self._niveaux) * np.where(monte, 1 - math.exp(-dt * 30), 1 - math.exp(-dt * 9))
+        niveaux = np.clip(self._niveaux, 0, 1)
+
+        r0 = Rext * 0.915
+        longueurs = Rext * (0.018 + 0.067 * niveaux)
+        longueurs[::6] += Rext * 0.012                 # une graduation sur six est plus longue
+        rot = t * 0.05
+        cr, sr = math.cos(rot), math.sin(rot)
+        gc = self._grad_cos * cr - self._grad_sin * sr
+        gs = self._grad_sin * cr + self._grad_cos * sr
+        x0, y0 = cx + r0 * gc, cy + r0 * gs
+        x1, y1 = cx + (r0 + longueurs) * gc, cy + (r0 + longueurs) * gs
+        epais = max(1, int(1.6 * s))
+        forces = np.minimum(1.0, 0.50 + 0.60 * niveaux) * (0.75 + 0.25 * eclat)
+        trait = pygame.draw.line
+        for i in range(n):
+            f = forces[i]
+            trait(surf, teinte(f, blanc if f > 0.8 else None), (x0[i], y0[i]), (x1[i], y1[i]), epais)
+
+        # Deux arcs lumineux tournent en sens inverse juste à l'intérieur des graduations
+        ra = Rext * 0.895
+        for sens, depart, etendue in ((1, 0.0, 1.0), (-1, 2.4, 0.6)):
+            a0 = sens * t * (0.5 if e in ("veille", "pause", "demarrage") else 1.6) + depart
+            angles = a0 + np.linspace(0, etendue, 14)
+            pts = np.column_stack((cx + ra * np.cos(angles), cy + ra * np.sin(angles)))
+            pygame.draw.aalines(surf, teinte(0.75 * eclat), False, pts)
+
+    def _panneau(self, surf, teinte, blanc, eclat, titre, cx, dt=0.05):
         src, s = self.src, self.s
         yb = self.m + self.d
         x0, x1 = 5 * s, self.w - 5 * s
@@ -343,9 +437,15 @@ class Affichage:
         yt = yb + 17 * s
         surf.blit(image, image.get_rect(center=(cx, yt)))
         demi = image.get_width() / 2 + 10 * s
+        # L'heure, à droite du titre quand il reste de la place
+        heure = self._texte(self.police_jauge, time.strftime("%H:%M"), teinte(0.6))
+        fin_ligne = x1 - 12 * s
+        if cx + demi + heure.get_width() + 22 * s < x1:
+            surf.blit(heure, heure.get_rect(midright=(x1 - 10 * s, yt)))
+            fin_ligne = x1 - 16 * s - heure.get_width()
         if cx - demi > x0 + k + 6 * s:
             pygame.draw.line(surf, teinte(0.45), (x0 + k + 4 * s, yt), (cx - demi, yt))
-            pygame.draw.line(surf, teinte(0.45), (cx + demi, yt), (x1 - 12 * s, yt))
+            pygame.draw.line(surf, teinte(0.45), (cx + demi, yt), (fin_ligne, yt))
 
         age = time.time() - src.texte_depuis
         visible = bool(src.texte_actuel) and age < src.DUREE_TEXTE
@@ -369,7 +469,11 @@ class Affichage:
                 police = self.police_jauge if len(jauges) <= 4 else self.police_jauge_petite
                 image = self._texte(police, f"{nom} {valeur:.0f}{unite}", couleur)
                 surf.blit(image, image.get_rect(center=(xc, yb + 36 * s)))
-                allumes = math.ceil(valeur / 100 * nb - 0.001) if valeur >= 1 else 0
+                # Les segments glissent vers la nouvelle valeur au lieu de sauter
+                lisse = self._jauges.get(nom, valeur)
+                lisse += (valeur - lisse) * (1 - math.exp(-dt * 6))
+                self._jauges[nom] = lisse
+                allumes = math.ceil(lisse / 100 * nb - 0.001) if lisse >= 1 else 0
                 xa = xc - (nb * large + (nb - 1) * ecart) / 2
                 ya, yz = yb + 44.5 * s, yb + 50 * s
                 for j in range(nb):
@@ -379,8 +483,13 @@ class Affichage:
                                          (xj + large, yz), (xj, yz)])
         if visible:
             fondu = 1.0 if age < src.DUREE_TEXTE - 2 else max(0.0, (src.DUREE_TEXTE - age) / 2)
-            image = self._texte(self.police_texte, "« " + src.texte_actuel + " »",
-                                teinte(0.85 * fondu, blanc))
+            if getattr(src, "texte_en_direct", False) and src.etat_actuel == "ecoute":
+                # pendant l'écoute : les mots au fil de l'eau, avec un curseur qui clignote
+                contenu = src.texte_actuel + (" |" if int(time.time() * 2.5) % 2 else "  ")
+                fondu = 1.0
+            else:
+                contenu = "« " + src.texte_actuel + " »"
+            image = self._texte(self.police_texte, contenu, teinte(0.85 * fondu, blanc))
             surf.blit(image, image.get_rect(center=(cx, yb + (60 if src.AFFICHER_SYSTEME else 32) * s)))
 
     # ---------- Boucle ----------

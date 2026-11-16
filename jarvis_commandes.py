@@ -17,7 +17,8 @@ la réponse est immédiate et ton quota Claude est économisé.
   - éteindre, redémarrer ou mettre en veille le PC, toujours après confirmation ;
   - les routines « bonjour » (date, météo, rappels du jour, état du PC) et « bonne nuit » ;
   - la dictée (« dicte : je serai là dans dix minutes ») dans la fenêtre active ;
-  - la musique et les vidéos sur YouTube (« mets Get Lucky de Daft Punk »).
+  - la musique et les vidéos sur YouTube (« mets Get Lucky de Daft Punk ») ;
+  - la mémoire durable (« retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... »).
 Tout ce qui n'est pas reconnu ici est envoyé à Claude, comme avant.
 """
 
@@ -30,6 +31,8 @@ import re
 import subprocess
 import threading
 import time
+
+import jarvis_memoire
 import urllib.parse
 import urllib.request
 
@@ -611,6 +614,9 @@ def confirmation_en_attente():
 
 
 def _executer_alimentation(action):
+    if action == "effacer_memoire":
+        jarvis_memoire.tout_effacer()
+        return "C'est fait, ma mémoire est vide."
     if action == "bonne_nuit":
         for _, programme, _ in A_FERMER:
             subprocess.run(["taskkill", "/IM", programme], capture_output=True, creationflags=SANS_FENETRE)
@@ -859,6 +865,20 @@ def _commande_musique(t):
     return f"Je lance {video[1]}." if precise else "Je lance de la musique."
 
 
+# ---------- Mémoire durable ----------
+
+def _commande_memoire(brut):
+    """« retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... » (voir jarvis_memoire)."""
+    global _attente
+    resultat = jarvis_memoire.commande(brut)
+    if resultat is None:
+        return None
+    action, texte = resultat
+    if action == "confirmer_effacement":
+        _attente = ("effacer_memoire", time.time() + DELAI_CONFIRMATION)
+    return texte
+
+
 # ---------- État du PC et notes ----------
 
 def _commande_etat_pc(t):
@@ -945,7 +965,8 @@ def commande_instantanee(textes, annoncer=None):
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: _commande_routine(t),
+            for commande in (lambda: _commande_memoire(brut),
+                             lambda: _commande_routine(t),
                              lambda: _commande_dictee(t, brut),
                              lambda: _commande_alimentation(t),
                              lambda: _commande_rappel(t),

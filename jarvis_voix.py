@@ -36,6 +36,19 @@ DOSSIER_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_
 TAILLE_MORCEAU = 220   # longueur (en caractères) des morceaux d'une longue réponse
 
 niveau = 0.0        # volume de la voix à cet instant (0 à 1), lu par le réacteur
+spectre = None      # spectre de la voix à cet instant (16 bandes de 0 à 1, graves d'abord), lu par le réacteur
+NB_BANDES = 16
+
+
+def bandes_spectre(blocs, freq, nb=NB_BANDES):
+    """Spectre de chaque bloc de son (une ligne par bloc), réparti en « nb » bandes du grave à l'aigu."""
+    taille = blocs.shape[1]
+    amplitudes = np.abs(np.fft.rfft(blocs * np.hanning(taille), axis=1))
+    limites = np.geomspace(90.0, min(7000.0, freq / 2 - 1), nb + 1) * taille / freq
+    limites = np.maximum(np.arange(1, nb + 2), limites.astype(int))     # au moins une case par bande
+    limites = np.minimum(limites, amplitudes.shape[1] - 1)
+    return np.stack([amplitudes[:, limites[i]:max(limites[i] + 1, limites[i + 1])].max(axis=1)
+                     for i in range(nb)], axis=1)
 
 _cache = {}         # phrase -> son déjà prêt
 
@@ -57,11 +70,19 @@ def _decoder(fichier):
 
 def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
     """Joue le son. Si « interruption() » devient vraie, coupe et renvoie True."""
-    global niveau
+    global niveau, spectre
     pas = max(1, int(freq * 0.03))
-    absolu = np.abs(echantillons.astype(np.float32)) / 32768.0
+    flottant = echantillons.astype(np.float32) / 32768.0
+    absolu = np.abs(flottant)
     n = len(absolu) // pas
     enveloppe = absolu[:n * pas].reshape(n, pas).max(axis=1) if n else np.zeros(1)
+    try:                                   # spectre de chaque instant, pour la couronne du réacteur
+        spectres = bandes_spectre(flottant[:n * pas].reshape(n, pas), freq) if n else None
+        if spectres is not None:
+            spectres = np.sqrt(spectres / max(1e-9, float(np.percentile(spectres, 99))))
+            spectres = np.clip(spectres, 0, 1)
+    except Exception:
+        spectres = None
     duree = len(echantillons) / freq
     sd.play(echantillons, freq)
     debut = time.time()
@@ -70,7 +91,10 @@ def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
             ecoule = time.time() - debut
             if ecoule >= duree:
                 break
-            niveau = float(enveloppe[min(len(enveloppe) - 1, int(ecoule / 0.03))])
+            instant = int(ecoule / 0.03)
+            niveau = float(enveloppe[min(len(enveloppe) - 1, instant)])
+            if spectres is not None:
+                spectre = spectres[min(len(spectres) - 1, instant)]
             if interruption is not None and interruption():
                 sd.stop()
                 return True
@@ -79,6 +103,7 @@ def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
         return False
     finally:
         niveau = 0.0
+        spectre = None
 
 
 def _son_pour(texte):
@@ -114,19 +139,24 @@ def preparer(phrases):
             print("Phrase non préparée :", texte, erreur)
 
 
-def bip():
-    """Petit son de réveil (deux notes montantes), presque instantané."""
+NOTES_BIP = ((880, 0.07), (1320, 0.10))    # les deux notes du bip : (fréquence, durée)
+
+
+def bip(attendre=True):
+    """Petit son de réveil (deux notes montantes), presque instantané.
+    attendre=False : le son est lancé et l'on rend la main aussitôt (l'écoute démarre pendant le bip)."""
     if sd is None:
         return
     try:
         freq = 44100
         notes = []
-        for hz, duree in ((880, 0.07), (1320, 0.10)):
+        for hz, duree in NOTES_BIP:
             t = np.linspace(0, duree, int(freq * duree), endpoint=False)
             enveloppe = np.minimum(1, np.minimum(t / 0.008, (duree - t) / 0.03))
             notes.append(0.25 * np.sin(2 * np.pi * hz * t) * enveloppe)
         sd.play(np.concatenate(notes).astype(np.float32), freq)
-        sd.wait()
+        if attendre:
+            sd.wait()
     except Exception as erreur:
         print("Bip impossible :", erreur)
 

@@ -67,7 +67,7 @@ import jarvis_voix    # noqa: E402
 import jarvis_systeme  # noqa: E402
 
 # ===== Réglages =====
-TAILLE = 220            # taille du réacteur (avant mise à l'échelle de l'écran)
+TAILLE = 250            # taille du réacteur et de sa couronne (avant mise à l'échelle de l'écran)
 MARGE_DROITE = 40
 MARGE_BAS = 140         # au-dessus de la barre des tâches
 TRANSPARENT = "#010203" # couleur rendue invisible autour du cercle
@@ -103,10 +103,17 @@ texte_depuis = 0.0
 DUREE_TEXTE = 12           # secondes d'affichage
 
 
-def changer_texte(texte):
-    global texte_actuel, texte_depuis
+texte_en_direct = False     # vrai pendant l'écoute : les mots s'affichent au fur et à mesure
+
+
+def changer_texte(texte, en_direct=False):
+    global texte_actuel, texte_depuis, texte_en_direct
     texte = " ".join(str(texte).split())
-    texte_actuel = texte if len(texte) <= 44 else texte[:41] + "..."
+    if en_direct:                  # on garde la fin de la phrase : ce sont les derniers mots dits
+        texte_actuel = texte if len(texte) <= 44 else "..." + texte[-41:]
+    else:
+        texte_actuel = texte if len(texte) <= 44 else texte[:41] + "..."
+    texte_en_direct = en_direct
     texte_depuis = time.time()
 
 

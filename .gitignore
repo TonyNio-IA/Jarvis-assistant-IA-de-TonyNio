@@ -11,6 +11,8 @@ __pycache__/
 cache_voix/
 notes.txt
 ville.txt
+memoire.json
+memoire.json.tmp
 position.txt
 reseau_max.txt
 rappels.json

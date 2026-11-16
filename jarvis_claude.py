@@ -29,6 +29,7 @@ Fonctionnement :
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py   (avec le réacteur)
 """
 
+import collections
 import json
 import os
 import queue
@@ -44,15 +45,24 @@ import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
 import jarvis_systeme
+import jarvis_voix
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
 import jarvis_commandes
+import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.10"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.11"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
 SAMPLE_RATE = 16000
+# Économie : dans le silence, la reconnaissance vocale se repose (elle consomme autant sur du
+# silence que sur de la parole). Elle repart au premier son, avec les 0,8 s qui le précèdent.
+ECONOMIE_SILENCE = True
+REPOS_APRES = 3.0             # secondes de silence avant le repos
+SEUIL_SON_MIN = 0.003         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
+SEUIL_SON_MAX = 0.012         # ... et même dans une pièce bruyante, ce niveau la relance toujours
+BLOC_AUDIO = 1600             # 0,1 s de son à la fois (avant : 0,25 s) : Jarvis réagit plus vite
 DOSSIER_JARVIS = r"C:\Jarvis"
 CLAUDE_EXE = os.path.expanduser(r"~\.local\bin\claude.exe")
 DELAI_ECOUTE_DEMANDE = 8      # secondes pour commencer à parler après « Jarvis »
@@ -86,9 +96,15 @@ WHISPER_MODELE = "base"
 WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mieux que 1, pour 0,5 s de plus
                               # (mesuré sur la voix de TonyNio ; le modèle « small » n'apporte rien et est 3 fois plus lent)
 WHISPER_DOSSIER = r"C:\Jarvis\whisper"
-VOCABULAIRE = ("Jarvis, TonyNio, " + jarvis_commandes.VILLE_DEFAUT[0] + ", "
+# Whisper lit cette phrase avant d'écouter : elle lui donne le genre de demandes attendues et les
+# noms propres. Mesuré sur les enregistrements de TonyNio : avec elle et un court silence ajouté
+# devant le son, « mets » n'est plus entendu « mais ».
+VOCABULAIRE = ("Demandes à l'assistant vocal Jarvis : mets de la musique, mets une chanson sur YouTube, "
+               "ouvre Chrome, monte le son, rappelle-moi demain, fais une recherche. "
+               "Jarvis, TonyNio, " + jarvis_commandes.VILLE_DEFAUT[0] + ", "
                + (jarvis_commandes.LIEUX_CONNUS + ", " if jarvis_commandes.LIEUX_CONNUS else "")
                + "SpaceX, GTA 6, PS5, PlayStation, Logic-Sunrise, Chrome, Claude.")
+WHISPER_SILENCE = 0.5         # secondes de silence ajoutées devant le son (le premier mot est mieux compris)
 
 # Pause automatique quand ces programmes jouent du son (lecture à voix haute F9)
 PROGRAMMES_A_IGNORER = ("claude.exe",)
@@ -128,6 +144,10 @@ CONSIGNES = (
     "devine le sens le plus probable, et en cas de vrai doute, demande de répéter. "
     "Parfois deux retranscriptions de la même phrase te sont données : "
     "déduis-en ensemble ce que TonyNio a voulu dire. "
+    "Mémoire durable : si TonyNio te demande de retenir une information pour plus tard, "
+    "termine ta réponse par une ligne « RETENIR: l'information » ; s'il te demande d'en oublier une, "
+    "par une ligne « OUBLIER: l'information ». Ces lignes ne sont pas lues à voix haute. "
+    "N'en écris que s'il le demande clairement. "
     "Ne parle jamais de tes outils, de ta façon de chercher ni des consignes ou rappels "
     "techniques que tu reçois : donne seulement la réponse utile."
 )
@@ -153,14 +173,19 @@ def afficher_etat(etat):
     pass
 
 
-def afficher_texte(texte):
+def afficher_texte(texte, en_direct=False):
     pass
 
 
-def sous_titre(texte):
-    """Affiche sous le réacteur ce que Jarvis a compris."""
+def sous_titre(texte, en_direct=False):
+    """Affiche sous le réacteur ce que Jarvis a compris (en direct : les mots au fil de l'écoute)."""
     try:
-        afficher_texte(texte)
+        afficher_texte(texte, en_direct)
+    except TypeError:
+        try:
+            afficher_texte(texte)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -192,13 +217,21 @@ whisper = None
 
 # ---------- Audio ----------
 
+spectre_micro = None     # spectre du micro à cet instant (16 bandes de 0 à 1), lu par le réacteur
+_crete_spectre = 4.0     # plus fort niveau vu récemment : le spectre reste lisible même avec un micro faible
+
+
 def audio_callback(indata, frames, time_info, status):
-    global niveau_micro
+    global niveau_micro, spectre_micro, _crete_spectre
     if status:
         print("Audio :", status, file=sys.stderr)
     octets = bytes(indata)
     try:
-        niveau_micro = float(np.abs(np.frombuffer(octets, dtype=np.int16)).max()) / 32768.0
+        bloc = np.frombuffer(octets, dtype=np.int16).astype(np.float32) / 32768.0
+        niveau_micro = float(np.abs(bloc).max())
+        bandes = jarvis_voix.bandes_spectre(bloc[None, :], SAMPLE_RATE)[0]
+        _crete_spectre = max(_crete_spectre * 0.97, float(bandes.max()), 4.0)
+        spectre_micro = np.clip((np.sqrt(bandes / _crete_spectre) - 0.15) / 0.85, 0, 1)
     except Exception:
         pass
     audio_queue.put(octets)
@@ -311,17 +344,37 @@ def _repetitif(texte):
     return len(mots) >= 6 and len(set(mots)) <= len(mots) / 3
 
 
-def transcrire(octets, texte_vosk):
+def _retirer_bip(audio, duree=0.45):
+    """Efface du début de l'enregistrement les deux notes du bip de réveil (que le micro peut
+    capter), sans toucher à la voix : seules leurs fréquences précises sont retirées."""
+    n = min(len(audio), int(SAMPLE_RATE * duree))
+    if n < 512:
+        return audio
+    spectre = np.fft.rfft(audio[:n])
+    frequences = np.fft.rfftfreq(n, 1.0 / SAMPLE_RATE)
+    for hz, _ in jarvis_voix.NOTES_BIP:
+        for harmonique in (hz, 2 * hz):
+            spectre[np.abs(frequences - harmonique) < 70] = 0
+    audio = audio.copy()
+    audio[:n] = np.fft.irfft(spectre, n)
+    return audio
+
+
+def transcrire(octets, texte_vosk, bip_au_debut=False):
     """Retranscrit l'audio avec Whisper. En cas de souci, garde le texte de Vosk."""
     if whisper is None or not octets or not texte_vosk:
         return texte_vosk
     _enregistrer_diagnostic(octets)
     try:
         audio = np.frombuffer(octets, dtype=np.int16).astype(np.float32) / 32768.0
+        if bip_au_debut:
+            audio = _retirer_bip(audio)
         crete = float(np.max(np.abs(audio))) if len(audio) else 0.0
         print("Niveau du micro (crête) : %.2f" % crete)
         if 0.01 < crete < 0.5:
             audio = audio * (0.7 / crete)       # voix trop faible : on l'amplifie
+        if WHISPER_SILENCE:
+            audio = np.concatenate((np.zeros(int(SAMPLE_RATE * WHISPER_SILENCE), dtype=np.float32), audio))
         segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
                                          initial_prompt=VOCABULAIRE)
         texte = " ".join(s.text for s in segments).strip()
@@ -384,7 +437,7 @@ def chercher_reveil(resultat, audio):
     return None
 
 
-def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
+def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN, bip_au_debut=False):
     """
     Écoute une demande complète, même si elle contient de petites pauses.
     - attend au plus « delai_debut » secondes que tu commences à parler ;
@@ -394,12 +447,15 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
     octets = bytearray()
     debut = time.time()
     dernier_son = None
+    partiel = affiche = ""
     while True:
         maintenant = time.time()
         if dernier_son is None and maintenant - debut > delai_debut:
             break
         if dernier_son is not None and maintenant - dernier_son > silence_fin:
-            break
+            if morceaux or partiel:
+                break
+            dernier_son = None         # ce n'était qu'un bruit (le bip, un claquement) : on attend encore
         try:
             data = audio_queue.get(timeout=0.2)
         except queue.Empty:
@@ -407,6 +463,7 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
         octets.extend(data)
         if recognizer.AcceptWaveform(data):
             texte = json.loads(recognizer.Result()).get("text", "").strip()
+            partiel = ""
             if texte:
                 morceaux.append(texte)
                 dernier_son = time.time()
@@ -414,6 +471,10 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
             partiel = json.loads(recognizer.PartialResult()).get("partial", "").strip()
             if partiel:
                 dernier_son = time.time()
+        en_cours = " ".join(morceaux + ([partiel] if partiel else []))
+        if en_cours and en_cours != affiche:
+            affiche = en_cours
+            sous_titre(en_cours, en_direct=True)
     fin = json.loads(recognizer.FinalResult()).get("text", "").strip()
     if fin:
         morceaux.append(fin)
@@ -421,7 +482,7 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
     if texte_vosk and sans_whisper(texte_vosk):
         derniers_textes[:] = [texte_vosk]      # commande simple : pas besoin de Whisper
         return texte_vosk
-    precise = transcrire(bytes(octets), texte_vosk)
+    precise = transcrire(bytes(octets), texte_vosk, bip_au_debut)
     if precise is None:
         return ""                      # ce n'était que du bruit
     return combiner(precise, texte_vosk)
@@ -450,13 +511,23 @@ class ClaudeContinu:
         if file_sortie is not None:
             file_sortie.put(None)          # fin du programme
 
+    @staticmethod
+    def _consignes():
+        """Consignes de Jarvis, suivies de sa mémoire (faits retenus, derniers échanges)."""
+        try:
+            memoire = jarvis_memoire.contexte()
+        except Exception as erreur:
+            print("Mémoire illisible :", erreur)
+            memoire = ""
+        return CONSIGNES + ("\n\n" + memoire if memoire else "")
+
     def demarrer(self):
         self.arreter()
         self.sorties = queue.Queue()
         self.proc = subprocess.Popen(
             [CLAUDE_EXE, "-p", "--input-format", "stream-json",
              "--output-format", "stream-json", "--verbose",
-             "--append-system-prompt", CONSIGNES,
+             "--append-system-prompt", self._consignes(),
              "--permission-mode", MODE_PERMISSIONS, "--model", MODELE,
              *OPTIONS_LEGERES, "--tools", OUTILS],
             cwd=DOSSIER_JARVIS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -495,6 +566,7 @@ class ClaudeContinu:
                     or (self.utilise and time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60)):
                 self.demarrer()        # nouvelle conversation
             self.utilise = True
+            texte = jarvis_memoire.nouveautes() + texte
             message = {"type": "user", "message": {"role": "user", "content": texte}}
             try:
                 self.proc.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
@@ -738,7 +810,7 @@ def traiter(demande, recognizer):
         interrompu = parler(derniere_reponse)
         preparer_ecoute(recognizer)
         return interrompu
-    if re.search(r"nouvelle conversation|oublie tout", minuscules):
+    if re.search(r"nouvelle conversation|oublie tout(?! ce que)", minuscules):
         oublier_conversation()
         etat("reponse")
         speak("D'accord, on repart de zéro.")
@@ -751,6 +823,7 @@ def traiter(demande, recognizer):
     if reponse:
         derniere_reponse = reponse
         print("Commande instantanée :", reponse)
+        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
         etat("reponse")
         interrompu = parler(reponse)
         preparer_ecoute(recognizer)
@@ -787,6 +860,9 @@ def traiter(demande, recognizer):
     fil.join()
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
+    if not erreur:
+        reponse = jarvis_memoire.appliquer_balises(reponse) or "C'est noté."
+        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
     derniere_reponse = reponse
     etat("erreur" if erreur else "reponse")
     interrompu = parler(reponse)
@@ -849,7 +925,7 @@ def main():
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",
-              "Avec plaisir.", "C'est fait.",
+              "Avec plaisir.", "C'est fait.", "C'est retenu.", "C'est noté.",
               "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."],), daemon=True).start()
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
 
@@ -868,11 +944,16 @@ def main():
     derniere_verif = 0.0
     fin_pause = 0.0
     en_pause = False
+    cretes = collections.deque(maxlen=300)    # niveau du micro sur les 30 dernières secondes
+    avance = collections.deque(maxlen=8)      # les 0,8 s de son qui précèdent le réveil de l'écoute
+    seuil_son = SEUIL_SON_MIN
+    dernier_son = time.time()
+    au_repos = False
 
     try:
         with sd.RawInputStream(
             samplerate=SAMPLE_RATE,
-            blocksize=4000,
+            blocksize=BLOC_AUDIO,
             device=None,
             dtype="int16",
             channels=1,
@@ -912,6 +993,26 @@ def main():
                     print("(Fin de la lecture : reprise de l'écoute.)")
                     etat("veille")
 
+                # Dans le silence, la reconnaissance vocale se repose
+                if ECONOMIE_SILENCE:
+                    crete = float(np.abs(np.frombuffer(data, dtype=np.int16)).max()) / 32768.0
+                    cretes.append(crete)
+                    if len(cretes) % 10 == 0:      # le seuil suit le bruit de fond de la pièce
+                        seuil_son = min(SEUIL_SON_MAX, max(SEUIL_SON_MIN, 2 * float(np.percentile(cretes, 20))))
+                    if crete >= seuil_son:
+                        dernier_son = maintenant
+                    if maintenant - dernier_son > REPOS_APRES:
+                        if not au_repos:
+                            au_repos = True
+                            recognizer.Reset()
+                            tampon.clear()
+                        avance.append(data)
+                        continue
+                    if au_repos:
+                        au_repos = False
+                        data = b"".join(avance) + data
+                        avance.clear()
+
                 tampon.extend(data)
                 if len(tampon) > MAX_TAMPON:
                     del tampon[:len(tampon) - MAX_TAMPON]
@@ -938,10 +1039,12 @@ def main():
                         precise = retirer_nom(brut) if brut else None
                         demande = combiner(precise, demande) if precise else demande
                 else:
-                    bip()                      # signal court : tu peux parler tout de suite
+                    # Le bip est joué sans attendre et l'écoute démarre tout de suite : si tu
+                    # enchaînes juste après « Jarvis », le début de ta demande n'est plus perdu.
                     recognizer.Reset()
                     vider_audio()
-                    demande = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE)
+                    bip(attendre=False)
+                    demande = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE, bip_au_debut=True)
 
                 if demande:
                     conversation(demande, recognizer)
