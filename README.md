@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.08**
+**Version actuelle : 1.09**
 
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
@@ -64,6 +64,7 @@ Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
 
 | Version | Contenu |
 |---|---|
+| 1.09 | Jauge de température (celle de la puce graphique, comme dans le Gestionnaire des tâches) |
 | 1.08 | Le contour extérieur du réacteur ondule lui aussi |
 | 1.07 | Correction : le réacteur reste de nouveau au premier plan ; jauge réseau calée sur le débit mesuré de la connexion |
 | 1.06 | Affichage réécrit avec pygame : 60 images par seconde quand Jarvis est actif ; jauges GPU et réseau |

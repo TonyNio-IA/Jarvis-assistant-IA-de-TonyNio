@@ -115,6 +115,7 @@ class Affichage:
 
         self.police_titre = pygame.font.SysFont("segoeui", int(12.5 * s), bold=True)
         self.police_jauge = pygame.font.SysFont("consolas", int(10 * s), bold=True)
+        self.police_jauge_petite = pygame.font.SysFont("consolas", int(8.8 * s), bold=True)
         self.police_texte = pygame.font.SysFont("segoeui", int(10.5 * s))
         self._textes = {}
         self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
@@ -355,7 +356,7 @@ class Affichage:
             if m.get("temp") is not None:
                 jauges.append(("TMP", m["temp"], "°"))
             colonne = (x1 - x0 - 14 * s) / len(jauges)
-            nb = 12 if len(jauges) <= 2 else 8
+            nb = 12 if len(jauges) <= 2 else 8 if len(jauges) <= 4 else 7
             ecart = 1.5 * s
             large = (colonne * 0.84 - (nb - 1) * ecart) / nb
             eteint = teinte(0.16)
@@ -363,7 +364,8 @@ class Affichage:
                 xc = x0 + 7 * s + colonne * (i + 0.5)
                 couleur = ((255, 77, 77) if valeur >= 90 else (255, 165, 58) if valeur >= 75
                            else teinte(0.95))
-                image = self._texte(self.police_jauge, f"{nom} {valeur:.0f}{unite}", couleur)
+                police = self.police_jauge if len(jauges) <= 4 else self.police_jauge_petite
+                image = self._texte(police, f"{nom} {valeur:.0f}{unite}", couleur)
                 surf.blit(image, image.get_rect(center=(xc, yb + 34 * s)))
                 allumes = math.ceil(valeur / 100 * nb - 0.001) if valeur >= 1 else 0
                 xa = xc - (nb * large + (nb - 1) * ecart) / 2
