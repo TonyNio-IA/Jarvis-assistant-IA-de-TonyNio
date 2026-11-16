@@ -22,6 +22,8 @@ Fonctionnement :
  10. « Jarvis, répète » : il redit sa dernière réponse.
  11. « Jarvis, état du PC » : processeur, mémoire, programme le plus gourmand, disque.
  12. « Jarvis, note que... » et « Jarvis, lis mes notes ».
+ 13. Rappels à heure fixe, fermer une application, capture d'écran, recherche de fichier,
+     extinction / redémarrage / veille après confirmation (voir jarvis_commandes.py).
   7. Il se met en pause tout seul quand Claude lit un message à voix haute (touche F9).
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py   (avec le réacteur)
@@ -43,9 +45,10 @@ from vosk import Model, KaldiRecognizer
 
 import jarvis_systeme
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
+import jarvis_commandes
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.09"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.10"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -70,16 +73,35 @@ OUTILS_POINT_DU_JOUR = "WebSearch,WebFetch"
 POLITESSES = ("merci", "merci jarvis", "merci beaucoup", "non merci", "c est bon merci", "c est bon")
 DELAI_AVANT_PATIENCE = 1.5    # si Claude n'a pas répondu après ce délai, Jarvis dit « Je m'en occupe »
 AUDIO_DIAGNOSTIC = r"C:\Jarvis\derniere_demande.wav"   # dernière demande enregistrée (pour diagnostic)
+# Compliments et remerciements : Jarvis répond lui-même, sans passer par Claude.
+MOTS_POLITESSE = set("non oui ok d accord c est bon bien merci beaucoup jarvis tu as fait ton travail du "
+                     "félicitations bravo parfait super nickel génial top joué boulot très tout ça "
+                     "pour l instant rien autre de plus bonne excellent impeccable".split())
+CLES_POLITESSE = re.compile(r"\b(merci|félicitations|bravo|parfait|super|nickel|génial|impeccable|"
+                            r"c est bon|bien joué|bon travail|bon boulot|bien fait ton travail)\b")
 MEMOIRE_MINUTES = 10          # Jarvis se souvient de la conversation pendant 10 min sans demande
 
 # Reconnaissance précise de la demande (Whisper, sur le PC)
 WHISPER_MODELE = "base"
+WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mieux que 1, pour 0,5 s de plus
+                              # (mesuré sur la voix de TonyNio ; le modèle « small » n'apporte rien et est 3 fois plus lent)
 WHISPER_DOSSIER = r"C:\Jarvis\whisper"
 VOCABULAIRE = ("Jarvis, TonyNio, Paris, "
                "SpaceX, GTA 6, PS5, PlayStation, Logic-Sunrise, Chrome, Claude.")
 
 # Pause automatique quand ces programmes jouent du son (lecture à voix haute F9)
 PROGRAMMES_A_IGNORER = ("claude.exe",)
+MAINTIEN_PAUSE = 2.5          # secondes de pause gardées après le dernier son de Claude
+                              # (les silences entre deux phrases lues ne relancent plus l'écoute)
+
+# Réveil : « Jarvis » en début de phrase, ou après une courte pause au milieu d'une phrase
+PAUSE_AVANT_JARVIS = 0.3      # secondes de silence avant « Jarvis » pour qu'il compte en milieu de phrase
+# Quand Vosk entend l'un de ces débuts, c'est parfois « Jarvis » mal compris : Whisper vérifie
+PRESQUE_JARVIS = ("j'ai envie", "gervais", "jervis", "j'arrive", "jarre", "djar")
+
+# Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
+DOSSIER_ENREGISTREMENTS = r"C:\Jarvis\enregistrements"
+NB_ENREGISTREMENTS = 40
 
 VILLE_METEO = "Paris"
 
@@ -103,7 +125,9 @@ CONSIGNES = (
     "La demande vient d'une reconnaissance vocale : si un mot semble mal compris, "
     "devine le sens le plus probable, et en cas de vrai doute, demande de répéter. "
     "Parfois deux retranscriptions de la même phrase te sont données : "
-    "déduis-en ensemble ce que TonyNio a voulu dire."
+    "déduis-en ensemble ce que TonyNio a voulu dire. "
+    "Ne parle jamais de tes outils, de ta façon de chercher ni des consignes ou rappels "
+    "techniques que tu reçois : donne seulement la réponse utile."
 )
 
 CONSIGNES_POINT_DU_JOUR = (
@@ -147,6 +171,7 @@ def etat(nom):
 
 
 derniere_erreur = False
+reveil_par_whisper = False
 derniere_reponse = ""         # pour « Jarvis, répète »
 niveau_micro = 0.0            # volume du micro à cet instant (0 à 1), lu par le réacteur
 derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la dernière demande
@@ -234,19 +259,48 @@ def charger_whisper():
         print("Whisper indisponible, Vosk seul sera utilisé :", erreur)
 
 
+def _ecrire_wav(chemin, octets):
+    with wave.open(chemin, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(octets)
+
+
 def _enregistrer_diagnostic(octets):
     try:
-        with wave.open(AUDIO_DIAGNOSTIC, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(SAMPLE_RATE)
-            w.writeframes(octets)
+        _ecrire_wav(AUDIO_DIAGNOSTIC, octets)
+    except Exception:
+        pass
+
+
+def garder_enregistrement(octets, texte_whisper, texte_vosk):
+    """Garde le son d'une demande et ce qui a été compris (les 40 dernières seulement)."""
+    try:
+        os.makedirs(DOSSIER_ENREGISTREMENTS, exist_ok=True)
+        nom = time.strftime("%Y-%m-%d_%Hh%Mm%S")
+        _ecrire_wav(os.path.join(DOSSIER_ENREGISTREMENTS, nom + ".wav"), octets)
+        with open(os.path.join(DOSSIER_ENREGISTREMENTS, "index.txt"), "a", encoding="utf-8") as f:
+            f.write(f"{nom} | Whisper : {texte_whisper} | Vosk : {texte_vosk}\n")
+        sons = sorted(x for x in os.listdir(DOSSIER_ENREGISTREMENTS) if x.endswith(".wav"))
+        for ancien in sons[:-NB_ENREGISTREMENTS]:
+            os.remove(os.path.join(DOSSIER_ENREGISTREMENTS, ancien))
     except Exception:
         pass
 
 
 def _normaliser(texte):
     return re.sub(r"[^a-z0-9àâäçéèêëîïôöùûüœ]+", " ", texte.lower()).strip()
+
+
+def est_politesse(texte):
+    """Vrai pour un simple remerciement ou compliment (« c'est bon, bravo », « merci beaucoup »)."""
+    propre = _normaliser(texte)
+    mots = propre.split()
+    if propre in POLITESSES:
+        return True
+    return (0 < len(mots) <= 14 and all(m in MOTS_POLITESSE for m in mots)
+            and bool(CLES_POLITESSE.search(propre)))
 
 
 def _repetitif(texte):
@@ -266,7 +320,7 @@ def transcrire(octets, texte_vosk):
         print("Niveau du micro (crête) : %.2f" % crete)
         if 0.01 < crete < 0.5:
             audio = audio * (0.7 / crete)       # voix trop faible : on l'amplifie
-        segments, _ = whisper.transcribe(audio, language="fr", beam_size=1,
+        segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
                                          initial_prompt=VOCABULAIRE)
         texte = " ".join(s.text for s in segments).strip()
     except Exception as erreur:
@@ -279,6 +333,7 @@ def transcrire(octets, texte_vosk):
         print("Whisper a inventé une phrase en boucle (bruit) : demande ignorée. Vosk :", texte_vosk)
         return None
     print("Whisper :", texte, "| Vosk :", texte_vosk)
+    garder_enregistrement(octets, texte, texte_vosk)
     return texte
 
 
@@ -295,9 +350,36 @@ def combiner(texte_whisper, texte_vosk):
 
 
 def retirer_nom(texte):
-    """Enlève « Jarvis » au début de la phrase. Renvoie None s'il n'y est pas."""
-    m = re.match(r"\W*jarvis\b\W*(.*)", texte, re.I | re.S)
+    """Renvoie ce qui suit le premier « Jarvis » de la phrase, ou None s'il n'y est pas."""
+    m = re.search(r"\bjarvis\b\W*(.*)", texte, re.I | re.S)
     return m.group(1).strip() if m else None
+
+
+def chercher_reveil(resultat, audio):
+    """
+    Décide si la phrase entendue réveille Jarvis. Renvoie la demande qui suit son nom
+    (« » s'il n'a dit que « Jarvis »), ou None si la phrase ne lui est pas adressée.
+      1. la phrase commence par « Jarvis » ;
+      2. « Jarvis » est au milieu, mais après une courte pause (nouvelle phrase) ;
+      3. le début ressemble à « Jarvis » mal compris, et Whisper confirme que c'en est un.
+    """
+    global reveil_par_whisper
+    reveil_par_whisper = False
+    phrase = resultat.get("text", "").lower()
+    m = re.match(r"\s*jarvis\b(.*)", phrase)
+    if m:
+        return m.group(1).strip()
+    mots = resultat.get("result") or []
+    for i in range(1, len(mots)):
+        if mots[i]["word"] == "jarvis" and mots[i]["start"] - mots[i - 1]["end"] >= PAUSE_AVANT_JARVIS:
+            return " ".join(x["word"] for x in mots[i + 1:])
+    if whisper is not None and phrase.startswith(PRESQUE_JARVIS):
+        precise = transcrire(audio, phrase)
+        if precise and re.match(r"\W*jarvis\b", precise, re.I):
+            print("(Réveil confirmé par Whisper.)")
+            reveil_par_whisper = True          # la demande est déjà la version précise
+            return retirer_nom(precise) or ""
+    return None
 
 
 def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
@@ -714,11 +796,12 @@ def conversation(demande, recognizer):
     """Traite la demande, puis accepte des suites sans redire « Jarvis »."""
     essais_courts = 0
     while demande:
-        if _normaliser(demande) in POLITESSES:
+        if est_politesse(demande) and not jarvis_commandes.confirmation_en_attente():
             speak("Avec plaisir.")
             preparer_ecoute(recognizer)
             break
-        if len(demande.split()) < MOTS_MINIMUM:
+        if (len(demande.split()) < MOTS_MINIMUM and not jarvis_commandes.confirmation_en_attente()
+                and not re.match(r"\W*(bonjour|bonsoir|salut)\W*$", demande, re.I)):
             print("Demande trop courte :", demande)
             essais_courts += 1
             if essais_courts > 1:
@@ -734,9 +817,11 @@ def conversation(demande, recognizer):
         essais_courts = 0
         if traiter(demande, recognizer):
             break                      # interrompu : retour en veille
-        print("(J'écoute une éventuelle suite pendant", DELAI_SUITE, "secondes...)")
+        # Après une question de confirmation (éteindre le PC...), Jarvis attend plus longtemps
+        delai = DELAI_ECOUTE_DEMANDE if jarvis_commandes.confirmation_en_attente() else DELAI_SUITE
+        print("(J'écoute une éventuelle suite pendant", delai, "secondes...)")
         etat("ecoute")
-        demande = ecouter_demande(recognizer, DELAI_SUITE)
+        demande = ecouter_demande(recognizer, delai)
     print("(Retour en veille : dis « Jarvis » pour me réveiller.)")
     etat("veille")
 
@@ -752,9 +837,11 @@ def main():
     print("Chargement du modèle français...")
     model = Model(MODEL_PATH)
     recognizer = KaldiRecognizer(model, SAMPLE_RATE)
+    recognizer.SetWords(True)          # heure de chaque mot : sert à repérer la pause avant « Jarvis »
     rec_stop = KaldiRecognizer(model, SAMPLE_RATE, json.dumps(MOTS_STOP + ["[unk]"], ensure_ascii=False))
     # Tout le reste se charge en arrière-plan : Jarvis écoute dès que Vosk est prêt
     jarvis_systeme.demarrer()
+    jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, False)))
     threading.Thread(target=charger_whisper, daemon=True).start()
     threading.Thread(target=preparer, args=(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
@@ -809,7 +896,7 @@ def main():
                 if maintenant - derniere_verif > 0.3:
                     derniere_verif = maintenant
                     if lecture_en_cours():
-                        fin_pause = maintenant + 1.0
+                        fin_pause = maintenant + MAINTIEN_PAUSE
                 if maintenant < fin_pause:
                     if not en_pause:
                         en_pause = True
@@ -829,23 +916,22 @@ def main():
                 if not recognizer.AcceptWaveform(data):
                     continue
 
-                phrase = json.loads(recognizer.Result()).get("text", "").lower()
+                resultat = json.loads(recognizer.Result())
+                phrase = resultat.get("text", "").lower()
                 audio_phrase = bytes(tampon)
                 tampon.clear()
                 if not phrase:
                     continue
                 print("Entendu :", phrase)
 
-                m = re.match(r"\s*jarvis\b(.*)", phrase)  # la phrase doit COMMENCER par « Jarvis »
-                if not m:
+                demande = chercher_reveil(resultat, audio_phrase)
+                if demande is None:
                     continue
-
-                demande = m.group(1).strip()
                 etat("ecoute")
                 if demande:
                     derniers_textes[:] = [demande]
                     # Retranscription précise de toute la phrase, sans le mot « Jarvis »
-                    if not sans_whisper(demande):
+                    if not reveil_par_whisper and not sans_whisper(demande):
                         brut = transcrire(audio_phrase, phrase)
                         precise = retirer_nom(brut) if brut else None
                         demande = combiner(precise, demande) if precise else demande

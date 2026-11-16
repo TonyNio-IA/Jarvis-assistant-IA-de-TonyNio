@@ -25,6 +25,7 @@ import jarvis_systeme
 import jarvis_voix
 
 CLE = (1, 2, 3)          # couleur rendue invisible (transparence de la fenêtre)
+ELARGISSEMENT = 30       # largeur ajoutée au panneau de chaque côté du réacteur
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
 user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_wchar_p]
@@ -66,8 +67,9 @@ class Affichage:
         s = self.s = dpi / 96.0
         self.d = int(source.TAILLE * s)
         self.m = int(4 * s)
-        self.w = self.d + 2 * self.m
-        self.h = self.d + 2 * self.m + int((64 if source.AFFICHER_SYSTEME else 44) * s)
+        # Le panneau est un peu plus large que le réacteur, pour des jauges bien lisibles
+        self.w = self.d + 2 * self.m + int((2 * ELARGISSEMENT if source.AFFICHER_SYSTEME else 0) * s)
+        self.h = self.d + 2 * self.m + int((70 if source.AFFICHER_SYSTEME else 44) * s)
 
         largeur_ecran, hauteur_ecran = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         x = largeur_ecran - self.w - int(source.MARGE_DROITE * s)
@@ -113,10 +115,10 @@ class Affichage:
                            "v": random.uniform(0.6, 1.4), "p": random.uniform(0, 6.3)}
                           for _ in range(source.NB_POUSSIERE)]
 
-        self.police_titre = pygame.font.SysFont("segoeui", int(12.5 * s), bold=True)
-        self.police_jauge = pygame.font.SysFont("consolas", int(10 * s), bold=True)
-        self.police_jauge_petite = pygame.font.SysFont("consolas", int(8.8 * s), bold=True)
-        self.police_texte = pygame.font.SysFont("segoeui", int(10.5 * s))
+        self.police_titre = pygame.font.SysFont("segoeui", int(13.5 * s), bold=True)
+        self.police_jauge = pygame.font.SysFont("consolas", int(11 * s), bold=True)
+        self.police_jauge_petite = pygame.font.SysFont("consolas", int(11 * s), bold=True)
+        self.police_texte = pygame.font.SysFont("segoeui", int(11 * s))
         self._textes = {}
         self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
 
@@ -233,7 +235,7 @@ class Affichage:
         self.angle += vitesse * 0.6 * dt
         ph = self.angle
 
-        cx = cy = self.m + self.d / 2
+        cx, cy = self.w / 2, self.m + self.d / 2
         R = self.d / 2 - 3 * s
         R0 = R * 0.68
         ligne, aaligne, cercle = pygame.draw.lines, pygame.draw.aalines, self._cercle
@@ -338,7 +340,7 @@ class Affichage:
         pygame.draw.lines(surf, teinte(1.0), False, [(x0, y1 - e), (x0, y1), (x0 + e, y1)], ep)
 
         image = self._texte(self.police_titre, titre.upper(), teinte(1.0))
-        yt = yb + 16 * s
+        yt = yb + 17 * s
         surf.blit(image, image.get_rect(center=(cx, yt)))
         demi = image.get_width() / 2 + 10 * s
         if cx - demi > x0 + k + 6 * s:
@@ -356,7 +358,7 @@ class Affichage:
             if m.get("temp") is not None:
                 jauges.append(("TMP", m["temp"], "°"))
             colonne = (x1 - x0 - 14 * s) / len(jauges)
-            nb = 12 if len(jauges) <= 2 else 8 if len(jauges) <= 4 else 7
+            nb = 12 if len(jauges) <= 2 else 8
             ecart = 1.5 * s
             large = (colonne * 0.84 - (nb - 1) * ecart) / nb
             eteint = teinte(0.16)
@@ -366,10 +368,10 @@ class Affichage:
                            else teinte(0.95))
                 police = self.police_jauge if len(jauges) <= 4 else self.police_jauge_petite
                 image = self._texte(police, f"{nom} {valeur:.0f}{unite}", couleur)
-                surf.blit(image, image.get_rect(center=(xc, yb + 34 * s)))
+                surf.blit(image, image.get_rect(center=(xc, yb + 36 * s)))
                 allumes = math.ceil(valeur / 100 * nb - 0.001) if valeur >= 1 else 0
                 xa = xc - (nb * large + (nb - 1) * ecart) / 2
-                ya, yz = yb + 41.5 * s, yb + 46 * s
+                ya, yz = yb + 44.5 * s, yb + 50 * s
                 for j in range(nb):
                     xj = xa + j * (large + ecart)
                     pygame.draw.polygon(surf, couleur if j < allumes else eteint,
@@ -379,7 +381,7 @@ class Affichage:
             fondu = 1.0 if age < src.DUREE_TEXTE - 2 else max(0.0, (src.DUREE_TEXTE - age) / 2)
             image = self._texte(self.police_texte, "« " + src.texte_actuel + " »",
                                 teinte(0.85 * fondu, blanc))
-            surf.blit(image, image.get_rect(center=(cx, yb + (55.5 if src.AFFICHER_SYSTEME else 32) * s)))
+            surf.blit(image, image.get_rect(center=(cx, yb + (60 if src.AFFICHER_SYSTEME else 32) * s)))
 
     # ---------- Boucle ----------
 

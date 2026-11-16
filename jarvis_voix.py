@@ -30,7 +30,7 @@ except Exception:
     av = sd = None
 
 VOIX = "fr-FR-HenriNeural"
-VITESSE = "+5%"     # "+0%" = normal, "+10%" = un peu plus rapide, "-10%" = plus lent
+VITESSE = "+12%"    # "+0%" = normal, "+10%" = un peu plus rapide, "-10%" = plus lent
 FREQ = 24000        # fréquence du son fourni par edge-tts
 DOSSIER_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_voix")
 TAILLE_MORCEAU = 220   # longueur (en caractères) des morceaux d'une longue réponse
