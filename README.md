@@ -10,7 +10,8 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 - Répondre aux questions et agir sur le PC (ouvrir un programme, chercher une information...).
 - Enchaîner une autre demande dans les 3 secondes sans redire « Jarvis ».
 - Se souvenir de la conversation pendant 10 minutes (« Jarvis, nouvelle conversation » pour repartir de zéro).
-- « Jarvis, fais-moi le point du jour » : météo de Paris, actualités, SpaceX, GTA 6, PS5 et Logic-Sunrise.
+- « Jarvis, fais-moi le point du jour » : météo de ta ville, actualités, SpaceX, GTA 6, PS5 et Logic-Sunrise.
+  La ville se règle dans `ville.txt` (fichier gardé sur le PC, jamais publié : `Nom;latitude;longitude`).
   Il le prépare en arrière-plan et le lit dès qu'il est prêt ; « Jarvis, annule le point du jour » l'arrête.
   (Réglage `POINT_DU_JOUR_AUTO = True` pour qu'il le prépare tout seul au premier démarrage du matin.)
 - Réponse immédiate, sans Claude, pour : l'heure, la date, la météo (aujourd'hui, demain, après-demain, via Open-Meteo), le volume, la musique (pause, suivant, précédent), les minuteurs et rappels (« rappelle-moi dans 20 minutes de sortir le linge »), l'ouverture d'applications courantes et le verrouillage du PC.

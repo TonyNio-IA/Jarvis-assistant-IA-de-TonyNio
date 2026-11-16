@@ -39,8 +39,29 @@ MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août
 
 PAS_VOLUME = 10   # pourcentage ajouté ou retiré par « monte le son » / « baisse le son »
 
-# Ville utilisée quand tu demandes la météo sans préciser d'endroit
-VILLE_DEFAUT = ("Paris", 48.8566, 2.3522)
+# Ville utilisée quand tu demandes la météo sans préciser d'endroit.
+# Elle se règle dans le fichier C:\Jarvis\ville.txt, qui reste sur ce PC (jamais envoyé sur GitHub) :
+#   ligne 1 : Nom;latitude;longitude        (exemple : Paris;48.8566;2.3522)
+#   ligne 2 : précision facultative          (exemple : en Île-de-France)
+#   ligne 3 : noms de lieux à bien reconnaître, séparés par des virgules (facultatif)
+FICHIER_VILLE = r"C:\Jarvis\ville.txt"
+
+
+def _charger_ville():
+    ville, precision, lieux = ("Paris", 48.8566, 2.3522), "", ""
+    try:
+        with open(FICHIER_VILLE, encoding="utf-8-sig") as f:
+            lignes = [ligne.strip() for ligne in f.read().splitlines()]
+        nom, latitude, longitude = [morceau.strip() for morceau in lignes[0].split(";")]
+        ville = (nom, float(latitude.replace(",", ".")), float(longitude.replace(",", ".")))
+        precision = lignes[1] if len(lignes) > 1 else ""
+        lieux = lignes[2] if len(lignes) > 2 else ""
+    except (OSError, ValueError, IndexError):
+        pass
+    return ville, precision, lieux
+
+
+VILLE_DEFAUT, VILLE_PRECISION, LIEUX_CONNUS = _charger_ville()
 DELAI_METEO = 5   # secondes maximum pour obtenir la météo, sinon la demande part à Claude
 
 DOSSIER_PERSO = os.path.expanduser("~")
@@ -179,7 +200,8 @@ def _sans_accents(t):
 
 def _lieu(nom):
     """Renvoie (nom, latitude, longitude), ou None si la ville n'est pas trouvée."""
-    if not nom or _sans_accents(nom) in (_sans_accents(VILLE_DEFAUT[0]), "pari"):
+    defaut = _sans_accents(VILLE_DEFAUT[0])
+    if not nom or _sans_accents(nom) in (defaut, defaut[:-1]):   # la dernière lettre est parfois mal entendue
         return VILLE_DEFAUT
     url = ("https://geocoding-api.open-meteo.com/v1/search?count=5&language=fr&format=json&name="
            + urllib.parse.quote(nom))

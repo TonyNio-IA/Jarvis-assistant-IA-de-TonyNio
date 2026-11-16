@@ -86,8 +86,9 @@ WHISPER_MODELE = "base"
 WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mieux que 1, pour 0,5 s de plus
                               # (mesuré sur la voix de TonyNio ; le modèle « small » n'apporte rien et est 3 fois plus lent)
 WHISPER_DOSSIER = r"C:\Jarvis\whisper"
-VOCABULAIRE = ("Jarvis, TonyNio, Paris, "
-               "SpaceX, GTA 6, PS5, PlayStation, Logic-Sunrise, Chrome, Claude.")
+VOCABULAIRE = ("Jarvis, TonyNio, " + jarvis_commandes.VILLE_DEFAUT[0] + ", "
+               + (jarvis_commandes.LIEUX_CONNUS + ", " if jarvis_commandes.LIEUX_CONNUS else "")
+               + "SpaceX, GTA 6, PS5, PlayStation, Logic-Sunrise, Chrome, Claude.")
 
 # Pause automatique quand ces programmes jouent du son (lecture à voix haute F9)
 PROGRAMMES_A_IGNORER = ("claude.exe",)
@@ -103,7 +104,8 @@ PRESQUE_JARVIS = ("j'ai envie", "gervais", "jervis", "j'arrive", "jarre", "djar"
 DOSSIER_ENREGISTREMENTS = r"C:\Jarvis\enregistrements"
 NB_ENREGISTREMENTS = 40
 
-VILLE_METEO = "Paris"
+# La ville se règle dans C:\Jarvis\ville.txt (voir jarvis_commandes.py)
+VILLE_METEO = ", ".join(p for p in (jarvis_commandes.VILLE_DEFAUT[0], jarvis_commandes.VILLE_PRECISION) if p)
 
 # Point du jour automatique : au premier démarrage de Jarvis entre ces heures, une fois par jour
 POINT_DU_JOUR_AUTO = False              # True = le préparer tout seul au premier démarrage du matin

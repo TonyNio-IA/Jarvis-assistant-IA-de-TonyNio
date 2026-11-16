@@ -10,6 +10,7 @@ __pycache__/
 *.date
 cache_voix/
 notes.txt
+ville.txt
 position.txt
 reseau_max.txt
 rappels.json
