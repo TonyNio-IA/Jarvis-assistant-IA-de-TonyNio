@@ -78,6 +78,7 @@ NB_FILAMENTS = 9        # nombre de filaments qui forment l'anneau
 NB_FILAMENTS_INT = 4    # filaments plus fins à l'intérieur
 NB_FILAMENTS_BORD = 3   # filaments fins qui forment le bord extérieur
 NB_POUSSIERE = 40       # particules lumineuses à l'intérieur de l'anneau
+FICHIER_POSITION = os.path.join(DOSSIER, "position.txt")   # emplacement choisi à la souris
 AFFICHER_SYSTEME = True # processeur, mémoire et réseau sous le réacteur
 IMAGES_ACTIF = 30       # images par seconde quand Jarvis écoute, réfléchit ou répond
 IMAGES_VEILLE = 10      # images par seconde en veille (économise le processeur)
@@ -104,7 +105,7 @@ DUREE_TEXTE = 12           # secondes d'affichage
 def changer_texte(texte):
     global texte_actuel, texte_depuis
     texte = " ".join(str(texte).split())
-    texte_actuel = texte if len(texte) <= 70 else texte[:67] + "..."
+    texte_actuel = texte if len(texte) <= 44 else texte[:41] + "..."
     texte_depuis = time.time()
 
 
@@ -143,10 +144,18 @@ class Reacteur:
         self.d = int(TAILLE * echelle)
         self.m = int((30 if STYLE == "hud" else 4) * echelle)   # marge (particules du style hud)
         self.w = self.d + 2 * self.m
-        self.h = int(self.d + 2 * self.m + (106 if AFFICHER_SYSTEME else 74) * echelle)
+        self.h = int(self.d + 2 * self.m + (68 if AFFICHER_SYSTEME else 46) * echelle)
         jarvis_systeme.demarrer()
         x = self.root.winfo_screenwidth() - self.w - int(MARGE_DROITE * echelle)
         y = self.root.winfo_screenheight() - self.h - int(MARGE_BAS * echelle)
+        try:                                  # dernière position choisie à la souris
+            with open(FICHIER_POSITION, encoding="utf-8") as f:
+                px, py = (int(v) for v in f.read().split(","))
+            if (0 <= px <= self.root.winfo_screenwidth() - self.w
+                    and 0 <= py <= self.root.winfo_screenheight() - self.h):
+                x, y = px, py
+        except (OSError, ValueError):
+            pass
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
 
         # Particules : angle, distance au centre (en fraction du rayon), vitesse, taille
@@ -165,6 +174,7 @@ class Reacteur:
         # Déplacement et menu
         self.c.bind("<ButtonPress-1>", self._debut_deplacement)
         self.c.bind("<B1-Motion>", self._deplacer)
+        self.c.bind("<ButtonRelease-1>", self._fin_deplacement)
         self.menu = tk.Menu(self.root, tearoff=0)
         self.menu.add_command(label=f"Jarvis version {jarvis_claude.VERSION}", state="disabled")
         self.menu.add_separator()
@@ -176,6 +186,14 @@ class Reacteur:
 
     def _debut_deplacement(self, e):
         self._dx, self._dy = e.x, e.y
+
+    def _fin_deplacement(self, e):
+        """Retient l'emplacement du réacteur pour les prochains démarrages."""
+        try:
+            with open(FICHIER_POSITION, "w", encoding="utf-8") as f:
+                f.write(f"{self.root.winfo_x()},{self.root.winfo_y()}")
+        except OSError:
+            pass
 
     def _deplacer(self, e):
         x = self.root.winfo_x() + e.x - self._dx
@@ -214,26 +232,34 @@ class Reacteur:
         self._cfg_cache = {}     # dernier réglage de chaque objet : on ne renvoie que ce qui change
         self._pos_cache = {}
 
-        # Carte sombre sous le réacteur (texte lisible sur n'importe quel fond d'écran)
+        # Panneau sous le réacteur : cadre à pans coupés, façon affichage de bord
         x0, x1 = 5 * s, self.w - 5 * s
-        y0, y1 = self.m + self.d + 5 * s, self.h - 3 * s
-        r = 12 * s
+        y0, y1 = self.m + self.d + 4 * s, self.h - 3 * s
+        k = 9 * s                                   # taille des pans coupés
         self.it_carte = c.create_polygon(
-            x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1,
-            x0 + r, y1, x0, y1, x0, y1 - r, x0, y0 + r, x0, y0, smooth=True, fill=FOND)
+            x0 + k, y0, x1, y0, x1, y1 - k, x1 - k, y1, x0, y1, x0, y0 + k, fill=FOND)
+        # Équerres lumineuses dans les deux angles droits, et traits de part et d'autre du titre
+        e = 14 * s
+        self.it_equerres = [c.create_line(x1 - e, y0, x1, y0, x1, y0 + e),
+                            c.create_line(x0, y1 - e, x0, y1, x0 + e, y1)]
+        yb = self.m + self.d
+        self.it_traits = [c.create_line(x0 + k + 4 * s, yb + 17 * s, x0 + 46 * s, yb + 17 * s),
+                          c.create_line(x1 - 46 * s, yb + 17 * s, x1 - 12 * s, yb + 17 * s)]
         self.it_sys = None
         if AFFICHER_SYSTEME:
-            yb = self.m + self.d
-            largeur = 64 * s
+            nb, large, ecart = 14, 4.6 * s, 1.6 * s          # jauges en 14 segments
+            total = nb * large + (nb - 1) * ecart
             self.it_sys = {}
             for nom, x in (("cpu", self.w * 0.27), ("ram", self.w * 0.73)):
-                texte = c.create_text(x, yb + 70 * s, font=("Segoe UI", 8, "bold"))
-                c.create_rectangle(x - largeur / 2, yb + 79 * s, x + largeur / 2, yb + 82 * s,
-                                   fill="#16232b", outline="")
-                barre = c.create_rectangle(0, 0, 0, 0, outline="")
-                self.it_sys[nom] = (texte, barre, x - largeur / 2, yb + 79 * s, largeur, 3 * s)
-            self.it_reseau = c.create_text(self.w / 2, yb + 93 * s, font=("Segoe UI", 8))
-
+                texte = c.create_text(x, yb + 34 * s, font=("Consolas", 8, "bold"))
+                segments = []
+                for i in range(nb):
+                    xa = x - total / 2 + i * (large + ecart)
+                    segments.append(c.create_polygon(
+                        xa + 1.5 * s, yb + 41 * s, xa + large + 1.5 * s, yb + 41 * s,
+                        xa + large, yb + 45.5 * s, xa, yb + 45.5 * s, outline=""))
+                self.it_sys[nom] = (texte, segments)
+            self.it_reseau = c.create_text(self.w / 2, yb + 57 * s, font=("Consolas", 8))
         self.it_fond = [c.create_oval(0, 0, 0, 0, outline="") for _ in range(7)]
         self.it_bord = [(c.create_line(0, 0, 1, 1), c.create_line(0, 0, 1, 1))
                         for _ in range(NB_FILAMENTS_BORD)]
@@ -252,7 +278,7 @@ class Reacteur:
         self.idx_points = [list(range(f % 6, n, 6)) for f in range(NB_FILAMENTS)]
         self.it_points = [[c.create_oval(0, 0, 0, 0, outline="") for _ in idx]
                           for idx in self.idx_points]
-        self.it_texte = c.create_text(0, 0, font=("Segoe UI", 11, "bold"))
+        self.it_texte = c.create_text(0, 0, font=("Segoe UI", 9, "bold"))
         self.it_sous_titre = c.create_text(0, 0, font=("Segoe UI", 8), anchor="n",
                                            justify="center", width=self.w - 26 * s)
         self._voix = 0.0
@@ -428,28 +454,33 @@ class Reacteur:
                 place(it, (0.9 + 0.9 * scint) * s, x, y)
                 cfg(it, state="normal", fill=teinte(force * scint, blanc))
 
-        cfg(self.it_carte, outline=teinte(0.3 * eclat), width=1 * s)
+        cfg(self.it_carte, outline=teinte(0.28 * eclat), width=1 * s)
+        for it in self.it_equerres:
+            cfg(it, fill=teinte(1.0), width=2 * s)
+        for it in self.it_traits:
+            cfg(it, fill=teinte(0.45), width=1 * s)
+        age = time.time() - texte_depuis
+        visible = bool(texte_actuel) and age < DUREE_TEXTE
         if self.it_sys:
             m = jarvis_systeme.mesures
+            eteint = teinte(0.16)
             for nom, valeur in (("cpu", m["cpu"]), ("ram", m["ram"])):
-                texte_it, barre, bx, by, largeur, hauteur = self.it_sys[nom]
-                couleur = "#ff4d4d" if valeur >= 90 else "#ffa53a" if valeur >= 75 else teinte(0.9)
-                cfg(texte_it, text=f"{nom.upper()} {valeur:.0f} %", fill=couleur)
-                cfg(barre, fill=couleur)
-                cle = round(valeur)
-                if positions.get(barre) != cle:
-                    positions[barre] = cle
-                    c.coords(barre, bx, by, bx + largeur * min(100, valeur) / 100, by + hauteur)
+                texte_it, segments = self.it_sys[nom]
+                couleur = "#ff4d4d" if valeur >= 90 else "#ffa53a" if valeur >= 75 else teinte(0.95)
+                cfg(texte_it, text=f"{nom.upper()} {valeur:3.0f}%", fill=couleur)
+                allumes = math.ceil(valeur / 100 * len(segments) - 0.001) if valeur >= 1 else 0
+                for i, seg in enumerate(segments):
+                    cfg(seg, fill=couleur if i < allumes else eteint)
+            # La dernière ligne montre le réseau, ou ce que Jarvis vient de comprendre
             cfg(self.it_reseau, fill=teinte(0.7, blanc),
-                text=f"↓ {jarvis_systeme.debit(m['recu'])}    ↑ {jarvis_systeme.debit(m['envoye'])}")
-        c.coords(self.it_texte, cx, self.m + self.d + 19 * s)
-        cfg(self.it_texte, text=texte, fill=teinte(1.0))
-        age = time.time() - texte_depuis
-        visible = texte_actuel and age < DUREE_TEXTE
+                text="" if visible else
+                f"▼ {jarvis_systeme.debit(m['recu'])}   ▲ {jarvis_systeme.debit(m['envoye'])}")
+        c.coords(self.it_texte, cx, self.m + self.d + 17 * s)
+        cfg(self.it_texte, text=texte.upper(), fill=teinte(1.0))
         fondu = 1.0 if age < DUREE_TEXTE - 2 else max(0.0, (DUREE_TEXTE - age) / 2)
-        c.coords(self.it_sous_titre, cx, self.m + self.d + 32 * s)
+        c.coords(self.it_sous_titre, cx, self.m + self.d + ((50 if self.it_sys else 27) * s))
         cfg(self.it_sous_titre, text=("« " + texte_actuel + " »") if visible else "",
-                        fill=teinte(0.75 * fondu, blanc))
+            fill=teinte(0.85 * fondu, blanc))
 
     def _dessiner_hud(self):
         c, s = self.c, self.s

@@ -10,3 +10,4 @@ __pycache__/
 *.date
 cache_voix/
 notes.txt
+position.txt
