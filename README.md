@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.18**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.18**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
 
@@ -8,7 +8,7 @@
 
 Un réacteur animé, toujours visible dans un coin de l'écran, montre ce qu'il fait : il écoute, il réfléchit, il répond.
 
-> **English summary.** Jarvis is a French-speaking voice assistant for Windows 11. Say "Jarvis", then your request: it answers aloud and acts on the PC (apps, windows, music, reminders, clipboard, screen reading). Simple commands run locally; everything else goes to Claude through Claude Code. Speech recognition runs offline (Vosk and Whisper). The interface and the voice commands are in French only.
+> **In English.** The full presentation in English is in [README.en.md](README.en.md). Jarvis itself speaks and understands French only.
 
 ## Ce qu'il te faut
 
@@ -87,6 +87,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |
+| `README.en.md` | La présentation en anglais |
 
 ## Comment ça marche
 
@@ -111,7 +112,7 @@ Jarvis est publié sous licence **PolyForm Strict 1.0.0** (fichier `LICENSE.md`)
 - tu ne peux pas le modifier, ni en publier une copie ou une version à toi ;
 - les nouveautés arrivent avec les versions publiées ici.
 
-Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **Issues** : c'est la bonne façon de faire avancer le projet.
+Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **Issues**, en français ou en anglais : c'est la bonne façon de faire avancer le projet.
 
 ## Versions
 
