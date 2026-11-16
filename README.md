@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.15**
+**Version actuelle : 1.17**
 
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
@@ -81,6 +81,7 @@ Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
 
 | Version | Contenu |
 |---|---|
+| 1.17 | Affichage : mode discret en veille (le réacteur rétrécit, le panneau disparaît, il revient au survol de la souris), minuteurs et rappels visibles sur la couronne et dans le panneau, alerte visuelle de 5 secondes quand un rappel sonne, animations de lancement et d'arrêt ; correction d'un plantage au déplacement du réacteur ; « redémarre-toi » reconnu même mal entendu |
 | 1.15 | Jarvis se réveille aussi pendant qu'une vidéo ou de la musique joue, et coupe presque le son du PC le temps de t'écouter ; il voit l'écran (« qu'est-ce qu'il y a à l'écran ? ») et le texte copié (« résume / traduis / corrige ce que j'ai copié ») ; gardien qui le relance s'il plante ou si le micro est débranché ; « Jarvis, redémarre-toi » ; « mets » entendu « mais » rétabli pour toutes les commandes ; rappels « mets un rappel à 13 h 56 » corrigés |
 | 1.12 | Le son du PC est baissé pendant que tu parles à Jarvis, et il n'écoute plus de suite quand une vidéo ou de la musique joue ; Claude connaît les fenêtres ouvertes ; gestion des fenêtres à la voix ; applications déjà ouvertes reconnues même mal entendues ; réponses courtes (« oui », « non ») mieux comprises ; corrections après essais : « mets l'application en grand écran » ne lance plus une vidéo, les demandes doubles (« ferme ça et ouvre Chrome ») vont à Claude en entier, « Jarvis » redit en cours de conversation relance l'écoute, réveil et « éteins » mieux reconnus |
 | 1.11 | Mémoire durable (faits retenus à la demande, fil des derniers échanges) ; écoute plus fine (le bip ne coupe plus le début de la demande, « mets » mieux compris, réaction en 0,1 s) ; mots affichés pendant l'écoute ; couronne de spectre, halo, onde de réveil et heure dans l'affichage ; ville de la météo réglable dans un fichier local |

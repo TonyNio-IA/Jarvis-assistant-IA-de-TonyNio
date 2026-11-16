@@ -25,7 +25,8 @@ try:
 except Exception:
     psutil = None
 
-user32 = ctypes.windll.user32
+# Accès à Windows propre à ce fichier : ses réglages ne touchent pas ceux des autres fichiers de Jarvis
+user32 = ctypes.WinDLL("user32")
 user32.GetForegroundWindow.restype = ctypes.c_void_p
 for _f in ("IsWindowVisible", "IsIconic", "IsZoomed", "GetWindowTextLengthW", "SetForegroundWindow"):
     getattr(user32, _f).argtypes = [ctypes.c_void_p]

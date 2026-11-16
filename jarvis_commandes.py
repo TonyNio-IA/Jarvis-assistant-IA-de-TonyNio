@@ -382,8 +382,17 @@ def _ecrire_rappels(rappels):
 def _ajouter_rappel(quand, message):
     with _verrou_rappels:
         rappels = _lire_rappels()
-        rappels.append({"quand": quand, "message": message})
+        rappels.append({"quand": quand, "message": message, "debut": time.time()})
         _ecrire_rappels(rappels)
+
+
+def prochain_rappel():
+    """Le prochain minuteur ou rappel : (moment prévu, moment de création, message), ou None."""
+    rappels = [r for r in _lire_rappels() if r.get("quand", 0) > time.time()]
+    if not rappels:
+        return None
+    r = min(rappels, key=lambda x: x["quand"])
+    return r["quand"], r.get("debut", r["quand"] - 3600), r.get("message", "")
 
 
 def _heure_parlee(h, m):

@@ -94,6 +94,8 @@ ETATS = {
     "erreur":     ("#ff3b3b",   0.4,     0.0,       "Erreur"),
     "pause":      ("#8a7fd6",   0.15,    0.02,      "En pause (lecture)"),
     "demarrage":  ("#6c7a89",   0.5,     0.03,      "Démarrage..."),
+    "arret":      ("#6c7a89",   2.0,     0.0,       "À bientôt"),
+    "rappel":     ("#ffe066",   1.6,     0.0,       "Rappel"),
 }
 # ====================
 

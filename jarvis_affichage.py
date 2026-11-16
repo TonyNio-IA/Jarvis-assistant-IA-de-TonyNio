@@ -12,12 +12,18 @@ ta voix quand Jarvis écoute, celui de sa voix quand il répond. Une onde part d
 Sous le réacteur, le panneau affiche l'état de Jarvis, l'heure et des jauges :
 processeur, mémoire, carte graphique, réseau (et température si le PC la fournit).
 Pendant l'écoute, les mots compris s'y affichent au fur et à mesure.
+
+En veille, le réacteur se fait discret : il rétrécit et son panneau disparaît. Il reprend sa
+taille dès que Jarvis t'entend, ou quand tu passes la souris dessus.
+Un minuteur ou un rappel en attente se lit sur la couronne (elle se vide peu à peu) et dans le panneau.
+Au lancement, le réacteur se forme ; à l'arrêt ou au redémarrage, il se referme.
 """
 
 import ctypes
 import math
 import os
 import random
+import re
 import time
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -32,6 +38,12 @@ import jarvis_voix
 CLE = (1, 2, 3)          # couleur rendue invisible (transparence de la fenêtre)
 ELARGISSEMENT = 30       # largeur ajoutée au panneau de chaque côté du réacteur
 NB_GRADUATIONS = 72      # traits de la couronne extérieure (ils dessinent le spectre du son)
+MODE_DISCRET = True      # en veille, le réacteur rétrécit et le panneau disparaît
+TAILLE_DISCRETE = 0.45   # taille du réacteur en veille (1 = taille normale)
+DELAI_DISCRET = 20       # secondes de veille avant de rétrécir
+DUREE_NAISSANCE = 1.4    # secondes que met le réacteur à se former au lancement
+DUREE_ALERTE = 5.0       # secondes d'animation quand un minuteur ou un rappel sonne
+DUREE_FERMETURE = 0.7    # secondes qu'il met à se refermer à l'arrêt
 HALO = True              # léger halo lumineux autour des filaments (False = dessin net, un peu plus rapide)
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
@@ -114,6 +126,13 @@ class Affichage:
         self._dernier_premier_plan = time.time()
         self.glisse = None
         self._etat_prec = None
+        self._forme = 1.0                          # 1 = taille normale, 0 = mode discret
+        self._alerte = -100.0                      # moment où le dernier rappel a sonné
+        self._fermeture = None                     # moment où l'arrêt a été demandé
+        self._sortie = 0                           # code de sortie à l'arrêt
+        self._quitter = True
+        self._rappel = None                        # prochain rappel (quand, début, message)
+        self._rappel_lu = 0.0
         self._onde = -10.0                         # moment du dernier réveil (onde qui part du cœur)
         self._niveaux = np.zeros(NB_GRADUATIONS)   # hauteur lissée de chaque graduation
         self._jauges = {}                          # valeurs lissées des jauges
@@ -173,7 +192,22 @@ class Affichage:
         if choix == 1:
             jarvis_claude.oublier_conversation()
         elif choix == 2:
-            os._exit(0)
+            self.fermer(0)
+
+    def fermer(self, code=0, quitter=True):
+        """Le réacteur se referme. Avec quitter=True, Jarvis s'arrête ensuite avec ce code de sortie
+        (sinon c'est celui qui a demandé la fermeture qui s'en charge, par exemple « redémarre-toi »)."""
+        if self._fermeture is None:
+            self._fermeture, self._sortie, self._quitter = time.time(), code, quitter
+
+    def _survol(self):
+        """Vrai si la souris est sur le réacteur (ou sur toute la fenêtre quand il est déployé)."""
+        x, y = self._curseur()
+        fx, fy = self._position()
+        if self._forme > 0.5:
+            return fx <= x <= fx + self.w and fy <= y <= fy + self.h
+        rayon = self.d / 2 * (TAILLE_DISCRETE + 0.1)
+        return math.hypot(x - (fx + self.w / 2), y - (fy + self.m + self.d / 2)) <= rayon
 
     def _evenements(self):
         for ev in pygame.event.get():
@@ -225,6 +259,13 @@ class Affichage:
         dt = min(0.25, maintenant - self.t_prec)
         self.t_prec = maintenant
         t = maintenant - self.t0
+        # Un rappel sonne : l'alerte dure au moins 5 secondes, même si Jarvis a fini de parler
+        if e == "rappel" and self._etat_prec != "rappel":
+            self._alerte = maintenant
+        alerte = maintenant - self._alerte
+        if alerte < DUREE_ALERTE and e in ("veille", "pause", "reponse"):
+            e = "rappel"
+        self._en_alerte = e == "rappel"
         cible, vitesse, _, titre = src.ETATS[e]
         self.couleur = _melange(self.couleur, _rgb(cible), 1 - math.exp(-dt * 4))
         base = self.couleur
@@ -250,6 +291,9 @@ class Affichage:
             amplitude, eclat = 0.16, 1.0
         elif e == "erreur":
             amplitude, eclat = 0.20, 0.95
+        elif e == "rappel":
+            # la voix de Jarvis anime aussi l'anneau pendant qu'il annonce le rappel
+            amplitude, eclat = 0.14 + 0.2 * self._voix + 0.05 * math.sin(t * 8), 1.0
         else:
             amplitude, eclat = 0.10, 0.8
         self._amp += (amplitude - self._amp) * (1 - math.exp(-dt * 14))
@@ -257,13 +301,36 @@ class Affichage:
         self.angle += vitesse * 0.6 * dt
         ph = self.angle
 
-        if e != self._etat_prec:
-            if e == "ecoute" or (e == "reponse" and self._etat_prec != "traitement"):
+        if src.etat_actuel != self._etat_prec:
+            e_vrai = src.etat_actuel
+            if e_vrai == "ecoute" or (e_vrai == "reponse" and self._etat_prec != "traitement"):
                 self._onde = maintenant
-            self._etat_prec = e
+            if e_vrai == "arret":
+                self.fermer(quitter=False)
+            self._etat_prec = e_vrai
+
+        # Taille du réacteur : discret en veille, normal dès qu'il se passe quelque chose
+        actif = (e not in ("veille", "pause") or self.glisse is not None or alerte < DUREE_ALERTE
+                 or maintenant - src.texte_depuis < src.DUREE_TEXTE)
+        if actif:
+            self._dernier_eveil = maintenant
+        deploye = (not MODE_DISCRET or actif or maintenant - getattr(self, "_dernier_eveil", maintenant) < DELAI_DISCRET
+                   or self._survol())
+        self._forme += ((1.0 if deploye else 0.0) - self._forme) * (1 - math.exp(-dt * (9 if deploye else 4)))
+        k = TAILLE_DISCRETE + (1 - TAILLE_DISCRETE) * self._forme
+        naissance = min(1.0, t / DUREE_NAISSANCE)
+        k *= 1 - (1 - naissance) ** 3                      # au lancement, le réacteur se forme
+        if self._fermeture is not None:                    # à l'arrêt, il se referme
+            k *= max(0.0, 1 - (maintenant - self._fermeture) / DUREE_FERMETURE) ** 2
+        self._naissance = naissance
+        self._k = k
+        s = s * (0.55 + 0.45 * min(1.0, k))                # traits et points un peu plus fins quand il est petit
 
         cx, cy = self.w / 2, self.m + self.d / 2
-        Rext = self.d / 2 - 2 * s          # bord de la couronne de graduations
+        if k < 0.03:                                       # trop petit pour être dessiné
+            surf.fill(CLE)
+            return
+        Rext = (self.d / 2 - 2 * self.s) * k   # bord de la couronne de graduations
         R = Rext * 0.83                    # le réacteur lui-même
         R0 = R * 0.68
         ligne, aaligne, cercle = pygame.draw.lines, pygame.draw.aalines, self._cercle
@@ -351,6 +418,14 @@ class Affichage:
                 if scint >= 0.35:
                     cercle(surf, teinte(force * scint, blanc), pts[i], (0.9 + 0.9 * scint) * s)
 
+        # Rappel : des ondes partent du cœur l'une après l'autre, comme un sonar
+        if self._en_alerte:
+            fondu = min(1.0, (DUREE_ALERTE - alerte) / 0.8) if alerte < DUREE_ALERTE else 1.0
+            for i in range(3):
+                p = ((alerte if alerte < DUREE_ALERTE else t) / 1.2 + i / 3) % 1
+                cercle(surf, teinte((1 - p) ** 1.3 * fondu, blanc), (cx, cy), R * (0.12 + 0.86 * p),
+                       max(1, int((3 - 2 * p) * s)))
+
         # Onde de réveil : un cercle part du cœur et s'efface en atteignant le bord
         age = maintenant - self._onde
         if 0 <= age < 0.8:
@@ -371,11 +446,23 @@ class Affichage:
             aaligne(surf, teinte(0.22 * eclat), True, contour)
 
         self._couronne(surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext)
-        self._panneau(surf, teinte, blanc, eclat, titre, cx, dt)
+        if self._forme > 0.75 and naissance >= 1 and self._fermeture is None:
+            self._panneau(surf, teinte, blanc, eclat, titre, cx, dt)
+
+    def _prochain_rappel(self):
+        """Le prochain minuteur ou rappel, relu une fois par seconde."""
+        maintenant = time.time()
+        if maintenant - self._rappel_lu > 1:
+            self._rappel_lu = maintenant
+            try:
+                self._rappel = jarvis_claude.jarvis_commandes.prochain_rappel()
+            except Exception:
+                self._rappel = None
+        return self._rappel
 
     def _couronne(self, surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext):
         """Couronne de graduations autour du réacteur : elle dessine le spectre du son en direct."""
-        s, n = self.s, NB_GRADUATIONS
+        s, n = self.s * (0.55 + 0.45 * min(1.0, self._k)), NB_GRADUATIONS
         if e == "reponse":
             spectre, gain = jarvis_voix.spectre, 1.0
         elif e == "ecoute":
@@ -389,8 +476,23 @@ class Affichage:
             cible = np.maximum(0, np.cos((np.arange(n) * (2 * math.pi / n) - t * 5) / 2)) ** 24 * 0.9
         elif e == "erreur":
             cible = np.full(n, 0.35 + 0.35 * math.sin(t * 6))
+        elif e == "rappel":                # deux éclats tournent autour de la couronne, qui bat en rythme
+            angle = np.arange(n) * (2 * math.pi / n) - t * 4
+            cible = np.maximum(0, np.cos(angle)) ** 10 * 0.9 + 0.30 + 0.20 * math.sin(t * 8)
+            if jarvis_voix.spectre is not None:
+                bandes = np.asarray(jarvis_voix.spectre, dtype=float)
+                cible = np.maximum(cible, np.interp(self._grad_bande * (len(bandes) - 1),
+                                                    np.arange(len(bandes)), bandes[::-1]))
         else:                              # veille : une lente respiration parcourt la couronne
             cible = 0.12 + 0.10 * np.sin(t * 1.1 + np.arange(n) * (4 * math.pi / n))
+            # Un minuteur ou un rappel en attente : la couronne est pleine au départ et se vide
+            # dans le sens des aiguilles d'une montre, à partir du haut
+            rappel = self._prochain_rappel()
+            if rappel:
+                quand, debut, _ = rappel
+                reste = max(0.0, min(1.0, (quand - time.time()) / max(1.0, quand - debut)))
+                depuis_haut = (np.arange(n) + n // 4) % n          # 0 = graduation du haut
+                cible = np.where(depuis_haut >= (1 - reste) * n, 0.75, 0.04)
         monte = cible > self._niveaux
         self._niveaux += (cible - self._niveaux) * np.where(monte, 1 - math.exp(-dt * 30), 1 - math.exp(-dt * 9))
         niveaux = np.clip(self._niveaux, 0, 1)
@@ -398,7 +500,7 @@ class Affichage:
         r0 = Rext * 0.915
         longueurs = Rext * (0.018 + 0.067 * niveaux)
         longueurs[::6] += Rext * 0.012                 # une graduation sur six est plus longue
-        rot = t * 0.05
+        rot = 0.0 if (spectre is None and e not in ("traitement", "erreur") and self._prochain_rappel()) else t * 0.05
         cr, sr = math.cos(rot), math.sin(rot)
         gc = self._grad_cos * cr - self._grad_sin * sr
         gs = self._grad_sin * cr + self._grad_cos * sr
@@ -407,7 +509,8 @@ class Affichage:
         epais = max(1, int(1.6 * s))
         forces = np.minimum(1.0, 0.50 + 0.60 * niveaux) * (0.75 + 0.25 * eclat)
         trait = pygame.draw.line
-        for i in range(n):
+        visibles = n if self._naissance >= 1 else int(n * self._naissance)   # au lancement, elles apparaissent une à une
+        for i in range(visibles):
             f = forces[i]
             trait(surf, teinte(f, blanc if f > 0.8 else None), (x0[i], y0[i]), (x1[i], y1[i]), epais)
 
@@ -430,6 +533,9 @@ class Affichage:
         pygame.draw.aalines(surf, teinte(0.28 * eclat), True, contour)
         # Équerres lumineuses dans les deux angles droits
         e, ep = 14 * s, max(2, int(2 * s))
+        if getattr(self, "_en_alerte", False):       # pendant un rappel, les équerres s'agrandissent et clignotent
+            e *= 1.6 + 0.6 * math.sin(time.time() * 8)
+            ep += 1
         pygame.draw.lines(surf, teinte(1.0), False, [(x1 - e, y0), (x1, y0), (x1, y0 + e)], ep)
         pygame.draw.lines(surf, teinte(1.0), False, [(x0, y1 - e), (x0, y1), (x0 + e, y1)], ep)
 
@@ -481,6 +587,23 @@ class Affichage:
                     pygame.draw.polygon(surf, couleur if j < allumes else eteint,
                                         [(xj + 1.5 * s, ya), (xj + large + 1.5 * s, ya),
                                          (xj + large, yz), (xj, yz)])
+        if not visible:
+            rappel = self._prochain_rappel()
+            if rappel:
+                quand, _, message = rappel
+                reste = quand - time.time()
+                if reste < 3600:
+                    moment = "dans %d:%02d" % (max(0, reste) // 60, max(0, reste) % 60)
+                else:
+                    moment = "à " + time.strftime("%H:%M", time.localtime(quand))
+                message = re.sub(r"^Rappel : |\.$", "", message)
+                if message.startswith("Le minuteur") or message.startswith("Il est"):
+                    message = "minuteur" if message.startswith("Le minuteur") else "rappel"
+                contenu = f"{moment} · {message}"
+                if len(contenu) > 44:
+                    contenu = contenu[:43] + "…"
+                image = self._texte(self.police_texte, contenu, teinte(0.7, blanc))
+                surf.blit(image, image.get_rect(center=(cx, yb + (60 if src.AFFICHER_SYSTEME else 32) * s)))
         if visible:
             fondu = 1.0 if age < src.DUREE_TEXTE - 2 else max(0.0, (src.DUREE_TEXTE - age) / 2)
             if getattr(src, "texte_en_direct", False) and src.etat_actuel == "ecoute":
@@ -502,11 +625,17 @@ class Affichage:
             self.image()
             pygame.display.flip()
             maintenant = time.time()
+            if (self._fermeture is not None and self._quitter
+                    and maintenant - self._fermeture > DUREE_FERMETURE + 0.1):
+                os._exit(self._sortie)
             if maintenant - self._dernier_premier_plan > 1:
                 self._dernier_premier_plan = maintenant
                 self._premier_plan()
-            actif = (src.etat_actuel in ("ecoute", "traitement", "reponse", "erreur")
-                     or self.glisse is not None or maintenant - src.texte_depuis < 1)
+            actif = (src.etat_actuel in ("ecoute", "traitement", "reponse", "erreur", "arret", "rappel")
+                     or maintenant - self._alerte < DUREE_ALERTE
+                     or self.glisse is not None or maintenant - src.texte_depuis < 1
+                     or maintenant - self.t0 < DUREE_NAISSANCE + 0.5 or self._fermeture is not None
+                     or 0.02 < self._forme < 0.98)          # pendant qu'il change de taille
             if actif:
                 self._dernier_actif = maintenant
                 images = src.IMAGES_ACTIF

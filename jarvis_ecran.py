@@ -23,7 +23,8 @@ COTE_MAX = 1568          # au-delà, l'image est réduite (Claude ne voit pas pl
 HAUTEUR_MORCEAU = 2000   # une fenêtre plus haute est découpée en plusieurs images, pour que le texte reste lisible
 TEXTE_MAX = 8000         # nombre de caractères du presse-papiers donnés à Claude au maximum
 
-user32, gdi32, kernel32 = ctypes.windll.user32, ctypes.windll.gdi32, ctypes.windll.kernel32
+# Accès à Windows propres à ce fichier : ses réglages ne touchent pas ceux des autres fichiers de Jarvis
+user32, gdi32, kernel32 = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32"), ctypes.WinDLL("kernel32")
 user32.GetDC.restype = ctypes.c_void_p
 user32.GetDC.argtypes = [ctypes.c_void_p]
 user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]

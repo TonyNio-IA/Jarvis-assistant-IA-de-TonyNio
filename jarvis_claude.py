@@ -53,7 +53,7 @@ import jarvis_fenetres
 import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.15"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.17"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -949,14 +949,14 @@ def traiter(demande, recognizer):
         preparer_ecoute(recognizer)
         return False
 
-    if re.search(r"\b(redémarre|redémarrer|relance|relancer)[- ]toi\b|\b(redémarre|relance) jarvis\b", minuscules):
+    if DEMANDE_REDEMARRAGE.search(minuscules) or any(DEMANDE_REDEMARRAGE.search(x.lower()) for x in derniers_textes):
         etat("reponse")
         speak("Je redémarre.")
         redemarrer()
 
     # Commandes instantanées : réponse immédiate, sans Claude
     reponse = commande_instantanee(derniers_textes or [demande],
-                                   annoncer=lambda texte: point_pret.put((texte, False)))
+                                   annoncer=lambda texte: point_pret.put((texte, "rappel")))
     if reponse:
         derniere_reponse = reponse
         print("Commande instantanée :", reponse)
@@ -1020,6 +1020,10 @@ def traiter(demande, recognizer):
     return interrompu
 
 
+# « redémarre-toi », y compris mal entendu (« redémarte-toi », « redémarre temps »)
+DEMANDE_REDEMARRAGE = re.compile(r"\b(red[ée]mar\w*|relance\w*)[- ]+(toi|toit|temps|toa)\b|\b(red[ée]mar\w*|relance) jarvis\b")
+
+
 def redemarrer():
     """Relance Jarvis : par le gardien s'il est là, sinon par le raccourci."""
     remonter_son()
@@ -1028,6 +1032,8 @@ def redemarrer():
     except Exception:
         pass
     print("(Redémarrage demandé.)")
+    etat("arret")                      # le réacteur se referme
+    time.sleep(0.8)
     if os.environ.get("JARVIS_GARDIEN"):
         os._exit(3)
     subprocess.Popen('cmd /c "timeout /t 2 >nul & start "" "' + os.path.join(DOSSIER_JARVIS, "Jarvis.lnk") + '""',
@@ -1052,7 +1058,8 @@ def conversation(demande, recognizer):
             break
         if (len(demande.split()) < MOTS_MINIMUM and not jarvis_commandes.confirmation_en_attente()
                 and not re.match(r"\W*(bonjour|bonsoir|salut)\W*$", demande, re.I)
-                and not jarvis_commandes.mot_court(demande)):
+                and not jarvis_commandes.mot_court(demande)
+                and not DEMANDE_REDEMARRAGE.search(demande.lower())):
             print("Demande trop courte :", demande)
             essais_courts += 1
             if essais_courts > 1:
@@ -1103,7 +1110,7 @@ def main():
     rec_stop = KaldiRecognizer(model, SAMPLE_RATE, json.dumps(MOTS_STOP + ["[unk]"], ensure_ascii=False))
     # Tout le reste se charge en arrière-plan : Jarvis écoute dès que Vosk est prêt
     jarvis_systeme.demarrer()
-    jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, False)))
+    jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
     threading.Thread(target=charger_whisper, daemon=True).start()
     threading.Thread(target=preparer, args=(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
@@ -1155,7 +1162,11 @@ def main():
                 # Point du jour préparé en arrière-plan : on le lit maintenant
                 if not point_pret.empty():
                     texte, erreur = point_pret.get()
-                    etat("erreur" if erreur else "reponse")
+                    if erreur == "rappel":         # un minuteur ou un rappel : alerte visuelle sur le réacteur
+                        etat("rappel")
+                        sous_titre(re.sub(r"^Rappel : |\.$", "", texte))
+                    else:
+                        etat("erreur" if erreur else "reponse")
                     baisser_son()
                     try:
                         bip()
