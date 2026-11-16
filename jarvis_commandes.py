@@ -18,7 +18,11 @@ la réponse est immédiate et ton quota Claude est économisé.
   - les routines « bonjour » (date, météo, rappels du jour, état du PC) et « bonne nuit » ;
   - la dictée (« dicte : je serai là dans dix minutes ») dans la fenêtre active ;
   - la musique et les vidéos sur YouTube (« mets Get Lucky de Daft Punk ») ;
-  - la mémoire durable (« retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... »).
+  - la mémoire durable (« retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... ») ;
+  - les fenêtres (« mets Imou en plein écran », « réduis la fenêtre », « mets Chrome à gauche »,
+    « ferme la fenêtre », « affiche le bureau »), voir jarvis_fenetres.py.
+Les applications que tu ouvres souvent sont retenues (applications.json) : Jarvis les reconnaît
+ensuite même quand leur nom est mal entendu (« immo » pour Imou).
 Tout ce qui n'est pas reconnu ici est envoyé à Claude, comme avant.
 """
 
@@ -32,6 +36,7 @@ import subprocess
 import threading
 import time
 
+import jarvis_fenetres
 import jarvis_memoire
 import urllib.parse
 import urllib.request
@@ -526,28 +531,87 @@ def _commande_ouvrir(t):
     if not m:
         return None
     reste = m.group(2)
-    # Une demande plus complexe (« ouvre Chrome et cherche... ») reste pour Claude
-    if re.search(r"\b(et|puis|pour|avec|sur|dans)\b", reste):
+    # Une demande plus complexe (« ouvre Chrome et cherche... », « ferme ça et ouvre Chrome »)
+    # reste pour Claude : sinon Jarvis n'en ferait que la moitié
+    if re.search(r"\b(et|puis|pour|avec|sur|dans)\b", reste) \
+            or re.search(r"\b(et|puis|ferme\w*|quitte\w*)\b", t[:m.start()]):
         return None
     for motif, cible, nom in APPLICATIONS:
         if re.search(rf"\b(?:{motif})\b", reste):
             os.startfile(cible)
             return f"J'ouvre {nom}."
     # Sinon, une application du menu Démarrer qui porte ce nom
-    demande = _sans_accents(re.sub(r"\b(le|la|les|l'|mon|ma|mes|un|une|moi|logiciel|application|programme|dossier)\b",
+    demande = _sans_accents(re.sub(r"\b(le|la|les|l'|mon|ma|mes|un|une|moi|logiciel|application|appli|programme|dossier)\b",
                                    " ", reste))
-    if len(demande) >= 3:
+    if len(demande) >= 2:
         raccourcis = _menu_demarrer()
-        proches = ([demande] if demande in raccourcis
-                   else difflib.get_close_matches(demande, list(raccourcis), 1, cutoff=0.82))
-        if proches:
-            nom, chemin = raccourcis[proches[0]]
+        choix = raccourcis.get(demande)
+        if choix is None:
+            # une application déjà ouverte par le passé, même si son nom est mal entendu
+            choix = jarvis_fenetres.meilleur(demande, [((nom, infos["chemin"]), [nom])
+                                                       for nom, infos in applications_connues().items()
+                                                       if os.path.exists(infos["chemin"])])
+        if choix is None and len(demande) >= 3:
+            proches = difflib.get_close_matches(demande, list(raccourcis), 1, cutoff=0.82)
+            choix = raccourcis[proches[0]] if proches else None
+        if choix:
+            nom, chemin = choix
             os.startfile(chemin)
+            _apprendre(nom, chemin)
             return f"J'ouvre {nom}."
     return None
 
 
 _raccourcis = None
+FICHIER_APPLICATIONS = r"C:\Jarvis\applications.json"   # applications déjà ouvertes (reste sur ce PC)
+_connues = None
+
+
+def applications_connues():
+    """Applications que tu as déjà ouvertes par Jarvis : nom -> {"chemin": ..., "fois": ...}."""
+    global _connues
+    if _connues is None:
+        try:
+            with open(FICHIER_APPLICATIONS, encoding="utf-8") as f:
+                _connues = json.load(f)
+        except (OSError, ValueError):
+            _connues = {}
+            try:                         # première fois : on reprend celles déjà ouvertes d'après le journal
+                noms = {nom: chemin for nom, chemin in _menu_demarrer().values()}
+                with open(r"C:\Jarvis\jarvis.log", encoding="utf-8", errors="replace") as f:
+                    for nom in re.findall(r"Commande instantanée : J'ouvre (.+?)\.", f.read()):
+                        if nom in noms:
+                            _connues.setdefault(nom, {"chemin": noms[nom], "fois": 0})["fois"] += 1
+                if _connues:
+                    _enregistrer_applications()
+            except OSError:
+                pass
+    return _connues
+
+
+def _enregistrer_applications():
+    try:
+        with open(FICHIER_APPLICATIONS, "w", encoding="utf-8") as f:
+            json.dump(_connues, f, ensure_ascii=False, indent=1)
+    except OSError as erreur:
+        print("Applications : écriture impossible :", erreur)
+
+
+def _apprendre(nom, chemin):
+    connues = applications_connues()
+    connues.setdefault(nom, {"chemin": chemin, "fois": 0})
+    connues[nom]["chemin"] = chemin
+    connues[nom]["fois"] += 1
+    _enregistrer_applications()
+
+
+def noms_applications(maximum=10):
+    """Noms des applications les plus ouvertes (donnés à Whisper pour qu'il les reconnaisse)."""
+    try:
+        connues = applications_connues()
+        return [nom for nom, _ in sorted(connues.items(), key=lambda x: -x[1].get("fois", 0))[:maximum]]
+    except Exception:
+        return []
 
 
 def _menu_demarrer():
@@ -652,7 +716,8 @@ def _commande_alimentation(t):
         resultat = subprocess.run(["shutdown", "/a"], capture_output=True, creationflags=SANS_FENETRE)
         return "L'extinction est annulée." if resultat.returncode == 0 else "Aucune extinction n'était prévue."
     machine = r".*\b(pc|ordinateur|ordi)\b"
-    if re.search(r"\b(éteins|éteindre|eteins|eteindre)\b" + machine, t):
+    # (« éteins » est parfois entendu « et tel » ou « estelle » : la confirmation évite toute erreur)
+    if re.search(r"(\b(éteins|éteindre|éteint|éteigne|eteins|eteindre|estelle)\b|^\W*et tel\b)" + machine, t):
         action, question = "eteindre", "éteindre l'ordinateur"
     elif re.search(r"\b(redémarre|redémarrer|redemarre|relance)\b" + machine, t):
         action, question = "redemarrer", "redémarrer l'ordinateur"
@@ -829,6 +894,12 @@ def _youtube(recherche):
 _MOTS_MUSIQUE = r"\b(musiques?|chansons?|morceaux?|titre|clip|vidéos?|video|youtube|album|playlist)\b"
 
 
+_PAS_UN_TITRE = (r"\b(applications?|applis?|fenêtres?|écran|ecran|ordinateur|ordi|pc|programmes?|logiciels?|dossiers?|"
+                 r"fichiers?|onglets?|page|site|navigateur|chrome|bureau|souris|clavier|micro|mode|plein|grande?s?|"
+                 r"petite?s?|taille|premier plan|côté|gauche|droite|jour|heure|réveil|rappel|alarme|minuteur|"
+                 r"mémoire|note|notes|veille|pause|son|volume|luminosité|wifi|bluetooth)\b")
+
+
 def _commande_musique(t):
     # « mets » est souvent entendu « mais », « mes » ou « les » : on le rétablit quand la
     # phrase parle clairement de musique (« mais de la musique », « mais 50 Cent sur YouTube »).
@@ -840,6 +911,9 @@ def _commande_musique(t):
     # Avec un mot comme « musique » ou « chanson », ou bien « mets » / « joue » suivi d'un titre.
     # (Minuteur, volume, pause, veille... sont reconnus avant d'arriver ici.)
     simple = re.match(r"\W*(mets|mets-moi|joue|joue-moi)\s+(?!à |a |en |au |aux |sur |dans |ça |le pc|l'ordi)\S+\s+\S+", t)
+    # « mets l'application en grand écran » n'est pas un titre de chanson : ces demandes vont à Claude
+    if simple and re.search(_PAS_UN_TITRE, t):
+        simple = None
     if not (re.search(_MOTS_MUSIQUE, t)
             or re.match(r"\W*joue\b", t) or simple):
         return None
@@ -917,6 +991,31 @@ def _propre(brut):
     return brut.lower().replace("’", "'").strip(" .!?")
 
 
+_ACTIONS = (r"(?:ouvre|ouvres|ferme|fermes|lance|quitte|mets|cherche|recherche|trouve|monte|baisse|coupe|"
+            r"éteins|redémarre|démarre|joue|affiche|envoie|écris|crée|supprime|télécharge)")
+_DEUX_DEMANDES = re.compile(r"\b" + _ACTIONS + r"\b.*\b(?:et|puis|ensuite|par la suite|après)\b.*\b" + _ACTIONS + r"\b")
+_TEXTE_LIBRE = re.compile(r"^\W*(?:jarvis\W+)?(?:dicte|dictée|écris|tape|note|retiens|retient|souviens-toi|"
+                          r"rappelle-moi|rappelle-toi|n'oublie pas|mémorise)\b")
+
+
+def deux_demandes(t):
+    """Vrai pour une phrase qui contient deux actions (« ferme Imou et ouvre Chrome ») : elle est
+    confiée en entier à Claude, sinon Jarvis n'en ferait que la moitié. Les phrases dictées,
+    notées ou retenues ne comptent pas : leur texte est libre."""
+    return bool(_DEUX_DEMANDES.search(t)) and not _TEXTE_LIBRE.match(t)
+
+
+# Réponses très courtes : Whisper les comprend mal (« oui » devient « Où est-il ? »),
+# alors que la première écoute (Vosk) les reconnaît bien. On garde donc sa version.
+MOTS_COURTS = {"oui", "ouais", "non", "si", "ok", "d'accord", "quoi", "comment", "pardon", "vas-y", "oui vas-y",
+               "exactement", "voilà", "bien sûr", "pas du tout", "c'est ça", "annule", "continue", "peut-être",
+               "oui merci", "non merci", "oui s'il te plaît", "non c'est bon", "oui c'est ça", "non pas du tout"}
+
+
+def mot_court(texte):
+    return _propre(texte).strip(" ,;:") in MOTS_COURTS
+
+
 def sans_whisper(texte_vosk):
     """Vrai si la phrase entendue est une commande simple, comprise sans la
     retranscription précise (Whisper) : on gagne environ 2 secondes."""
@@ -924,6 +1023,10 @@ def sans_whisper(texte_vosk):
     if confirmation_en_attente():
         return True
     if re.match(r"\W*(bonjour|bonsoir|salut|bonne nuit)\W*$", t):
+        return True
+    if deux_demandes(t):
+        return False
+    if t in MOTS_COURTS:
         return True
     if re.search(r"\b(cherche|recherche|puis)\b", t):
         return False
@@ -951,6 +1054,8 @@ def commande_instantanee(textes, annoncer=None):
     annoncer : fonction appelée plus tard avec un texte à dire (minuteurs).
     Renvoie la réponse à dire, ou None si la demande doit aller à Claude.
     """
+    if not confirmation_en_attente() and any(deux_demandes(_propre(b)) for b in textes if b):
+        return None
     for brut in textes:
         if not brut:
             continue
@@ -974,9 +1079,10 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: _commande_meteo(t, brut),
                              lambda: _commande_volume(t),
                              lambda: _commande_lecture(t),
+                             lambda: _commande_fermer(t),
+                             lambda: jarvis_fenetres.commande(t),
                              lambda: _commande_musique(t),
                              lambda: _commande_ouvrir(t),
-                             lambda: _commande_fermer(t),
                              lambda: _commande_capture(t),
                              lambda: _commande_chercher_fichier(t),
                              lambda: _commande_verrouiller(t),

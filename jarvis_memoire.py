@@ -176,7 +176,8 @@ def nouveautes():
         _non_transmis.clear()
     if not nouveaux:
         return ""
-    return "(Information que TonyNio vient de te demander de retenir : " + " ; ".join(nouveaux) + ".) "
+    return ("(Information que TonyNio vient de te demander de retenir, déjà enregistrée dans ta mémoire : "
+            + " ; ".join(nouveaux) + ". N'écris pas de ligne RETENIR pour elle.) ")
 
 
 # ---------- Balises écrites par Claude ----------
@@ -203,7 +204,7 @@ def appliquer_balises(reponse):
 
 _RETENIR = re.compile(
     r"^\W*(?:est-ce que tu peux |tu peux |peux-tu |tu pourrais |pourrais-tu |s'il te pla[îi]t )?"
-    r"(?:retiens|retenir|souviens-toi|te souvenir|rappelle-toi|te rappeler|n'oublie (?:pas|jamais)|"
+    r"(?:retiens|retient|retenez|retenir|souviens-toi|te souvenir|rappelle-toi|te rappeler|n'oublie (?:pas|jamais)|"
     r"m[ée]morise|m[ée]moriser|garde en m[ée]moire|garder en m[ée]moire|"
     r"(?:note|enregistre|ajoute|mets)(?: [çc]a)? (?:dans|[àa]|en) (?:ta )?m[ée]moire)"
     r"\s*(?:bien\s+)?(?:que\s+|qu'|:|,)?\s*(.+)$", re.I | re.S)

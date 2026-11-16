@@ -12,6 +12,8 @@ cache_voix/
 notes.txt
 ville.txt
 memoire.json
+applications.json
+volumes.json
 memoire.json.tmp
 position.txt
 reseau_max.txt
