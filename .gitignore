@@ -11,6 +11,7 @@ __pycache__/
 cache_voix/
 notes.txt
 ville.txt
+config.json
 memoire.json
 applications.json
 volumes.json

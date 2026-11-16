@@ -1,0 +1,10 @@
+{
+ "prenom": "Alex",
+ "sujets": ["le sport", "les jeux vidéo", "la technologie"],
+ "site": {
+  "nom": "Le Monde",
+  "adresse": "lemonde.fr",
+  "sujet": "la technologie"
+ },
+ "vocabulaire": ["PlayStation", "Netflix"]
+}

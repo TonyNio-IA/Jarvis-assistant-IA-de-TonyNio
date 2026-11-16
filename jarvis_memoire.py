@@ -1,7 +1,7 @@
 """
 JARVIS - mémoire durable.
 
-Jarvis garde deux choses dans le fichier C:\\Jarvis\\memoire.json, qui reste sur ce PC
+Jarvis garde deux choses dans le fichier memoire.json, qui reste sur ce PC
 (il n'est jamais envoyé sur GitHub) :
   - les faits que tu lui demandes de retenir (« Jarvis, retiens que ma voiture est une Clio ») ;
   - le fil des derniers échanges, pour qu'il sache de quoi vous parliez même après
@@ -23,7 +23,9 @@ import os
 import re
 import threading
 
-FICHIER = r"C:\Jarvis\memoire.json"
+import jarvis_config
+
+FICHIER = jarvis_config.chemin("memoire.json")
 NB_FAITS_MAX = 60          # au-delà, les plus anciens sont retirés
 NB_ECHANGES_GARDES = 30    # échanges conservés dans le fichier
 NB_ECHANGES_RAPPELES = 6   # échanges récents redonnés à Claude au début d'une conversation
@@ -152,7 +154,7 @@ def contexte():
         _non_transmis.clear()
         lignes = []
         if donnees["faits"]:
-            lignes.append("Ce que TonyNio t'a demandé de retenir (ses propres mots) :")
+            lignes.append("Ce que " + jarvis_config.NOM + " t'a demandé de retenir (ses propres mots) :")
             lignes += ["- " + f["texte"] for f in donnees["faits"]]
         limite = datetime.datetime.now() - datetime.timedelta(hours=HEURES_RAPPEL)
         recents = []
@@ -165,7 +167,7 @@ def contexte():
         if recents:
             lignes.append("Vos derniers échanges (pour le contexte, n'y reviens pas sans raison) :")
             for e in recents:
-                lignes.append(f"- [{e['date'][11:]}] TonyNio : {_court(e['demande'])} | Toi : {_court(e['reponse'])}")
+                lignes.append(f"- [{e['date'][11:]}] {jarvis_config.NOM} : {_court(e['demande'])} | Toi : {_court(e['reponse'])}")
     return "\n".join(lignes)
 
 
@@ -176,7 +178,7 @@ def nouveautes():
         _non_transmis.clear()
     if not nouveaux:
         return ""
-    return ("(Information que TonyNio vient de te demander de retenir, déjà enregistrée dans ta mémoire : "
+    return ("(Information que " + jarvis_config.NOM + " vient de te demander de retenir, déjà enregistrée dans ta mémoire : "
             + " ; ".join(nouveaux) + ". N'écris pas de ligne RETENIR pour elle.) ")
 
 

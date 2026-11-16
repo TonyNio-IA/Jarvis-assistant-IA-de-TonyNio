@@ -1,8 +1,41 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.17**
+**Version actuelle : 1.18**
 
-Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
+<p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
+
+**Jarvis est un assistant vocal en français pour Windows 11.** Tu dis « Jarvis », il comprend ta demande, y répond à voix haute et agit sur ton PC : ouvrir une application, gérer les fenêtres, lancer de la musique, poser un rappel, lire ou traduire un texte copié, décrire ce qui est à l'écran. Les demandes simples sont traitées sur le PC en une seconde ; les autres sont confiées à Claude.
+
+Un réacteur animé, toujours visible dans un coin de l'écran, montre ce qu'il fait : il écoute, il réfléchit, il répond.
+
+> **English summary.** Jarvis is a French-speaking voice assistant for Windows 11. Say "Jarvis", then your request: it answers aloud and acts on the PC (apps, windows, music, reminders, clipboard, screen reading). Simple commands run locally; everything else goes to Claude through Claude Code. Speech recognition runs offline (Vosk and Whisper). The interface and the voice commands are in French only.
+
+## Ce qu'il te faut
+
+- **Windows 11** et un **micro**.
+- **Python 3.14**.
+- **Claude Code**, connecté à un abonnement Claude (Pro ou supérieur). Sans lui, seules les commandes immédiates fonctionnent.
+- Rien d'autre à payer : la reconnaissance vocale et la voix utilisent des outils gratuits.
+
+## Installation
+
+1. Télécharge le projet (bouton vert **Code**, puis **Download ZIP**) et décompresse-le dans le dossier de ton choix, par exemple `C:\Jarvis`.
+2. Installe les modules : `python -m pip install -r requirements.txt` (depuis ce dossier).
+3. Télécharge le modèle de reconnaissance vocale **vosk-model-small-fr-0.22** sur https://alphacephei.com/vosk/models et décompresse-le dans le même dossier. Le modèle Whisper se télécharge tout seul au premier lancement.
+4. Copie `config.exemple.json`, renomme la copie en `config.json` et mets-y ton prénom et tes sujets (voir « Réglages personnels »).
+5. Lance Jarvis : `pythonw jarvis_gardien.py`
+6. Pour qu'il démarre avec Windows : crée un raccourci vers `pythonw.exe "C:\Jarvis\jarvis_gardien.py"` (dossier de travail : celui de Jarvis) et place-le dans `shell:startup`.
+
+## Réglages personnels
+
+Ces fichiers restent sur ton PC, dans le dossier de Jarvis. Ils ne font pas partie du projet publié.
+
+| Fichier | Contenu |
+|---|---|
+| `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent. Modèle : `config.exemple.json`. |
+| `ville.txt` | Ta ville pour la météo, sur une ligne : `Nom;latitude;longitude` (exemple : `Paris;48.8566;2.3522`). Sans ce fichier, Jarvis donne la météo de Paris. |
+
+Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, notes, liste d'applications, journal). Eux non plus ne quittent pas ton PC.
 
 ## Ce qu'il sait faire
 
@@ -10,7 +43,7 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 - Répondre aux questions et agir sur le PC (ouvrir un programme, chercher une information...).
 - Enchaîner une autre demande dans les 3 secondes sans redire « Jarvis ».
 - Se souvenir de la conversation pendant 10 minutes (« Jarvis, nouvelle conversation » pour repartir de zéro).
-- « Jarvis, fais-moi le point du jour » : météo de ta ville, actualités, SpaceX, GTA 6, PS5 et Logic-Sunrise.
+- « Jarvis, fais-moi le point du jour » : météo de ta ville, actualités, puis tes propres sujets (réglés dans `config.json`).
   La ville se règle dans `ville.txt` (fichier gardé sur le PC, jamais publié : `Nom;latitude;longitude`).
   Il le prépare en arrière-plan et le lit dès qu'il est prêt ; « Jarvis, annule le point du jour » l'arrête.
   (Réglage `POINT_DU_JOUR_AUTO = True` pour qu'il le prépare tout seul au premier démarrage du matin.)
@@ -50,7 +83,10 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
 | `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
+| `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
+| `config.exemple.json` | Le modèle de réglages personnels à copier |
 | `requirements.txt` | Les modules Python nécessaires |
+| `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |
 
 ## Comment ça marche
 
@@ -60,27 +96,28 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
    Il est lancé en version allégée (sans extensions, quatre outils seulement) : environ 4 fois moins de quota par question.
 4. **edge-tts** lit la réponse avec la voix d'Henri.
 
-## Réinstaller sur un autre PC
+## Réglages techniques
 
-1. Installer **Python 3.14** et **Claude Code** (connecté au compte Claude Pro).
-2. Copier ces fichiers dans `C:\Jarvis`.
-3. Installer les modules : `python -m pip install -r C:\Jarvis\requirements.txt`
-4. Télécharger le modèle Vosk **vosk-model-small-fr-0.22** sur https://alphacephei.com/vosk/models et le décompresser dans `C:\Jarvis`.
-   Le modèle Whisper se télécharge tout seul au premier lancement (dans `C:\Jarvis\whisper`).
-5. Lancer : `pythonw C:\Jarvis\jarvis_gardien.py`
-6. Pour le démarrage automatique : créer un raccourci vers `pythonw.exe "C:\Jarvis\jarvis_gardien.py"` (dossier de travail `C:\Jarvis`) et le placer dans `shell:startup`.
+En haut de `jarvis_claude.py` : `MODELE` et `MODELE_POINT_DU_JOUR` (« sonnet » ou « opus »), `DELAI_SUITE`, `MEMOIRE_MINUTES`, `REVEIL_PENDANT_SON`, `ECONOMIE_SILENCE`...
+En haut de `jarvis_affichage.py` : `MODE_DISCRET`, `TAILLE_DISCRETE`, `HALO`... En haut de `jarvis_reacteur.py` : `TAILLE`, les couleurs des états.
 
-## Réglages utiles
+Le journal `jarvis.log`, dans le dossier de Jarvis, note tout ce qu'il entend et répond : c'est le premier endroit où regarder quand quelque chose ne marche pas.
 
-En haut de `jarvis_claude.py` : `MODELE` et `MODELE_POINT_DU_JOUR` (« sonnet » ou « opus »), `DELAI_SUITE`, `MEMOIRE_MINUTES`, `VILLE_METEO`...
-En haut de `jarvis_reacteur.py` : `STYLE` (« anneau » ou « hud »), `TAILLE`, les couleurs des états...
+## Licence et participation
 
-Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
+Jarvis est publié sous licence **PolyForm Strict 1.0.0** (fichier `LICENSE.md`). En clair :
+
+- tu peux le télécharger et l'utiliser chez toi, pour un usage personnel et non commercial ;
+- tu ne peux pas le modifier, ni en publier une copie ou une version à toi ;
+- les nouveautés arrivent avec les versions publiées ici.
+
+Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **Issues** : c'est la bonne façon de faire avancer le projet.
 
 ## Versions
 
 | Version | Contenu |
 |---|---|
+| 1.18 | Jarvis devient utilisable par d'autres : prénom, sujets du point du jour et vocabulaire réglés dans `config.json`, installation dans le dossier de son choix ; licence PolyForm Strict ; présentation refaite |
 | 1.17 | Affichage : mode discret en veille (le réacteur rétrécit, le panneau disparaît, il revient au survol de la souris), minuteurs et rappels visibles sur la couronne et dans le panneau, alerte visuelle de 5 secondes quand un rappel sonne, animations de lancement et d'arrêt ; correction d'un plantage au déplacement du réacteur ; « redémarre-toi » reconnu même mal entendu |
 | 1.15 | Jarvis se réveille aussi pendant qu'une vidéo ou de la musique joue, et coupe presque le son du PC le temps de t'écouter ; il voit l'écran (« qu'est-ce qu'il y a à l'écran ? ») et le texte copié (« résume / traduis / corrige ce que j'ai copié ») ; gardien qui le relance s'il plante ou si le micro est débranché ; « Jarvis, redémarre-toi » ; « mets » entendu « mais » rétabli pour toutes les commandes ; rappels « mets un rappel à 13 h 56 » corrigés |
 | 1.12 | Le son du PC est baissé pendant que tu parles à Jarvis, et il n'écoute plus de suite quand une vidéo ou de la musique joue ; Claude connaît les fenêtres ouvertes ; gestion des fenêtres à la voix ; applications déjà ouvertes reconnues même mal entendues ; réponses courtes (« oui », « non ») mieux comprises ; corrections après essais : « mets l'application en grand écran » ne lance plus une vidéo, les demandes doubles (« ferme ça et ouvre Chrome ») vont à Claude en entier, « Jarvis » redit en cours de conversation relance l'écoute, réveil et « éteins » mieux reconnus |

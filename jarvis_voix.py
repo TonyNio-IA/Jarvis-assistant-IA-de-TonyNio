@@ -226,5 +226,5 @@ def speak(texte, interruption=None):
 
 if __name__ == "__main__":
     bip()
-    speak("Bonjour TonyNio. Je parle maintenant avec ma nouvelle voix. "
+    speak("Bonjour. Je parle maintenant avec ma nouvelle voix. "
           "Les longues réponses sont préparées morceau par morceau, pour commencer plus vite.")

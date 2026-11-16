@@ -36,6 +36,7 @@ import subprocess
 import threading
 import time
 
+import jarvis_config
 import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
@@ -49,11 +50,11 @@ MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août
 PAS_VOLUME = 10   # pourcentage ajouté ou retiré par « monte le son » / « baisse le son »
 
 # Ville utilisée quand tu demandes la météo sans préciser d'endroit.
-# Elle se règle dans le fichier C:\Jarvis\ville.txt, qui reste sur ce PC (jamais envoyé sur GitHub) :
+# Elle se règle dans le fichier ville.txt (dans le dossier de Jarvis), qui reste sur ce PC (jamais envoyé sur GitHub) :
 #   ligne 1 : Nom;latitude;longitude        (exemple : Paris;48.8566;2.3522)
 #   ligne 2 : précision facultative          (exemple : en Île-de-France)
 #   ligne 3 : noms de lieux à bien reconnaître, séparés par des virgules (facultatif)
-FICHIER_VILLE = r"C:\Jarvis\ville.txt"
+FICHIER_VILLE = jarvis_config.chemin("ville.txt")
 
 
 def _charger_ville():
@@ -74,12 +75,12 @@ VILLE_DEFAUT, VILLE_PRECISION, LIEUX_CONNUS = _charger_ville()
 DELAI_METEO = 5   # secondes maximum pour obtenir la météo, sinon la demande part à Claude
 
 DOSSIER_PERSO = os.path.expanduser("~")
-FICHIER_NOTES = r"C:\Jarvis\notes.txt"
-FICHIER_RAPPELS = r"C:\Jarvis\rappels.json"
+FICHIER_NOTES = jarvis_config.chemin("notes.txt")
+FICHIER_RAPPELS = jarvis_config.chemin("rappels.json")
 DELAI_EXTINCTION = 30    # secondes entre la confirmation et l'extinction (le temps d'annuler)
 DELAI_CONFIRMATION = 20  # secondes pour répondre « oui » à une demande de confirmation
 SANS_FENETRE = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-PRENOM = "TonyNio"
+PRENOM = jarvis_config.PRENOM      # se règle dans config.json
 MUSIQUE_PAR_DEFAUT = "musique du moment playlist"   # lancée par « mets de la musique » sans précision
 
 # applications que Jarvis peut fermer : mots-clés -> (programme, nom prononcé)
@@ -583,7 +584,7 @@ def _commande_ouvrir(t):
 
 
 _raccourcis = None
-FICHIER_APPLICATIONS = r"C:\Jarvis\applications.json"   # applications déjà ouvertes (reste sur ce PC)
+FICHIER_APPLICATIONS = jarvis_config.chemin("applications.json")   # applications déjà ouvertes (reste sur ce PC)
 _connues = None
 
 
@@ -598,7 +599,7 @@ def applications_connues():
             _connues = {}
             try:                         # première fois : on reprend celles déjà ouvertes d'après le journal
                 noms = {nom: chemin for nom, chemin in _menu_demarrer().values()}
-                with open(r"C:\Jarvis\jarvis.log", encoding="utf-8", errors="replace") as f:
+                with open(jarvis_config.chemin("jarvis.log"), encoding="utf-8", errors="replace") as f:
                     for nom in re.findall(r"Commande instantanée : J'ouvre (.+?)\.", f.read()):
                         if nom in noms:
                             _connues.setdefault(nom, {"chemin": noms[nom], "fois": 0})["fois"] += 1
@@ -707,7 +708,7 @@ def _executer_alimentation(action):
         minuteur = threading.Timer(8, lambda: ctypes.windll.powrprof.SetSuspendState(0, 0, 0))
         minuteur.daemon = True
         minuteur.start()
-        return f"Bonne nuit {PRENOM}. Je ferme tes applications et je mets l'ordinateur en veille."
+        return f"Bonne nuit{jarvis_config.SALUT}. Je ferme tes applications et je mets l'ordinateur en veille."
     if action == "eteindre":
         subprocess.run(["shutdown", "/s", "/t", str(DELAI_EXTINCTION)], creationflags=SANS_FENETRE)
         return (f"L'ordinateur s'éteindra dans {DELAI_EXTINCTION} secondes. "
@@ -805,7 +806,7 @@ def _commande_routine(t):
     global _attente
     if re.match(r"\W*(bonjour|bonsoir|salut)\b(?! (à|a) )", t) and len(t.split()) <= 3:
         h = time.localtime().tm_hour
-        phrases = [("Bonsoir" if h >= 18 else "Bonjour") + f" {PRENOM}.", _date(), _heure()]
+        phrases = [("Bonsoir" if h >= 18 else "Bonjour") + f"{jarvis_config.SALUT}.", _date(), _heure()]
         try:
             meteo = _commande_meteo("météo", "météo")
             if meteo:

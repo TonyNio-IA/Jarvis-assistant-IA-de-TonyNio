@@ -8,7 +8,7 @@ JARVIS - voir l'écran et le texte copié.
   « corrige le texte copié » -> le texte corrigé est remis dans le presse-papiers : il suffit de coller.
   « lis ce que j'ai copié » -> Jarvis le lit à voix haute (sans Claude).
 
-Les images sont enregistrées dans C:\\Jarvis\\ecran (jamais envoyé sur GitHub) et remplacées à chaque fois.
+Les images sont enregistrées dans le sous-dossier « ecran » (jamais envoyé sur GitHub) et remplacées à chaque fois.
 """
 
 import ctypes
@@ -18,7 +18,9 @@ import os
 import re
 import time
 
-DOSSIER = r"C:\Jarvis\ecran"
+import jarvis_config
+
+DOSSIER = jarvis_config.chemin("ecran")
 COTE_MAX = 1568          # au-delà, l'image est réduite (Claude ne voit pas plus fin)
 HAUTEUR_MORCEAU = 2000   # une fenêtre plus haute est découpée en plusieurs images, pour que le texte reste lisible
 TEXTE_MAX = 8000         # nombre de caractères du presse-papiers donnés à Claude au maximum
@@ -185,7 +187,7 @@ _SELECTION = r"\b(sélectionnée?s?|sélection|surlignée?s?)\b"
 _LIRE_COPIE = r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|dis-moi)\b.*\b(copiée?s?|presse[- ]papiers?)\b"
 _BALISE = re.compile(r"\[\[COPIE\]\](.*?)\[\[/COPIE\]\]", re.S)
 CONSIGNE = ("Quand une note t'indique une capture d'écran, lis l'image avec l'outil Read avant de répondre, "
-            "puis réponds à la voix, brièvement. Quand une note te donne un texte copié et que TonyNio veut "
+            "puis réponds à la voix, brièvement. Quand une note te donne un texte copié et que " + jarvis_config.NOM + " veut "
             "le corriger, le traduire ou le réécrire, mets le nouveau texte, et lui seul, entre [[COPIE]] et "
             "[[/COPIE]] (Jarvis le placera dans le presse-papiers), suivi d'une courte phrase à dire ; "
             "s'il veut un résumé ou une explication, réponds simplement à la voix. ")
@@ -208,7 +210,7 @@ def complement(t):
         try:
             chemins, nom = capturer(bool(re.search(_TOUT_ECRAN, t)))
             quoi = f"de la fenêtre « {nom} »" if nom else "de tout l'écran"
-            note += (f"(Capture {quoi} de TonyNio, prise à l'instant"
+            note += (f"(Capture {quoi} de {jarvis_config.NOM}, prise à l'instant"
                      + (", en " + str(len(chemins)) + " images de haut en bas" if len(chemins) > 1 else "")
                      + " : " + " ; ".join(chemins) + ".) ")
         except Exception as erreur:
@@ -220,9 +222,9 @@ def complement(t):
         if texte:
             if len(texte) > TEXTE_MAX:
                 texte = texte[:TEXTE_MAX] + " […]"
-            note += "(Texte copié par TonyNio, entre les trois guillemets : \"\"\"" + texte + "\"\"\") "
+            note += "(Texte copié par " + jarvis_config.NOM + ", entre les trois guillemets : \"\"\"" + texte + "\"\"\") "
         else:
-            note += "(Le presse-papiers de TonyNio ne contient aucun texte.) "
+            note += "(Le presse-papiers de " + jarvis_config.NOM + " ne contient aucun texte.) "
     return note
 
 

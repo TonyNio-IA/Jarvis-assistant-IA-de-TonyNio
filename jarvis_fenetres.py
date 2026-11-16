@@ -20,6 +20,8 @@ import os
 import re
 import time
 
+import jarvis_config
+
 try:
     import psutil
 except Exception:
@@ -190,7 +192,7 @@ def contexte(maximum=8):
         nom = programme or "fenêtre" if nom == "la fenêtre" else nom
         if hwnd != devant and nom not in noms:
             noms.append(nom)
-    note = "(Sur l'écran de TonyNio"
+    note = "(Sur l'écran de " + jarvis_config.NOM
     if devant:
         note += " : fenêtre active « " + _texte(devant)[:70] + " »"
     if noms:

@@ -1,5 +1,5 @@
 """
-JARVIS - l'assistant vocal de TonyNio, relié à Claude.
+JARVIS - assistant vocal en français, relié à Claude.
 
 Fonctionnement :
   1. Jarvis écoute en permanence (Vosk, hors ligne) pour repérer son nom.
@@ -13,7 +13,7 @@ Fonctionnement :
   4. Pendant 3 secondes, tu peux enchaîner une autre demande sans redire « Jarvis ».
   5. Il se souvient de la conversation pendant 10 minutes.
      « Jarvis, nouvelle conversation » pour repartir de zéro.
-  6. « Jarvis, fais-moi le point du jour » : météo, actualités, SpaceX, GTA 6, PS5, Logic-Sunrise.
+  6. « Jarvis, fais-moi le point du jour » : météo, actualités et tes sujets (réglés dans config.json).
      Il le prépare en arrière-plan et le lit dès qu'il est prêt.
      « Jarvis, annule le point du jour » (ou « arrête le point du jour ») pour l'annuler.
   8. « Stop » ou « Jarvis, stop » pendant qu'il parle : il se tait.
@@ -47,16 +47,17 @@ from vosk import Model, KaldiRecognizer
 import jarvis_systeme
 import jarvis_voix
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
+import jarvis_config
 import jarvis_commandes
 import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.17"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.18"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
-MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
+MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
 SAMPLE_RATE = 16000
 # Économie : dans le silence, la reconnaissance vocale se repose (elle consomme autant sur du
 # silence que sur de la parole). Elle repart au premier son, avec les 0,8 s qui le précèdent.
@@ -66,7 +67,7 @@ REPOS_APRES = 3.0             # secondes de silence avant le repos
 SEUIL_SON_MIN = 0.003         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
 SEUIL_SON_MAX = 0.012         # ... et même dans une pièce bruyante, ce niveau la relance toujours
 BLOC_AUDIO = 1600             # 0,1 s de son à la fois (avant : 0,25 s) : Jarvis réagit plus vite
-DOSSIER_JARVIS = r"C:\Jarvis"
+DOSSIER_JARVIS = jarvis_config.DOSSIER
 CLAUDE_EXE = os.path.expanduser(r"~\.local\bin\claude.exe")
 DELAI_ECOUTE_DEMANDE = 8      # secondes pour commencer à parler après « Jarvis »
 SILENCE_FIN = 1.0             # secondes de silence qui marquent la fin de ta demande
@@ -85,7 +86,7 @@ OUTILS = "PowerShell,WebSearch,WebFetch,Read"        # agir sur le PC, chercher 
 OUTILS_POINT_DU_JOUR = "WebSearch,WebFetch"
 POLITESSES = ("merci", "merci jarvis", "merci beaucoup", "non merci", "c est bon merci", "c est bon")
 DELAI_AVANT_PATIENCE = 1.5    # si Claude n'a pas répondu après ce délai, Jarvis dit « Je m'en occupe »
-AUDIO_DIAGNOSTIC = r"C:\Jarvis\derniere_demande.wav"   # dernière demande enregistrée (pour diagnostic)
+AUDIO_DIAGNOSTIC = jarvis_config.chemin("derniere_demande.wav")   # dernière demande enregistrée (pour diagnostic)
 # Compliments et remerciements : Jarvis répond lui-même, sans passer par Claude.
 MOTS_POLITESSE = set("non oui ok d accord c est bon bien merci beaucoup jarvis tu as fait ton travail du "
                      "félicitations bravo parfait super nickel génial top joué boulot très tout ça "
@@ -97,16 +98,17 @@ MEMOIRE_MINUTES = 10          # Jarvis se souvient de la conversation pendant 10
 # Reconnaissance précise de la demande (Whisper, sur le PC)
 WHISPER_MODELE = "base"
 WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mieux que 1, pour 0,5 s de plus
-                              # (mesuré sur la voix de TonyNio ; le modèle « small » n'apporte rien et est 3 fois plus lent)
-WHISPER_DOSSIER = r"C:\Jarvis\whisper"
+                              # (mesuré sur des enregistrements réels ; le modèle « small » n'apporte rien et est 3 fois plus lent)
+WHISPER_DOSSIER = jarvis_config.chemin("whisper")
 # Whisper lit cette phrase avant d'écouter : elle lui donne le genre de demandes attendues et les
-# noms propres. Mesuré sur les enregistrements de TonyNio : avec elle et un court silence ajouté
+# noms propres. Mesuré sur des enregistrements réels : avec elle et un court silence ajouté
 # devant le son, « mets » n'est plus entendu « mais ».
 VOCABULAIRE = ("Demandes à l'assistant vocal Jarvis : mets de la musique, mets une chanson sur YouTube, "
                "ouvre une application, monte le son, rappelle-moi demain, fais une recherche. "
-               "Jarvis, TonyNio, " + jarvis_commandes.VILLE_DEFAUT[0] + ", "
+               "Jarvis, " + (jarvis_config.PRENOM + ", " if jarvis_config.PRENOM else "")
+               + jarvis_commandes.VILLE_DEFAUT[0] + ", "
                + (jarvis_commandes.LIEUX_CONNUS + ", " if jarvis_commandes.LIEUX_CONNUS else "")
-               + "SpaceX, GTA 6, PS5, PlayStation, Logic-Sunrise, Chrome, Claude"
+               + "".join(mot + ", " for mot in jarvis_config.VOCABULAIRE) + "Chrome, Claude"
                + "".join(", " + nom for nom in jarvis_commandes.noms_applications(10)
                          if nom not in ("Chrome", "Claude")) + ".")
 WHISPER_SILENCE = 0.5         # secondes de silence ajoutées devant le son (le premier mot est mieux compris)
@@ -122,23 +124,23 @@ PAUSE_AVANT_JARVIS = 0.3      # secondes de silence avant « Jarvis » pour qu'i
 PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar")
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
-DOSSIER_ENREGISTREMENTS = r"C:\Jarvis\enregistrements"
+DOSSIER_ENREGISTREMENTS = jarvis_config.chemin("enregistrements")
 NB_ENREGISTREMENTS = 40
 
-# La ville se règle dans C:\Jarvis\ville.txt (voir jarvis_commandes.py)
+# La ville se règle dans ville.txt (voir jarvis_commandes.py)
 VILLE_METEO = ", ".join(p for p in (jarvis_commandes.VILLE_DEFAUT[0], jarvis_commandes.VILLE_PRECISION) if p)
 
 # Point du jour automatique : au premier démarrage de Jarvis entre ces heures, une fois par jour
 POINT_DU_JOUR_AUTO = False              # True = le préparer tout seul au premier démarrage du matin
 POINT_DU_JOUR_HEURES = (5, 12)          # de 5 h à midi
 POINT_DU_JOUR_ATTENTE = 20              # secondes d'attente au démarrage (laisser Internet se connecter)
-FICHIER_POINT_DU_JOUR = r"C:\Jarvis\point_du_jour.date"
+FICHIER_POINT_DU_JOUR = jarvis_config.chemin("point_du_jour.date")
 
 # Mots qui interrompent Jarvis pendant qu'il parle
 MOTS_STOP = ["jarvis stop", "stop", "jarvis arrête", "arrête", "tais-toi", "jarvis tais-toi"]
 
 CONSIGNES = (
-    "Tu es Jarvis, l'assistant vocal de TonyNio sur son PC Windows 11. "
+    "Tu es Jarvis, l'assistant vocal de " + jarvis_config.NOM + " sur son PC Windows 11. "
     "Ta réponse sera lue à voix haute : réponds en français, en une à trois phrases "
     "courtes et naturelles, sans markdown, sans liste, sans emoji, sans lien. "
     "Si la demande est une action sur le PC, fais-la si c'est sans risque, "
@@ -148,12 +150,12 @@ CONSIGNES = (
     "La demande vient d'une reconnaissance vocale : si un mot semble mal compris, "
     "devine le sens le plus probable, et en cas de vrai doute, demande de répéter. "
     "Parfois deux retranscriptions de la même phrase te sont données : "
-    "déduis-en ensemble ce que TonyNio a voulu dire. "
+    "déduis-en ensemble ce que " + jarvis_config.NOM + " a voulu dire. "
     "Une demande peut commencer par une note entre parenthèses qui liste la fenêtre active et les "
     "fenêtres ouvertes : sers-t'en pour comprendre « ça », « la fenêtre » ou un nom d'application "
     "mal entendu, mais n'en parle pas. "
     + jarvis_ecran.CONSIGNE +
-    "Mémoire durable : si TonyNio te demande de retenir une information pour plus tard, "
+    "Mémoire durable : si " + jarvis_config.NOM + " te demande de retenir une information pour plus tard, "
     "termine ta réponse par une ligne « RETENIR: l'information » ; s'il te demande d'en oublier une, "
     "par une ligne « OUBLIER: l'information ». Ces lignes ne sont pas lues à voix haute. "
     "N'en écris que s'il le demande clairement. "
@@ -162,7 +164,7 @@ CONSIGNES = (
 )
 
 CONSIGNES_POINT_DU_JOUR = (
-    "Tu es Jarvis, l'assistant vocal de TonyNio. Ta réponse sera lue à voix haute "
+    "Tu es Jarvis, l'assistant vocal de " + jarvis_config.NOM + ". Ta réponse sera lue à voix haute "
     "par une synthèse vocale : texte parlé uniquement, en français. "
     "Ton message final doit contenir uniquement le point du jour lui-même, "
     "sans aucune phrase sur tes recherches ou sur ce que tu es en train de faire."
@@ -809,7 +811,13 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
     return re.sub(r"[*_#`>]", "", reponse), False
 
 
+def _enumerer(elements):
+    """« a, b et c »"""
+    return elements[0] if len(elements) == 1 else ", ".join(elements[:-1]) + " et " + elements[-1]
+
+
 def question_point_du_jour():
+    sujets, site = jarvis_config.SUJETS, jarvis_config.SITE
     t = time.localtime()
     date = f"{JOURS[t.tm_wday]} {t.tm_mday} {MOIS[t.tm_mon - 1]} {t.tm_year}"
     # La météo est relevée directement (Open-Meteo) : fiable, et autant de recherches en moins
@@ -821,18 +829,20 @@ def question_point_du_jour():
         f"Nous sommes le {date}, c'est la date exacte. "
         "Fais-moi le point du jour, dans cet ordre : "
         f"la météo du jour à {VILLE_METEO}, et pas celle d'une autre position ; "
-        "les principales actualités en France et dans le monde ; SpaceX ; GTA 6 ; "
-        "la PlayStation 5 ; et enfin les articles sur la PlayStation 5 publiés aujourd'hui "
-        "sur le site logic-sunrise.com, que tu consultes directement. "
-        "Fais une vraie recherche web pour chaque rubrique, y compris une recherche dédiée "
-        "pour SpaceX, pour GTA 6 et pour la PlayStation 5. "
+        "les principales actualités en France et dans le monde"
+        + "".join(" ; " + sujet for sujet in sujets)
+        + (f" ; et enfin les articles sur {site.get('sujet') or 'tes sujets'} publiés aujourd'hui "
+           f"sur le site {site['adresse']}, que tu consultes directement" if site else "")
+        + ". Fais une vraie recherche web pour chaque rubrique"
+        + (", y compris une recherche dédiée " + _enumerer(["pour " + sujet for sujet in sujets])
+           if sujets else "") + ". "
         "Vérifie que chaque information date bien d'aujourd'hui ou d'hier, qu'elle vient "
         "d'un média sérieux et qu'elle contient un nom, un lieu ou un chiffre précis. "
         "Si tu n'es pas sûr d'une information, ne la donne pas. "
         "Si tu trouves moins d'actualités que demandé, ou rien du tout pour une rubrique, "
         "dis-le simplement. N'invente jamais rien. "
-        "Si Logic-Sunrise ne peut pas être consulté ou n'a rien publié sur la PS5 aujourd'hui, "
-        "dis-le en une phrase. "
+        + (f"Si {site.get('nom') or site['adresse']} ne peut pas être consulté ou n'a rien publié "
+           "sur ce sujet aujourd'hui, dis-le en une phrase. " if site else "") +
         "Environ 650 mots, et plus si c'est nécessaire pour ne rien oublier d'important. "
         "TRÈS IMPORTANT, ta réponse sera lue à voix haute : écris uniquement un texte parlé "
         "et fluide, comme un présentateur radio. Commence directement par la date, sans "
@@ -900,7 +910,7 @@ def annuler_point_du_jour():
 # ---------- Interruption ----------
 
 def interruption():
-    """Vrai si TonyNio a dit « stop » pendant que Jarvis parle."""
+    """Vrai si l'on a dit « stop » pendant que Jarvis parle."""
     if rec_stop is None:
         return False
     while True:

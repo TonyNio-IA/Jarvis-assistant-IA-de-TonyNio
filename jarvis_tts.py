@@ -9,7 +9,7 @@ import subprocess
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
-MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vosk-model-small-fr-0.22")
 SAMPLE_RATE = 16000
 
 audio_queue = queue.Queue()
