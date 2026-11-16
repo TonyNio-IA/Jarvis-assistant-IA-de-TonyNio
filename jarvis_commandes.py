@@ -8,7 +8,9 @@ la réponse est immédiate et ton quota Claude est économisé.
   - le volume (monter, baisser, régler à un pourcentage, couper, remettre) ;
   - la musique ou la vidéo en cours (pause, lecture, suivant, précédent) ;
   - les minuteurs et rappels (« rappelle-moi dans 20 minutes de sortir le linge ») ;
-  - ouvrir une application ou un dossier courant, verrouiller le PC.
+  - ouvrir une application ou un dossier courant, verrouiller le PC ;
+  - l'état du PC (processeur, mémoire, programme le plus gourmand, place sur le disque) ;
+  - les notes (« note que le plombier passe jeudi », « lis mes notes »).
 Tout ce qui n'est pas reconnu ici est envoyé à Claude, comme avant.
 """
 
@@ -32,6 +34,14 @@ VILLE_DEFAUT = ("Paris", 48.8566, 2.3522)
 DELAI_METEO = 5   # secondes maximum pour obtenir la météo, sinon la demande part à Claude
 
 DOSSIER_PERSO = os.path.expanduser("~")
+FICHIER_NOTES = r"C:\Jarvis\notes.txt"
+
+_ETAT_PC = (r"\b(état|etat)\b.*\b(pc|ordinateur|ordi|système|systeme)\b"
+            r"|comment va (le pc|l'ordinateur|l'ordi)"
+            r"|\b(charge|utilisation) (du processeur|de la mémoire)\b"
+            r"|pourquoi .*\b(rame|lent|ralenti\w*)\b"
+            r"|qu'est-ce qui (rame|ralentit|consomme)")
+_LIRE_NOTES = r"\b(lis|relis|lire|quelles sont|dis-moi)\b.*\bnotes?\b"
 
 # mots-clés -> (ce qu'il faut ouvrir, nom prononcé)
 APPLICATIONS = [
@@ -335,6 +345,38 @@ def _commande_verrouiller(t):
     return None
 
 
+# ---------- État du PC et notes ----------
+
+def _commande_etat_pc(t):
+    if not re.search(_ETAT_PC, t):
+        return None
+    import jarvis_systeme
+    return jarvis_systeme.rapport()
+
+
+def _commande_notes(t, brut):
+    if re.search(_LIRE_NOTES, t):
+        try:
+            with open(FICHIER_NOTES, encoding="utf-8") as f:
+                notes = [ligne.split(" : ", 1)[-1].strip() for ligne in f if ligne.strip()]
+        except OSError:
+            notes = []
+        if not notes:
+            return "Tu n'as aucune note."
+        dernieres = notes[-5:]
+        debut = (f"Tu as {len(notes)} notes. Voici les {len(dernieres)} dernières : "
+                 if len(notes) > 5 else "Voici tes notes : " if len(notes) > 1 else "Tu as une note : ")
+        return debut + " ".join(n if n.endswith((".", "!", "?")) else n + "." for n in dernieres)
+    m = re.match(r"\W*(?:prends note|ajoute une note|note|notes)\b[\s:,]*(?:que |qu')?(.+)",
+                 brut.strip(), re.I | re.S)
+    if not m or len(m.group(1).split()) < 2:
+        return None
+    contenu = m.group(1).strip()
+    with open(FICHIER_NOTES, "a", encoding="utf-8") as f:
+        f.write(time.strftime("%d/%m/%Y %H:%M") + " : " + contenu + "\n")
+    return "C'est noté."
+
+
 # ---------- Point d'entrée ----------
 
 def _propre(brut):
@@ -351,6 +393,8 @@ def sans_whisper(texte_vosk):
                  r"oublie tout|répète|verrouille)\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
         return True
     if re.search(r"\b(son|volume|sourdine)\b", t):
+        return True
+    if re.search(_ETAT_PC, t) or re.search(_LIRE_NOTES, t):
         return True
     if re.search(r"\b(météo|quel temps)\b", t) and not re.search(r"\b(à|au|aux|sur|et)\s+\w", t):
         return True
@@ -380,7 +424,9 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: _commande_volume(t),
                              lambda: _commande_lecture(t),
                              lambda: _commande_ouvrir(t),
-                             lambda: _commande_verrouiller(t)):
+                             lambda: _commande_verrouiller(t),
+                             lambda: _commande_etat_pc(t),
+                             lambda: _commande_notes(t, brut)):
                 reponse = commande()
                 if reponse:
                     return reponse

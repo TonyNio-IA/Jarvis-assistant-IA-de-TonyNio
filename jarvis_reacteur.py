@@ -9,6 +9,8 @@ l'état de Jarvis :
   - Je réponds    : bleu, le cœur vibre comme une voix
   - Erreur        : rouge clignotant
   - En pause      : violet, pendant que Claude lit un message (F9)
+Sous le réacteur : ce que Jarvis a compris, puis la charge du processeur,
+la mémoire utilisée et le débit du réseau, en temps réel.
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py
 Déplacer   :  clic gauche maintenu sur le réacteur
@@ -25,6 +27,8 @@ import threading
 import time
 import tkinter as tk
 
+import numpy as np
+
 # Image nette sur écran 4K (doit être fait avant de créer la fenêtre)
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -35,6 +39,16 @@ DOSSIER = os.path.dirname(os.path.abspath(__file__))
 
 # Lancé sans console (pythonw, au démarrage de Windows) : messages dans un journal
 if sys.stdout is None or sys.stderr is None:
+    _chemin = os.path.join(DOSSIER, "jarvis.log")
+    try:                                   # le journal ne grossit pas indéfiniment
+        if os.path.getsize(_chemin) > 1_000_000:
+            with open(_chemin, "rb") as f:
+                f.seek(-300_000, 2)
+                _fin = f.read()
+            with open(_chemin, "wb") as f:
+                f.write(_fin[_fin.find(b"\n") + 1:])
+    except OSError:
+        pass
     journal = open(os.path.join(DOSSIER, "jarvis.log"), "a", encoding="utf-8", buffering=1)
     sys.stdout = sys.stderr = journal
     print("\n=====", time.strftime("%d/%m/%Y %H:%M:%S"), "démarrage de Jarvis =====")
@@ -50,6 +64,7 @@ except OSError:
 sys.path.insert(0, DOSSIER)
 import jarvis_claude  # noqa: E402
 import jarvis_voix    # noqa: E402
+import jarvis_systeme  # noqa: E402
 
 # ===== Réglages =====
 TAILLE = 220            # taille du réacteur (avant mise à l'échelle de l'écran)
@@ -63,6 +78,10 @@ NB_FILAMENTS = 9        # nombre de filaments qui forment l'anneau
 NB_FILAMENTS_INT = 4    # filaments plus fins à l'intérieur
 NB_FILAMENTS_BORD = 3   # filaments fins qui forment le bord extérieur
 NB_POUSSIERE = 40       # particules lumineuses à l'intérieur de l'anneau
+AFFICHER_SYSTEME = True # processeur, mémoire et réseau sous le réacteur
+IMAGES_ACTIF = 30       # images par seconde quand Jarvis écoute, réfléchit ou répond
+IMAGES_VEILLE = 10      # images par seconde en veille (économise le processeur)
+IMAGES_VEILLE_LONGUE = 5   # après 30 secondes de veille : animation encore plus économe
 
 ETATS = {
     #  nom          couleur      vitesse  pulsation  texte
@@ -124,7 +143,8 @@ class Reacteur:
         self.d = int(TAILLE * echelle)
         self.m = int((30 if STYLE == "hud" else 4) * echelle)   # marge (particules du style hud)
         self.w = self.d + 2 * self.m
-        self.h = int(self.d + 2 * self.m + 74 * echelle)
+        self.h = int(self.d + 2 * self.m + (106 if AFFICHER_SYSTEME else 74) * echelle)
+        jarvis_systeme.demarrer()
         x = self.root.winfo_screenwidth() - self.w - int(MARGE_DROITE * echelle)
         y = self.root.winfo_screenheight() - self.h - int(MARGE_BAS * echelle)
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
@@ -171,19 +191,48 @@ class Reacteur:
             self._dessiner_hud()
         else:
             self._dessiner_anneau()
-        self.root.after(33, self.dessiner)
+        actif = (etat_actuel in ("ecoute", "traitement", "reponse", "erreur")
+                 or time.time() - texte_depuis < 1)
+        if actif:
+            self._dernier_actif = time.time()
+            images = IMAGES_ACTIF
+        elif time.time() - getattr(self, "_dernier_actif", 0) < 30:
+            images = IMAGES_VEILLE
+        else:
+            images = IMAGES_VEILLE_LONGUE
+        self.root.after(int(1000 / images), self.dessiner)
 
     # ---------- Style « anneau » : objets créés une seule fois, puis déplacés ----------
 
     def _init_anneau(self):
         c, s = self.c, self.s
         n = self.n_pts = 160      # assez de points pour une courbe lisse sans « smooth » (très lent)
-        th = [2 * math.pi * i / n for i in range(n + 1)]
-        self.cos_t = [math.cos(a) for a in th]
-        self.sin_t = [math.sin(a) for a in th]
-        # sin(kθ) et cos(kθ) précalculés : plus aucun calcul de sinus par point ensuite
-        self.harm = {k: ([math.sin(k * a) for a in th], [math.cos(k * a) for a in th])
-                     for k in (2, 3, 4, 5, 7)}
+        th = np.arange(n + 1) * (2 * math.pi / n)
+        self.cos_t, self.sin_t = np.cos(th), np.sin(th)
+        # sin(kθ) et cos(kθ) précalculés, et calculs faits d'un bloc avec numpy
+        self.harm = {k: (np.sin(k * th), np.cos(k * th)) for k in (2, 3, 4, 5, 7)}
+        self._cfg_cache = {}     # dernier réglage de chaque objet : on ne renvoie que ce qui change
+        self._pos_cache = {}
+
+        # Carte sombre sous le réacteur (texte lisible sur n'importe quel fond d'écran)
+        x0, x1 = 5 * s, self.w - 5 * s
+        y0, y1 = self.m + self.d + 5 * s, self.h - 3 * s
+        r = 12 * s
+        self.it_carte = c.create_polygon(
+            x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1,
+            x0 + r, y1, x0, y1, x0, y1 - r, x0, y0 + r, x0, y0, smooth=True, fill=FOND)
+        self.it_sys = None
+        if AFFICHER_SYSTEME:
+            yb = self.m + self.d
+            largeur = 64 * s
+            self.it_sys = {}
+            for nom, x in (("cpu", self.w * 0.27), ("ram", self.w * 0.73)):
+                texte = c.create_text(x, yb + 70 * s, font=("Segoe UI", 8, "bold"))
+                c.create_rectangle(x - largeur / 2, yb + 79 * s, x + largeur / 2, yb + 82 * s,
+                                   fill="#16232b", outline="")
+                barre = c.create_rectangle(0, 0, 0, 0, outline="")
+                self.it_sys[nom] = (texte, barre, x - largeur / 2, yb + 79 * s, largeur, 3 * s)
+            self.it_reseau = c.create_text(self.w / 2, yb + 93 * s, font=("Segoe UI", 8))
 
         self.it_fond = [c.create_oval(0, 0, 0, 0, outline="") for _ in range(7)]
         self.it_bord = [(c.create_line(0, 0, 1, 1), c.create_line(0, 0, 1, 1))
@@ -205,27 +254,24 @@ class Reacteur:
                           for idx in self.idx_points]
         self.it_texte = c.create_text(0, 0, font=("Segoe UI", 11, "bold"))
         self.it_sous_titre = c.create_text(0, 0, font=("Segoe UI", 8), anchor="n",
-                                           justify="center", width=self.w - 8 * s)
+                                           justify="center", width=self.w - 26 * s)
         self._voix = 0.0
         self._micro = 0.0
         self._amp = 0.1
         self._anneau_pret = True
 
     def _filament(self, cx, cy, rayon, amp, harmoniques):
-        """Points d'un filament fermé : rayon * (1 + amp * somme d'ondes)."""
-        termes = []
+        """Filament fermé : rayon * (1 + amp * somme d'ondes).
+        Renvoie (coordonnées à plat pour le dessin, liste des x, liste des y)."""
+        onde = 0.0
         for k, poids, ph in harmoniques:
             sk, ck = self.harm[k]
-            termes.append((sk, ck, poids * math.cos(ph), poids * math.sin(ph)))
-        pts = []
-        cos_t, sin_t = self.cos_t, self.sin_t
-        for i in range(self.n_pts + 1):
-            onde = 0.0
-            for sk, ck, a, b in termes:
-                onde += sk[i] * a + ck[i] * b        # = poids * sin(kθ + ph)
-            r = rayon * (1 + amp * onde)
-            pts.append((cx + r * cos_t[i], cy + r * sin_t[i]))
-        return pts
+            onde = onde + sk * (poids * math.cos(ph)) + ck * (poids * math.sin(ph))
+        r = rayon * (1 + amp * onde)
+        xs, ys = cx + r * self.cos_t, cy + r * self.sin_t
+        plat = np.empty(2 * len(xs))
+        plat[0::2], plat[1::2] = xs, ys
+        return plat.tolist(), xs.tolist(), ys.tolist()
 
     def _dessiner_anneau(self):
         """Anneau de filaments ondulants, cœur lumineux et poussière intérieure."""
@@ -233,7 +279,14 @@ class Reacteur:
             self._init_anneau()
         c, s = self.c, self.s
         t = time.time() - self.t0
-        dt = min(0.1, time.time() - self.t_prec)
+        dt = min(0.25, time.time() - self.t_prec)
+        cache = self._cfg_cache
+
+        def cfg(it, **kw):
+            if cache.get(it) != kw:
+                cache[it] = kw
+                c.itemconfigure(it, **kw)
+
         self.t_prec = time.time()
         couleur_cible, vitesse, pulsation, texte = ETATS[etat_actuel]
         self.couleur = melange(self.couleur, hex_vers_rgb(couleur_cible), 0.12)
@@ -245,7 +298,8 @@ class Reacteur:
         blanc = melange(base, (255, 255, 255), 0.55)
 
         def teinte(force, vers=None):
-            return rgb_vers_hex(*melange(fond, vers or base, max(0.0, min(1.0, force))))
+            r, g, b = melange(fond, vers or base, max(0.0, min(1.0, force)))
+            return "#%02x%02x%02x" % (int(r) & 252, int(g) & 252, int(b) & 252)
 
         # L'anneau suit le vrai son : la voix de Jarvis quand il répond, ton micro quand il écoute
         self._voix += (min(1.0, jarvis_voix.niveau * 1.6) - self._voix) * 0.45
@@ -264,44 +318,47 @@ class Reacteur:
             amplitude, eclat = 0.10, 0.8
         self._amp += (amplitude - self._amp) * 0.4
         amplitude = self._amp
-        self.angle += vitesse * 0.02
+        self.angle += vitesse * 0.6 * dt
         ph = self.angle
 
         cx = cy = self.m + self.d / 2
         R = self.d / 2 - 3 * s
         R0 = R * 0.68
 
+        positions = self._pos_cache
+
         def place(it, r, x=cx, y=cy):
-            c.coords(it, x - r, y - r, x + r, y + r)
+            cle = (round(x, 1), round(y, 1), round(r, 1))
+            if positions.get(it) != cle:
+                positions[it] = cle
+                c.coords(it, x - r, y - r, x + r, y + r)
 
         # Fond : dégradé sombre, plus lumineux au centre, et fin liseré
         for k, it in enumerate(self.it_fond):
             r = R * (len(self.it_fond) - k) / len(self.it_fond)
             place(it, r)
-            c.itemconfigure(it, fill=teinte(0.03 + k * 0.022 * eclat))
+            cfg(it, fill=teinte(0.03 + k * 0.022 * eclat))
         # Anneau extérieur : fins filaments qui ondulent au bord du cercle
         for f, (halo, ligne) in enumerate(self.it_bord):
             phi = f * 2.2
-            pts = self._filament(cx, cy, R * (0.955 - 0.012 * f), 0.018 + amplitude * 0.1,
+            plat, xs, ys = self._filament(cx, cy, R * (0.955 - 0.012 * f), 0.018 + amplitude * 0.1,
                                  [(4, 0.6, ph * 0.7 + phi), (7, 0.4, -ph * 1.1 + 2 * phi)])
-            plat = [v for pt in pts for v in pt]
             c.coords(halo, *plat)
             c.coords(ligne, *plat)
             force = (0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat
-            c.itemconfigure(halo, fill=teinte(0.12 * eclat), width=3 * s)
-            c.itemconfigure(ligne, fill=teinte(force), width=1 * s)
+            cfg(halo, fill=teinte(0.12 * eclat), width=3 * s)
+            cfg(ligne, fill=teinte(force), width=1 * s)
 
         # Filaments intérieurs, plus fins, qui tournent en sens inverse
         for f, (halo, ligne) in enumerate(self.it_int):
             phi = f * 1.9
-            pts = self._filament(cx, cy, R0 * (0.50 + 0.03 * f), amplitude * 0.8,
+            plat, xs, ys = self._filament(cx, cy, R0 * (0.50 + 0.03 * f), amplitude * 0.8,
                                  [(2, 0.6, -ph * 0.8 + phi), (4, 0.4, ph * 0.5 + 2 * phi)])
-            plat = [v for pt in pts for v in pt]
             c.coords(halo, *plat)
             c.coords(ligne, *plat)
             force = (0.35 + 0.15 * math.sin(t * 0.9 + phi)) * eclat
-            c.itemconfigure(halo, fill=teinte(0.15 * force * 2), width=3 * s)
-            c.itemconfigure(ligne, fill=teinte(force), width=1 * s)
+            cfg(halo, fill=teinte(0.15 * force * 2), width=3 * s)
+            cfg(ligne, fill=teinte(force), width=1 * s)
 
         # Poussière lumineuse, uniquement à l'intérieur de l'anneau
         for q, it in zip(self.poussiere, self.it_poussiere):
@@ -325,7 +382,7 @@ class Reacteur:
             bord = min(1.0, (0.55 - q["r"]) / 0.1, (q["r"] - 0.1) / 0.06)
             force = max(0.0, scint * bord) * eclat
             place(it, (0.7 + 0.7 * scint) * s, x, y)
-            c.itemconfigure(it, fill=teinte(force * 0.9, blanc),
+            cfg(it, fill=teinte(force * 0.9, blanc),
                             state="normal" if force > 0.1 else "hidden")
 
         # Cœur lumineux
@@ -335,19 +392,19 @@ class Reacteur:
             rc = R * (0.10 + 0.01 * math.sin(t * 3))
         for it, (k, force) in zip(self.it_coeur, ((1.6, 0.10), (1.25, 0.2), (1.0, 0.32))):
             place(it, rc * k)
-            c.itemconfigure(it, fill=teinte(force * eclat))
+            cfg(it, fill=teinte(force * eclat))
         place(self.it_coeur_bord, rc)
-        c.itemconfigure(self.it_coeur_bord, outline=teinte(0.8 * eclat), width=1.2 * s)
+        cfg(self.it_coeur_bord, outline=teinte(0.8 * eclat), width=1.2 * s)
         place(self.it_point, rc * 0.28)
-        c.itemconfigure(self.it_point, fill=teinte(0.9 * eclat, blanc),
+        cfg(self.it_point, fill=teinte(0.9 * eclat, blanc),
                         state="hidden" if e == "traitement" else "normal")
         for i, it in enumerate(self.it_arcs):
             if e == "traitement":
                 place(it, rc * 0.65)
-                c.itemconfigure(it, state="normal", start=-math.degrees(ph) * 6 + i * 120,
+                cfg(it, state="normal", start=-math.degrees(ph) * 6 + i * 120,
                                 outline=teinte(1.0, blanc), width=2 * s)
             else:
-                c.itemconfigure(it, state="hidden")
+                cfg(it, state="hidden")
 
         # Anneau principal de filaments, avec ses particules
         for f, (halo, ligne) in enumerate(self.it_fil):
@@ -355,30 +412,43 @@ class Reacteur:
             force = (0.6 + 0.4 * (0.5 + 0.5 * math.sin(t * 0.7 + phi))) * eclat
             amp_f = amplitude * (0.6 + 0.8 * ((f * 0.37) % 1))
             decal = 0.05 * math.sin(phi * 1.7 + t * 0.5)
-            pts = self._filament(cx, cy, R0 * (1 + decal), amp_f,
+            plat, xs, ys = self._filament(cx, cy, R0 * (1 + decal), amp_f,
                                  [(3, 0.55, ph * 1.3 + phi), (5, 0.30, -ph * 0.9 + 2 * phi),
                                   (2, 0.15, ph * 0.6 + 3 * phi)])
-            plat = [v for pt in pts for v in pt]
             c.coords(halo, *plat)
             c.coords(ligne, *plat)
-            c.itemconfigure(halo, fill=teinte(0.3 * force), width=4 * s)
-            c.itemconfigure(ligne, fill=teinte(force), width=1.2 * s)
+            cfg(halo, fill=teinte(0.3 * force), width=4 * s)
+            cfg(ligne, fill=teinte(force), width=1.2 * s)
             for i, it in zip(self.idx_points[f], self.it_points[f]):
                 scint = 0.5 + 0.5 * math.sin(t * 4 + i * 0.7 + phi)
                 if scint < 0.35:
-                    c.itemconfigure(it, state="hidden")
+                    cfg(it, state="hidden")
                     continue
-                x, y = pts[i]
+                x, y = xs[i], ys[i]
                 place(it, (0.9 + 0.9 * scint) * s, x, y)
-                c.itemconfigure(it, state="normal", fill=teinte(force * scint, blanc))
+                cfg(it, state="normal", fill=teinte(force * scint, blanc))
 
-        c.coords(self.it_texte, cx, self.m + self.d + 16 * s)
-        c.itemconfigure(self.it_texte, text=texte, fill=teinte(1.0))
+        cfg(self.it_carte, outline=teinte(0.3 * eclat), width=1 * s)
+        if self.it_sys:
+            m = jarvis_systeme.mesures
+            for nom, valeur in (("cpu", m["cpu"]), ("ram", m["ram"])):
+                texte_it, barre, bx, by, largeur, hauteur = self.it_sys[nom]
+                couleur = "#ff4d4d" if valeur >= 90 else "#ffa53a" if valeur >= 75 else teinte(0.9)
+                cfg(texte_it, text=f"{nom.upper()} {valeur:.0f} %", fill=couleur)
+                cfg(barre, fill=couleur)
+                cle = round(valeur)
+                if positions.get(barre) != cle:
+                    positions[barre] = cle
+                    c.coords(barre, bx, by, bx + largeur * min(100, valeur) / 100, by + hauteur)
+            cfg(self.it_reseau, fill=teinte(0.7, blanc),
+                text=f"↓ {jarvis_systeme.debit(m['recu'])}    ↑ {jarvis_systeme.debit(m['envoye'])}")
+        c.coords(self.it_texte, cx, self.m + self.d + 19 * s)
+        cfg(self.it_texte, text=texte, fill=teinte(1.0))
         age = time.time() - texte_depuis
         visible = texte_actuel and age < DUREE_TEXTE
         fondu = 1.0 if age < DUREE_TEXTE - 2 else max(0.0, (DUREE_TEXTE - age) / 2)
-        c.coords(self.it_sous_titre, cx, self.m + self.d + 30 * s)
-        c.itemconfigure(self.it_sous_titre, text=("« " + texte_actuel + " »") if visible else "",
+        c.coords(self.it_sous_titre, cx, self.m + self.d + 32 * s)
+        cfg(self.it_sous_titre, text=("« " + texte_actuel + " »") if visible else "",
                         fill=teinte(0.75 * fondu, blanc))
 
     def _dessiner_hud(self):

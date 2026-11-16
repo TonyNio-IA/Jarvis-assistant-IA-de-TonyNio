@@ -32,6 +32,7 @@ except Exception:
 VOIX = "fr-FR-HenriNeural"
 VITESSE = "+5%"     # "+0%" = normal, "+10%" = un peu plus rapide, "-10%" = plus lent
 FREQ = 24000        # fréquence du son fourni par edge-tts
+DOSSIER_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_voix")
 TAILLE_MORCEAU = 220   # longueur (en caractères) des morceaux d'une longue réponse
 
 niveau = 0.0        # volume de la voix à cet instant (0 à 1), lu par le réacteur
@@ -95,12 +96,20 @@ def _son_pour(texte):
 
 
 def preparer(phrases):
-    """Prépare à l'avance les phrases fréquentes (au démarrage de Jarvis)."""
+    """Prépare à l'avance les phrases fréquentes. Elles sont gardées sur le disque
+    (dossier cache_voix) : aux démarrages suivants, plus besoin d'Internet pour elles."""
     if av is None:
         return
+    os.makedirs(DOSSIER_CACHE, exist_ok=True)
     for texte in phrases:
+        cle = hashlib.md5(f"{VOIX}|{VITESSE}|{texte}".encode("utf-8")).hexdigest()[:16]
+        fichier = os.path.join(DOSSIER_CACHE, cle + ".npy")
         try:
-            _cache[texte] = _son_pour(texte)
+            if os.path.exists(fichier):
+                _cache[texte] = np.load(fichier)
+            else:
+                _cache[texte] = _son_pour(texte)
+                np.save(fichier, _cache[texte])
         except Exception as erreur:
             print("Phrase non préparée :", texte, erreur)
 

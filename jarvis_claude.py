@@ -20,6 +20,8 @@ Fonctionnement :
   9. Heure, date, météo, volume, musique, minuteurs et ouverture d'applications :
      réponse immédiate, sans Claude (voir jarvis_commandes.py).
  10. « Jarvis, répète » : il redit sa dernière réponse.
+ 11. « Jarvis, état du PC » : processeur, mémoire, programme le plus gourmand, disque.
+ 12. « Jarvis, note que... » et « Jarvis, lis mes notes ».
   7. Il se met en pause tout seul quand Claude lit un message à voix haute (touche F9).
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py   (avec le réacteur)
@@ -39,10 +41,11 @@ import numpy as np
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
+import jarvis_systeme
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.03"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.04"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -193,19 +196,28 @@ except Exception as _e:
     AudioUtilities = None
 
 
+_compteurs = []          # compteurs de volume des programmes à ignorer
+_compteurs_date = 0.0
+DELAI_RECHERCHE_PROGRAMMES = 5   # secondes entre deux recherches des programmes (opération coûteuse)
+
+
 def lecture_en_cours():
-    """Vrai si un des programmes à ignorer (Claude) est en train de jouer du son."""
+    """Vrai si un des programmes à ignorer (Claude) est en train de jouer du son.
+    La liste des programmes n'est relue que toutes les 5 secondes : lire leur volume
+    est quasi gratuit, alors que les rechercher coûtait près de 20 % d'un cœur."""
+    global _compteurs, _compteurs_date
     if AudioUtilities is None:
         return False
     try:
-        for session in AudioUtilities.GetAllSessions():
-            if session.Process and session.Process.name().lower() in PROGRAMMES_A_IGNORER:
-                compteur = session._ctl.QueryInterface(IAudioMeterInformation)
-                if compteur.GetPeakValue() > 0.01:
-                    return True
+        if time.time() - _compteurs_date > DELAI_RECHERCHE_PROGRAMMES:
+            _compteurs_date = time.time()
+            _compteurs = [session._ctl.QueryInterface(IAudioMeterInformation)
+                          for session in AudioUtilities.GetAllSessions()
+                          if session.Process and session.Process.name().lower() in PROGRAMMES_A_IGNORER]
+        return any(compteur.GetPeakValue() > 0.01 for compteur in _compteurs)
     except Exception:
-        pass
-    return False
+        _compteurs = []
+        return False
 
 
 # ---------- Reconnaissance précise (Whisper) ----------
@@ -344,6 +356,7 @@ class ClaudeContinu:
         self.proc = None
         self.sorties = queue.Queue()
         self.dernier_usage = 0.0
+        self.utilise = False              # la conversation en cours contient-elle des échanges ?
         self.verrou = threading.Lock()
 
     def _lire(self, flux, file_sortie):
@@ -370,7 +383,18 @@ class ClaudeContinu:
         threading.Thread(target=self._lire, args=(self.proc.stderr, None),
                          daemon=True).start()
         self.dernier_usage = time.time()
+        self.utilise = False
         print("Claude prêt en continu (modèle", MODELE + ").")
+
+    def entretenir(self):
+        """Quand la mémoire de la conversation a expiré, relance Claude à l'avance
+        (en arrière-plan) : la question suivante n'attend plus son démarrage."""
+        if (self.utilise and time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60
+                and self.verrou.acquire(blocking=False)):
+            try:
+                self.demarrer()
+            finally:
+                self.verrou.release()
 
     def arreter(self):
         if self.proc and self.proc.poll() is None:
@@ -384,8 +408,9 @@ class ClaudeContinu:
         """Renvoie (réponse, erreur)."""
         with self.verrou:
             if (self.proc is None or self.proc.poll() is not None
-                    or time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60):
+                    or (self.utilise and time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60)):
                 self.demarrer()        # nouvelle conversation
+            self.utilise = True
             message = {"type": "user", "message": {"role": "user", "content": texte}}
             try:
                 self.proc.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
@@ -728,13 +753,15 @@ def main():
     model = Model(MODEL_PATH)
     recognizer = KaldiRecognizer(model, SAMPLE_RATE)
     rec_stop = KaldiRecognizer(model, SAMPLE_RATE, json.dumps(MOTS_STOP + ["[unk]"], ensure_ascii=False))
-    charger_whisper()
-    preparer(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
+    # Tout le reste se charge en arrière-plan : Jarvis écoute dès que Vosk est prêt
+    jarvis_systeme.demarrer()
+    threading.Thread(target=charger_whisper, daemon=True).start()
+    threading.Thread(target=preparer, args=(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",
               "Avec plaisir.", "C'est fait.",
-              "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."])
+              "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."],), daemon=True).start()
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
 
     heure = time.localtime().tm_hour
@@ -764,6 +791,7 @@ def main():
         ):
             while True:
                 data = audio_queue.get()
+                claude.entretenir()
 
                 # Point du jour préparé en arrière-plan : on le lit maintenant
                 if not point_pret.empty():

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.03**
+**Version actuelle : 1.04**
 
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
@@ -15,6 +15,9 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
   (Réglage `POINT_DU_JOUR_AUTO = True` pour qu'il le prépare tout seul au premier démarrage du matin.)
 - Réponse immédiate, sans Claude, pour : l'heure, la date, la météo (aujourd'hui, demain, après-demain, via Open-Meteo), le volume, la musique (pause, suivant, précédent), les minuteurs et rappels (« rappelle-moi dans 20 minutes de sortir le linge »), l'ouverture d'applications courantes et le verrouillage du PC.
 - « Jarvis, répète » : il redit sa dernière réponse.
+- « Jarvis, état du PC » (ou « pourquoi ça rame ») : processeur, mémoire, programme le plus gourmand, place sur le disque.
+- « Jarvis, note que... » et « Jarvis, lis mes notes » (fichier `notes.txt`).
+- Sous le réacteur : ce que Jarvis a compris, la charge du processeur, la mémoire et le débit du réseau en temps réel.
 - « Stop », « Jarvis, stop » ou « Tais-toi » pendant qu'il parle : il se tait.
 - Se mettre en pause tout seul quand l'application Claude lit un message à voix haute (touche F9).
 - Démarrer avec Windows, sans fenêtre.
@@ -27,6 +30,7 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 | `jarvis_claude.py` | L'écoute, la reconnaissance vocale et le dialogue avec Claude |
 | `jarvis_voix.py` | La voix naturelle « Henri » (edge-tts) |
 | `jarvis_commandes.py` | Les commandes instantanées (heure, date, volume, applications) |
+| `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
 | `requirements.txt` | Les modules Python nécessaires |
 
@@ -59,6 +63,7 @@ Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
 
 | Version | Contenu |
 |---|---|
+| 1.04 | Processeur, mémoire et réseau affichés sous le réacteur, « état du PC », notes vocales, Jarvis 3 fois plus léger en veille, démarrage en 3 secondes |
 | 1.03 | Claude allégé (environ 4 fois moins de quota), météo, minuteurs et musique sans Claude, voix par morceaux, réacteur réactif au son, sous-titre |
 | 1.02 | Point du jour à la demande et annulable, filtre des phrases inventées par Whisper |
 | 1.01 | Commandes instantanées, interruption « stop », point du jour automatique |

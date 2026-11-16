@@ -8,3 +8,5 @@ __pycache__/
 *.wav
 *.lnk
 *.date
+cache_voix/
+notes.txt
