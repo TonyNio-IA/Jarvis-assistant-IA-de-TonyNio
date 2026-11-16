@@ -1,0 +1,9 @@
+# Modèles de reconnaissance vocale (volumineux, se retéléchargent)
+vosk-model-*/
+whisper/
+
+# Fichiers propres à ce PC
+__pycache__/
+*.log
+*.wav
+*.lnk
