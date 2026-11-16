@@ -49,6 +49,7 @@ except OSError:
 
 sys.path.insert(0, DOSSIER)
 import jarvis_claude  # noqa: E402
+import jarvis_voix    # noqa: E402
 
 # ===== Réglages =====
 TAILLE = 220            # taille du réacteur (avant mise à l'échelle de l'écran)
@@ -76,6 +77,16 @@ ETATS = {
 # ====================
 
 etat_actuel = "demarrage"
+texte_actuel = ""          # ce que Jarvis a compris, affiché sous le réacteur
+texte_depuis = 0.0
+DUREE_TEXTE = 12           # secondes d'affichage
+
+
+def changer_texte(texte):
+    global texte_actuel, texte_depuis
+    texte = " ".join(str(texte).split())
+    texte_actuel = texte if len(texte) <= 70 else texte[:67] + "..."
+    texte_depuis = time.time()
 
 
 def changer_etat(nom):
@@ -113,7 +124,7 @@ class Reacteur:
         self.d = int(TAILLE * echelle)
         self.m = int((30 if STYLE == "hud" else 4) * echelle)   # marge (particules du style hud)
         self.w = self.d + 2 * self.m
-        self.h = int(self.d + 2 * self.m + 34 * echelle)
+        self.h = int(self.d + 2 * self.m + 74 * echelle)
         x = self.root.winfo_screenwidth() - self.w - int(MARGE_DROITE * echelle)
         y = self.root.winfo_screenheight() - self.h - int(MARGE_BAS * echelle)
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
@@ -191,6 +202,10 @@ class Reacteur:
         self.it_points = [[c.create_oval(0, 0, 0, 0, outline="") for _ in idx]
                           for idx in self.idx_points]
         self.it_texte = c.create_text(0, 0, font=("Segoe UI", 11, "bold"))
+        self.it_sous_titre = c.create_text(0, 0, font=("Segoe UI", 8), anchor="n",
+                                           justify="center", width=self.w - 8 * s)
+        self._voix = 0.0
+        self._micro = 0.0
         self._amp = 0.1
         self._anneau_pret = True
 
@@ -230,19 +245,22 @@ class Reacteur:
         def teinte(force, vers=None):
             return rgb_vers_hex(*melange(fond, vers or base, max(0.0, min(1.0, force))))
 
+        # L'anneau suit le vrai son : la voix de Jarvis quand il répond, ton micro quand il écoute
+        self._voix += (min(1.0, jarvis_voix.niveau * 1.6) - self._voix) * 0.45
+        self._micro += (min(1.0, jarvis_claude.niveau_micro * 5) - self._micro) * 0.3
         voix = 0.0
         if e == "reponse":
-            voix = abs(math.sin(t * 11)) * (0.6 + 0.4 * math.sin(t * 3.7))
-            amplitude, eclat = 0.10 + 0.18 * voix, 1.0
+            voix = self._voix
+            amplitude, eclat = 0.08 + 0.24 * voix, 0.85 + 0.15 * voix
         elif e == "ecoute":
-            amplitude, eclat = 0.14 + 0.04 * math.sin(t * 3), 1.0
+            amplitude, eclat = 0.11 + 0.16 * self._micro, 1.0
         elif e == "traitement":
             amplitude, eclat = 0.16, 1.0
         elif e == "erreur":
             amplitude, eclat = 0.20, 0.95
         else:
             amplitude, eclat = 0.10, 0.8
-        self._amp += (amplitude - self._amp) * 0.25
+        self._amp += (amplitude - self._amp) * 0.4
         amplitude = self._amp
         self.angle += vitesse * 0.02
         ph = self.angle
@@ -354,6 +372,12 @@ class Reacteur:
 
         c.coords(self.it_texte, cx, self.m + self.d + 16 * s)
         c.itemconfigure(self.it_texte, text=texte, fill=teinte(1.0))
+        age = time.time() - texte_depuis
+        visible = texte_actuel and age < DUREE_TEXTE
+        fondu = 1.0 if age < DUREE_TEXTE - 2 else max(0.0, (DUREE_TEXTE - age) / 2)
+        c.coords(self.it_sous_titre, cx, self.m + self.d + 30 * s)
+        c.itemconfigure(self.it_sous_titre, text=("« " + texte_actuel + " »") if visible else "",
+                        fill=teinte(0.75 * fondu, blanc))
 
     def _dessiner_hud(self):
         c, s = self.c, self.s
@@ -533,6 +557,7 @@ def boucle_jarvis():
 
 if __name__ == "__main__":
     jarvis_claude.afficher_etat = changer_etat
+    jarvis_claude.afficher_texte = changer_texte
     reacteur = Reacteur()
     threading.Thread(target=boucle_jarvis, daemon=True).start()
     reacteur.lancer()

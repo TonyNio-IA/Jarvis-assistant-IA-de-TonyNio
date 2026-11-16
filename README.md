@@ -11,7 +11,8 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 - « Jarvis, fais-moi le point du jour » : météo de Paris, actualités, SpaceX, GTA 6, PS5 et Logic-Sunrise.
   Il le prépare en arrière-plan et le lit dès qu'il est prêt ; « Jarvis, annule le point du jour » l'arrête.
   (Réglage `POINT_DU_JOUR_AUTO = True` pour qu'il le prépare tout seul au premier démarrage du matin.)
-- Réponse immédiate, sans Claude, pour l'heure, la date, le volume (« monte le son », « volume à 30 », « coupe le son »...) et l'ouverture d'applications courantes (Chrome, calculatrice, bloc-notes, documents, téléchargements...).
+- Réponse immédiate, sans Claude, pour : l'heure, la date, la météo (aujourd'hui, demain, après-demain, via Open-Meteo), le volume, la musique (pause, suivant, précédent), les minuteurs et rappels (« rappelle-moi dans 20 minutes de sortir le linge »), l'ouverture d'applications courantes et le verrouillage du PC.
+- « Jarvis, répète » : il redit sa dernière réponse.
 - « Stop », « Jarvis, stop » ou « Tais-toi » pendant qu'il parle : il se tait.
 - Se mettre en pause tout seul quand l'application Claude lit un message à voix haute (touche F9).
 - Démarrer avec Windows, sans fenêtre.
@@ -32,6 +33,7 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 1. **Vosk** (hors ligne) écoute en permanence et repère le mot « Jarvis ».
 2. **Whisper** (modèle « base », sur le PC) retranscrit la demande plus précisément. Si Vosk et Whisper ne sont pas d'accord, les deux versions sont envoyées à Claude.
 3. **Claude Code** reste ouvert en continu (modèle Sonnet) : une réponse simple arrive en 1 à 2 secondes.
+   Il est lancé en version allégée (sans extensions, quatre outils seulement) : environ 4 fois moins de quota par question.
 4. **edge-tts** lit la réponse avec la voix d'Henri.
 
 ## Réinstaller sur un autre PC
@@ -46,7 +48,7 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 
 ## Réglages utiles
 
-En haut de `jarvis_claude.py` : `MODELE` (« sonnet » ou « opus »), `DELAI_SUITE`, `MEMOIRE_MINUTES`, `VILLE_METEO`...
+En haut de `jarvis_claude.py` : `MODELE` et `MODELE_POINT_DU_JOUR` (« sonnet » ou « opus »), `DELAI_SUITE`, `MEMOIRE_MINUTES`, `VILLE_METEO`...
 En haut de `jarvis_reacteur.py` : `STYLE` (« anneau » ou « hud »), `TAILLE`, les couleurs des états...
 
 Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.

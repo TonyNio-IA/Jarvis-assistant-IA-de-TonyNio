@@ -17,7 +17,9 @@ Fonctionnement :
      Il le prépare en arrière-plan et le lit dès qu'il est prêt.
      « Jarvis, annule le point du jour » (ou « arrête le point du jour ») pour l'annuler.
   8. « Stop » ou « Jarvis, stop » pendant qu'il parle : il se tait.
-  9. Heure, date, volume et ouverture d'applications : réponse immédiate, sans Claude.
+  9. Heure, date, météo, volume, musique, minuteurs et ouverture d'applications :
+     réponse immédiate, sans Claude (voir jarvis_commandes.py).
+ 10. « Jarvis, répète » : il redit sa dernière réponse.
   7. Il se met en pause tout seul quand Claude lit un message à voix haute (touche F9).
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py   (avec le réacteur)
@@ -38,7 +40,7 @@ import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
-from jarvis_commandes import commande_instantanee  # heure, volume, applications...
+from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -53,6 +55,14 @@ DELAI_MAX_CLAUDE = 300        # secondes maximum pour une réponse de Claude
 DELAI_MAX_POINT_DU_JOUR = 900 # le point du jour demande beaucoup de recherches
 MODE_PERMISSIONS = "auto"     # Claude Code vérifie chaque action et bloque les risquées
 MODELE = "sonnet"             # modèle pour les demandes courantes : "sonnet" (rapide) ou "opus" (plus puissant)
+MODELE_POINT_DU_JOUR = "sonnet"   # "opus" = plus puissant, mais consomme nettement plus de quota
+
+# Économie de quota : Claude Code démarre sans les extensions inutiles à Jarvis et avec
+# seulement les outils dont il a besoin (environ 4 fois moins de texte envoyé à chaque question).
+OPTIONS_LEGERES = ["--strict-mcp-config", "--disable-slash-commands"]
+OUTILS = "PowerShell,WebSearch,WebFetch,Read"        # agir sur le PC, chercher sur le web, lire un fichier
+OUTILS_POINT_DU_JOUR = "WebSearch,WebFetch"
+POLITESSES = ("merci", "merci jarvis", "merci beaucoup", "non merci", "c est bon merci", "c est bon")
 DELAI_AVANT_PATIENCE = 1.5    # si Claude n'a pas répondu après ce délai, Jarvis dit « Je m'en occupe »
 AUDIO_DIAGNOSTIC = r"C:\Jarvis\derniere_demande.wav"   # dernière demande enregistrée (pour diagnostic)
 MEMOIRE_MINUTES = 10          # Jarvis se souvient de la conversation pendant 10 min sans demande
@@ -112,6 +122,18 @@ def afficher_etat(etat):
     pass
 
 
+def afficher_texte(texte):
+    pass
+
+
+def sous_titre(texte):
+    """Affiche sous le réacteur ce que Jarvis a compris."""
+    try:
+        afficher_texte(texte)
+    except Exception:
+        pass
+
+
 def etat(nom):
     try:
         afficher_etat(nom)
@@ -120,6 +142,8 @@ def etat(nom):
 
 
 derniere_erreur = False
+derniere_reponse = ""         # pour « Jarvis, répète »
+niveau_micro = 0.0            # volume du micro à cet instant (0 à 1), lu par le réacteur
 derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la dernière demande
 rec_stop = None               # reconnaissance réduite aux mots « stop »
 point_pret = queue.Queue()    # point du jour préparé en arrière-plan, en attente de lecture
@@ -137,9 +161,15 @@ whisper = None
 # ---------- Audio ----------
 
 def audio_callback(indata, frames, time_info, status):
+    global niveau_micro
     if status:
         print("Audio :", status, file=sys.stderr)
-    audio_queue.put(bytes(indata))
+    octets = bytes(indata)
+    try:
+        niveau_micro = float(np.abs(np.frombuffer(octets, dtype=np.int16)).max()) / 32768.0
+    except Exception:
+        pass
+    audio_queue.put(octets)
 
 
 def vider_audio():
@@ -290,6 +320,9 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
     if fin:
         morceaux.append(fin)
     texte_vosk = " ".join(morceaux).strip()
+    if texte_vosk and sans_whisper(texte_vosk):
+        derniers_textes[:] = [texte_vosk]      # commande simple : pas besoin de Whisper
+        return texte_vosk
     precise = transcrire(bytes(octets), texte_vosk)
     if precise is None:
         return ""                      # ce n'était que du bruit
@@ -325,7 +358,8 @@ class ClaudeContinu:
             [CLAUDE_EXE, "-p", "--input-format", "stream-json",
              "--output-format", "stream-json", "--verbose",
              "--append-system-prompt", CONSIGNES,
-             "--permission-mode", MODE_PERMISSIONS, "--model", MODELE],
+             "--permission-mode", MODE_PERMISSIONS, "--model", MODELE,
+             *OPTIONS_LEGERES, "--tools", OUTILS],
             cwd=DOSSIER_JARVIS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
             bufsize=1, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -417,6 +451,8 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
         "--append-system-prompt", consignes,
         "--permission-mode", MODE_PERMISSIONS,
         "--output-format", "json",
+        "--model", MODELE_POINT_DU_JOUR,
+        *OPTIONS_LEGERES, "--tools", OUTILS_POINT_DU_JOUR,
     ]
     proc = None
     try:
@@ -461,6 +497,11 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
 def question_point_du_jour():
     t = time.localtime()
     date = f"{JOURS[t.tm_wday]} {t.tm_mday} {MOIS[t.tm_mon - 1]} {t.tm_year}"
+    # La météo est relevée directement (Open-Meteo) : fiable, et autant de recherches en moins
+    meteo = commande_instantanee(["quelle est la météo"])
+    if meteo:
+        meteo = (" Pour la météo, n'effectue aucune recherche : voici le relevé vérifié, "
+                 f"à reformuler naturellement : « {meteo} »")
     return (
         f"Nous sommes le {date}, c'est la date exacte. "
         "Fais-moi le point du jour, dans cet ordre : "
@@ -485,6 +526,7 @@ def question_point_du_jour():
         "transitions parlées. Ne cite jamais tes sources ni le nom des médias, et ne mets "
         "rien entre parenthèses. Aucune remarque, réserve ou explication sur tes recherches "
         "à la fin. Termine par une seule courte phrase."
+        + (meteo or "")
     )
 
 
@@ -576,8 +618,15 @@ def preparer_ecoute(recognizer):
 
 def traiter(demande, recognizer):
     """Traite une demande. Renvoie True si Jarvis a été interrompu."""
+    global derniere_reponse
     print("Demande :", demande)
     minuscules = demande.lower()
+    sous_titre(derniers_textes[0] if derniers_textes else demande)
+    if derniere_reponse and re.match(r"\W*(répète|repete|tu peux répéter|redis)", minuscules):
+        etat("reponse")
+        interrompu = parler(derniere_reponse)
+        preparer_ecoute(recognizer)
+        return interrompu
     if re.search(r"nouvelle conversation|oublie tout", minuscules):
         oublier_conversation()
         etat("reponse")
@@ -586,8 +635,10 @@ def traiter(demande, recognizer):
         return False
 
     # Commandes instantanées : réponse immédiate, sans Claude
-    reponse = commande_instantanee(derniers_textes or [demande])
+    reponse = commande_instantanee(derniers_textes or [demande],
+                                   annoncer=lambda texte: point_pret.put((texte, False)))
     if reponse:
+        derniere_reponse = reponse
         print("Commande instantanée :", reponse)
         etat("reponse")
         interrompu = parler(reponse)
@@ -625,6 +676,7 @@ def traiter(demande, recognizer):
     fil.join()
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
+    derniere_reponse = reponse
     etat("erreur" if erreur else "reponse")
     interrompu = parler(reponse)
     preparer_ecoute(recognizer)
@@ -635,6 +687,10 @@ def conversation(demande, recognizer):
     """Traite la demande, puis accepte des suites sans redire « Jarvis »."""
     essais_courts = 0
     while demande:
+        if _normaliser(demande) in POLITESSES:
+            speak("Avec plaisir.")
+            preparer_ecoute(recognizer)
+            break
         if len(demande.split()) < MOTS_MINIMUM:
             print("Demande trop courte :", demande)
             essais_courts += 1
@@ -675,6 +731,7 @@ def main():
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",
+              "Avec plaisir.", "C'est fait.",
               "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."])
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
 
@@ -710,6 +767,7 @@ def main():
                 if not point_pret.empty():
                     texte, erreur = point_pret.get()
                     etat("erreur" if erreur else "reponse")
+                    bip()
                     parler(texte)
                     preparer_ecoute(recognizer)
                     tampon.clear()
@@ -757,9 +815,10 @@ def main():
                 if demande:
                     derniers_textes[:] = [demande]
                     # Retranscription précise de toute la phrase, sans le mot « Jarvis »
-                    brut = transcrire(audio_phrase, phrase)
-                    precise = retirer_nom(brut) if brut else None
-                    demande = combiner(precise, demande) if precise else demande
+                    if not sans_whisper(demande):
+                        brut = transcrire(audio_phrase, phrase)
+                        precise = retirer_nom(brut) if brut else None
+                        demande = combiner(precise, demande) if precise else demande
                 else:
                     bip()                      # signal court : tu peux parler tout de suite
                     recognizer.Reset()
