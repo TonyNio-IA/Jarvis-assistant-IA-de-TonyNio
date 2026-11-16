@@ -238,14 +238,20 @@ class Affichage:
         ligne, aaligne, cercle = pygame.draw.lines, pygame.draw.aalines, self._cercle
         surf.fill(CLE)
 
-        # Fond : dégradé sombre, plus lumineux au centre
-        for k in range(7):
+        # Fond : le contour du disque ondule lui aussi (il n'est plus un cercle fixe),
+        # puis dégradé sombre, plus lumineux au centre
+        ondulation = 0.022 + amplitude * 0.12
+        contour = self._filament(cx, cy, R * 0.955, ondulation,
+                                 [(4, 0.6, ph * 0.7), (7, 0.4, -ph * 1.1)])
+        pygame.draw.polygon(surf, teinte(0.03), contour)
+        aaligne(surf, teinte(0.22 * eclat), True, contour)
+        for k in range(1, 7):
             pygame.draw.circle(surf, teinte(0.03 + k * 0.022 * eclat), (cx, cy), R * (7 - k) / 7)
 
         # Anneau extérieur : fins filaments qui ondulent au bord du cercle
         for f in range(src.NB_FILAMENTS_BORD):
             phi = f * 2.2
-            pts = self._filament(cx, cy, R * (0.955 - 0.012 * f), 0.018 + amplitude * 0.1,
+            pts = self._filament(cx, cy, R * (0.925 - 0.014 * f), ondulation,
                                  [(4, 0.6, ph * 0.7 + phi), (7, 0.4, -ph * 1.1 + 2 * phi)])
             ligne(surf, teinte(0.12 * eclat), True, pts, max(2, int(3 * s)))
             aaligne(surf, teinte((0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat), True, pts)
