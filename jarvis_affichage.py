@@ -192,6 +192,11 @@ class Affichage:
         if choix == 1:
             jarvis_claude.oublier_conversation()
         elif choix == 2:
+            print("(Arrêt demandé par le menu du réacteur.)")
+            try:
+                jarvis_claude.remonter_son()       # un son baissé pendant une écoute ne reste pas baissé
+            except Exception:
+                pass
             self.fermer(0)
 
     def fermer(self, code=0, quitter=True):

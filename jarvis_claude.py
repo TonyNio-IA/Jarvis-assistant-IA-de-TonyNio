@@ -40,6 +40,10 @@ import threading
 import time
 import wave
 
+# Whisper (huggingface_hub) écrit sinon des avertissements en anglais au premier lancement : ils sont sans conséquence
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+
 import numpy as np
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
@@ -54,7 +58,7 @@ import jarvis_fenetres
 import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.18"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.19"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -64,7 +68,9 @@ SAMPLE_RATE = 16000
 ECONOMIE_SILENCE = True
 MICRO_MUET = 10               # secondes sans aucun son du micro avant de relancer Jarvis (micro débranché)
 REPOS_APRES = 3.0             # secondes de silence avant le repos
-SEUIL_SON_MIN = 0.003         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
+SEUIL_SON_MIN = 0.008         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
+                              # (mesuré : la voix dépasse toujours 0,024 ; à 0,003, les petits bruits de la
+                              # pièce gardaient la reconnaissance active 82 % du temps, contre 16 % à 0,008)
 SEUIL_SON_MAX = 0.012         # ... et même dans une pièce bruyante, ce niveau la relance toujours
 BLOC_AUDIO = 1600             # 0,1 s de son à la fois (avant : 0,25 s) : Jarvis réagit plus vite
 DOSSIER_JARVIS = jarvis_config.DOSSIER
@@ -100,6 +106,8 @@ WHISPER_MODELE = "base"
 WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mieux que 1, pour 0,5 s de plus
                               # (mesuré sur des enregistrements réels ; le modèle « small » n'apporte rien et est 3 fois plus lent)
 WHISPER_DOSSIER = jarvis_config.chemin("whisper")
+# Tous les cœurs du processeur (8 au plus) : mesuré 0,4 s plus rapide par demande qu'avec 4, même texte compris
+WHISPER_FILS = max(1, min(8, os.cpu_count() or 4))
 # Whisper lit cette phrase avant d'écouter : elle lui donne le genre de demandes attendues et les
 # noms propres. Mesuré sur des enregistrements réels : avec elle et un court silence ajouté
 # devant le son, « mets » n'est plus entendu « mais ».
@@ -120,6 +128,8 @@ MAINTIEN_PAUSE = 2.5          # secondes de pause gardées après le dernier son
 
 # Réveil : « Jarvis » en début de phrase, ou après une courte pause au milieu d'une phrase
 PAUSE_AVANT_JARVIS = 0.3      # secondes de silence avant « Jarvis » pour qu'il compte en milieu de phrase
+MOTS_AVANT_JARVIS = 5         # après une phrase plus longue que ça, « Jarvis » est sans doute un mot de la phrase
+PAUSE_LONGUE_AVANT_JARVIS = 0.8   # ... et il faut alors une vraie pause pour qu'il réveille Jarvis
 # Quand Vosk entend l'un de ces débuts, c'est parfois « Jarvis » mal compris : Whisper vérifie
 PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar")
 
@@ -419,7 +429,7 @@ def charger_whisper():
     try:
         from faster_whisper import WhisperModel
         whisper = WhisperModel(WHISPER_MODELE, device="cpu", compute_type="int8",
-                               download_root=WHISPER_DOSSIER, cpu_threads=4)
+                               download_root=WHISPER_DOSSIER, cpu_threads=WHISPER_FILS)
         print("Reconnaissance précise (Whisper) prête.")
     except Exception as erreur:
         whisper = None
@@ -558,7 +568,9 @@ def chercher_reveil(resultat, audio):
         return m.group(1).strip()
     mots = resultat.get("result") or []
     for i in range(1, len(mots)):
-        if mots[i]["word"] == "jarvis" and mots[i]["start"] - mots[i - 1]["end"] >= PAUSE_AVANT_JARVIS:
+        # « ...avant de lancer la démonstration Jarvis affiche... » : on parle de lui, pas à lui
+        pause_voulue = PAUSE_AVANT_JARVIS if i <= MOTS_AVANT_JARVIS else PAUSE_LONGUE_AVANT_JARVIS
+        if mots[i]["word"] == "jarvis" and mots[i]["start"] - mots[i - 1]["end"] >= pause_voulue:
             return " ".join(x["word"] for x in mots[i + 1:])
     if whisper is not None and phrase.startswith(PRESQUE_JARVIS):
         precise = transcrire(audio, phrase)
@@ -637,6 +649,7 @@ class ClaudeContinu:
         self.dernier_usage = 0.0
         self.utilise = False              # la conversation en cours contient-elle des échanges ?
         self.verrou = threading.Lock()
+        self.absent = False               # vrai quand Claude Code n'est pas installé sur ce PC
 
     def _lire(self, flux, file_sortie):
         for ligne in flux:
@@ -657,6 +670,12 @@ class ClaudeContinu:
 
     def demarrer(self):
         self.arreter()
+        if not os.path.exists(CLAUDE_EXE):       # Jarvis installé sans Claude : commandes immédiates seulement
+            if not self.absent:
+                self.absent = True
+                print("Claude Code n'est pas installé : seules les commandes immédiates fonctionnent.")
+            return
+        self.absent = False
         self.sorties = queue.Queue()
         self.proc = subprocess.Popen(
             [CLAUDE_EXE, "-p", "--input-format", "stream-json",
@@ -699,6 +718,8 @@ class ClaudeContinu:
             if (self.proc is None or self.proc.poll() is not None
                     or (self.utilise and time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60)):
                 self.demarrer()        # nouvelle conversation
+            if self.proc is None:
+                return SANS_CLAUDE, True
             self.utilise = True
             texte = jarvis_memoire.nouveautes() + texte
             message = {"type": "user", "message": {"role": "user", "content": texte}}
@@ -735,6 +756,9 @@ class ClaudeContinu:
                 return reponse, False
 
 
+SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
+               "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres. "
+               "Pour ajouter Claude, relance le fichier Installer Jarvis, rangé dans mon dossier, et choisis Ajouter Claude.")
 claude = ClaudeContinu()
 
 
@@ -1104,6 +1128,31 @@ def conversation(demande, recognizer):
     etat("veille")
 
 
+def attendre_micro():
+    """Sans micro, Jarvis attend qu'on en branche un, au lieu de s'arrêter et d'être relancé toutes les minutes."""
+    annonce = False
+    while True:
+        try:
+            nom = sd.query_devices(kind="input")["name"]
+            if annonce:
+                print("Micro trouvé :", nom)
+                sous_titre("")
+            return
+        except Exception:
+            pass
+        if not annonce:
+            annonce = True
+            print("Aucun micro trouvé : branche un micro, Jarvis démarrera tout seul (vérification toutes les 5 secondes).")
+            etat("erreur")
+            sous_titre("Aucun micro : branche un micro")
+        time.sleep(5)
+        try:                    # PortAudio ne voit un micro branché après coup qu'après avoir été relancé
+            sd._terminate()
+            sd._initialize()
+        except Exception:
+            pass
+
+
 def main():
     global rec_stop
     if AudioUtilities is not None:
@@ -1136,6 +1185,7 @@ def main():
         threading.Thread(target=preparer_point_du_jour, args=(POINT_DU_JOUR_ATTENTE,),
                          daemon=True).start()
 
+    attendre_micro()
     etat("veille")
     print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE (relié à Claude).")
     print("Dis : « Jarvis », puis ta demande.\n")
@@ -1146,7 +1196,7 @@ def main():
     fin_pause = 0.0
     en_pause = False
     cretes = collections.deque(maxlen=300)    # niveau du micro sur les 30 dernières secondes
-    avance = collections.deque(maxlen=8)      # les 0,8 s de son qui précèdent le réveil de l'écoute
+    avance = collections.deque(maxlen=10)     # la seconde de son qui précède le réveil de l'écoute
     seuil_son = SEUIL_SON_MIN
     dernier_son = time.time()
     au_repos = False

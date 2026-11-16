@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.18**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.19**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
 
@@ -14,19 +14,40 @@ Un réacteur animé, toujours visible dans un coin de l'écran, montre ce qu'il 
 
 ## Ce qu'il te faut
 
-- **Windows 11** et un **micro**.
-- **Python 3.14**.
-- **Claude Code**, connecté à un abonnement Claude (Pro ou supérieur). Sans lui, seules les commandes immédiates fonctionnent.
+- **Windows 11** (64 bits) et un **micro**.
+- Une connexion Internet pendant l'installation, et environ **3 Go** libres sur le disque.
+- Facultatif : un **abonnement Claude** (Pro ou supérieur), pour lui poser toutes tes questions. Sans lui, Jarvis répond aux commandes immédiates : heure, météo, minuteurs, fenêtres, musique.
 - Rien d'autre à payer : la reconnaissance vocale et la voix utilisent des outils gratuits.
 
 ## Installation
 
-1. Télécharge le projet (bouton vert **Code**, puis **Download ZIP**) et décompresse-le dans le dossier de ton choix, par exemple `C:\Jarvis`.
-2. Installe les modules : `python -m pip install -r requirements.txt` (depuis ce dossier).
-3. Télécharge le modèle de reconnaissance vocale **vosk-model-small-fr-0.22** sur https://alphacephei.com/vosk/models et décompresse-le dans le même dossier. Le modèle Whisper se télécharge tout seul au premier lancement.
-4. Copie `config.exemple.json`, renomme la copie en `config.json` et mets-y ton prénom et tes sujets (voir « Réglages personnels »).
-5. Lance Jarvis : `pythonw jarvis_gardien.py`
-6. Pour qu'il démarre avec Windows : crée un raccourci vers `pythonw.exe "C:\Jarvis\jarvis_gardien.py"` (dossier de travail : celui de Jarvis) et place-le dans `shell:startup`.
+1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 200 Ko).
+2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
+3. **Réponds aux deux questions** : ton prénom, et si tu veux utiliser ton abonnement Claude. Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
+   - Python 3.14 (depuis python.org), dans ton dossier personnel ;
+   - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** ;
+   - Jarvis, ses modules et son modèle vocal, dans `C:\Jarvis` ;
+   - Claude Code (depuis claude.ai), si tu l'as choisi ;
+   - un raccourci « Jarvis » sur le Bureau et au démarrage de Windows.
+4. **Si tu as choisi Claude**, ton navigateur s'ouvre pour te connecter à ton compte Claude. Sur un PC neuf, il montre peut-être d'abord son propre écran d'accueil : passe-le. Connecte-toi, accepte l'autorisation, puis reviens dans la fenêtre de l'installateur.
+5. **À la fin, Jarvis démarre.** Le premier lancement prend une minute ou deux : il télécharge son second modèle vocal (Whisper). La toute première vérification peut aussi être lente sur un PC neuf, le temps que Windows examine les nouveaux fichiers.
+
+Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
+
+**Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. La mise à jour garde tes réglages, sa mémoire et tes rappels.
+
+**Si ton antivirus refuse le fichier .exe :** télécharge à la place [Installer-Jarvis.bat](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat). Il fait exactement la même installation, sans l'icône du réacteur. Le code des deux est lisible dans le dossier `installateur` du projet.
+
+<details>
+<summary>Installation à la main (pour les curieux)</summary>
+
+1. Télécharge le projet (bouton vert **Code**, puis **Download ZIP**) et décompresse-le, par exemple dans `C:\Jarvis`.
+2. Installe Python 3.14, puis les modules depuis ce dossier : `python -m pip install -r requirements.txt`
+3. Télécharge le modèle de reconnaissance vocale **vosk-model-small-fr-0.22** sur https://alphacephei.com/vosk/models et décompresse-le dans le même dossier.
+4. Copie `config.exemple.json`, renomme la copie en `config.json` et mets-y ton prénom.
+5. Lance Jarvis : `pythonw jarvis_gardien.py`. Pour qu'il démarre avec Windows, place un raccourci vers cette commande dans `shell:startup`.
+
+</details>
 
 ## Réglages personnels
 
@@ -35,7 +56,7 @@ Ces fichiers restent sur ton PC, dans le dossier de Jarvis. Ils ne font pas part
 | Fichier | Contenu |
 |---|---|
 | `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent. Modèle : `config.exemple.json`. |
-| `ville.txt` | Ta ville pour la météo, sur une ligne : `Nom;latitude;longitude` (exemple : `Paris;48.8566;2.3522`). Sans ce fichier, Jarvis donne la météo de Paris. |
+| `ville.txt` | Ta ville pour la météo. Le plus simple : dis « Jarvis, ma ville est … », il crée ce fichier. Format : `Nom;latitude;longitude` (exemple : `Paris;48.8566;2.3522`). Sans ce fichier, Jarvis donne la météo de Paris. |
 
 Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, notes, liste d'applications, journal). Eux non plus ne quittent pas ton PC.
 
@@ -87,6 +108,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 | `jarvis_tts.py` | La voix Windows de secours |
 | `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
+| `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |
 | `README.en.md` | La présentation en anglais |
@@ -120,6 +142,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.19 | Installateur automatique (`Installer-Jarvis.exe`) : installation, mise à jour, ajout de Claude et désinstallation en un double-clic ; Jarvis fonctionne aussi sans Claude (commandes immédiates) ; ville de la météo réglable à la voix (« Jarvis, ma ville est … ») ; plus rapide et plus léger ; sans micro, il attend qu'on en branche un au lieu de redémarrer en boucle ; calculatrice absente détectée ; mise au premier plan des fenêtres plus fiable |
 | 1.18 | Jarvis devient utilisable par d'autres : prénom, sujets du point du jour et vocabulaire réglés dans `config.json`, installation dans le dossier de son choix ; licence PolyForm Strict ; présentation refaite |
 | 1.17 | Affichage : mode discret en veille (le réacteur rétrécit, le panneau disparaît, il revient au survol de la souris), minuteurs et rappels visibles sur la couronne et dans le panneau, alerte visuelle de 5 secondes quand un rappel sonne, animations de lancement et d'arrêt ; correction d'un plantage au déplacement du réacteur ; « redémarre-toi » reconnu même mal entendu |
 | 1.15 | Jarvis se réveille aussi pendant qu'une vidéo ou de la musique joue, et coupe presque le son du PC le temps de t'écouter ; il voit l'écran (« qu'est-ce qu'il y a à l'écran ? ») et le texte copié (« résume / traduis / corrige ce que j'ai copié ») ; gardien qui le relance s'il plante ou si le micro est débranché ; « Jarvis, redémarre-toi » ; « mets » entendu « mais » rétabli pour toutes les commandes ; rappels « mets un rappel à 13 h 56 » corrigés |

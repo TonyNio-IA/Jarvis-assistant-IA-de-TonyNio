@@ -226,6 +226,60 @@ def _arrondi(x):
     return str(int(round(x)))
 
 
+# Vosk et Whisper entendent souvent « ma ville et Toulouse » ou « mavile et Toulouse » : on les accepte aussi.
+_VILLE = (r"\W*(?:ma ?vill?e(?: pour la météo)?,? (?:est|et|es|c'est|sera)|j'habite (?:à|a|au|aux|en)|"
+          r"(?:règle|regle|change|mets|met|définis|choisis) (?:ma ville|la ville|la météo)(?: de la météo)? (?:sur|à|a|pour|par))"
+          r"\s+(.+)")
+_conseil_ville_donne = False
+_VILLE_INCONNUE = "\x00"          # marque interne : la ville entendue n'existe pas, on essaie l'autre retranscription
+
+
+def _commande_ville(brut):
+    """« Jarvis, ma ville est Toulouse » : règle la ville de la météo (fichier ville.txt, gardé sur ce PC)."""
+    global VILLE_DEFAUT, VILLE_PRECISION
+    m = re.match(_VILLE, brut.strip(), re.I)
+    if not m:
+        return None
+    nom = m.group(1).strip(" .!?,;:«»\"'")
+    if not nom or len(nom.split()) > 5:
+        return None
+    url = ("https://geocoding-api.open-meteo.com/v1/search?count=5&language=fr&format=json&name="
+           + urllib.parse.quote(nom))
+    try:
+        resultats = _json(url).get("results") or []
+    except Exception:
+        return "Je n'arrive pas à vérifier cette ville pour le moment. Réessaie quand la connexion sera revenue."
+    if not resultats:
+        return _VILLE_INCONNUE + f"Je ne trouve pas la ville {nom}. Redis-la-moi, par exemple : ma ville est Toulouse."
+    choix = next((r for r in resultats if r.get("country_code") == "FR"), resultats[0])
+    with open(FICHIER_VILLE, "w", encoding="utf-8") as f:
+        f.write(f"{choix['name']};{choix['latitude']:.4f};{choix['longitude']:.4f}\n")
+    VILLE_DEFAUT, VILLE_PRECISION = (choix["name"], choix["latitude"], choix["longitude"]), ""
+    import sys
+    principal = sys.modules.get("jarvis_claude")          # Claude apprend la nouvelle ville à sa prochaine conversation
+    if principal is not None:
+        principal.VILLE_METEO = choix["name"]
+    region = ", ".join(x for x in (choix.get("admin1"), choix.get("country")) if x)
+    return f"C'est noté : ta ville pour la météo est {choix['name']}" + (f", {region}." if region else ".")
+
+
+def _ville_parmi(textes):
+    """Essaie chaque retranscription : Whisper entend parfois « houlouse » là où Vosk a bien entendu « toulouse »."""
+    echec = None
+    for brut in textes:
+        if not brut:
+            continue
+        try:
+            reponse = _commande_ville(brut)
+        except Exception:
+            reponse = None
+        if reponse and not reponse.startswith(_VILLE_INCONNUE):
+            return reponse
+        if reponse and echec is None:
+            echec = reponse[len(_VILLE_INCONNUE):]
+    return echec
+
+
 def _commande_meteo(t, brut):
     if not re.search(r"\b(météo|meteo|quel temps|temps qu'il fait|temps fait)\b", t):
         return None
@@ -244,6 +298,12 @@ def _commande_meteo(t, brut):
     if lieu is None:
         return None
     nom, lat, lon = lieu
+    # Ville jamais réglée : Jarvis donne celle de Paris et explique, une fois, comment la changer
+    global _conseil_ville_donne
+    conseil = ""
+    if not ville and not _conseil_ville_donne and not os.path.exists(FICHIER_VILLE):
+        _conseil_ville_donne = True
+        conseil = " Pour avoir la météo de chez toi, dis : Jarvis, ma ville est, suivi de son nom."
     d = _json("https://api.open-meteo.com/v1/forecast?"
               f"latitude={lat}&longitude={lon}"
               "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m"
@@ -258,7 +318,7 @@ def _commande_meteo(t, brut):
         ciel = _CIEL.get(c["weather_code"], "temps variable")
         return (f"À {nom}, il fait {_arrondi(c['temperature_2m'])} degrés, {ciel}, "
                 f"avec un vent de {_arrondi(c['wind_speed_10m'])} kilomètres heure. "
-                f"Aujourd'hui, les températures vont de {mini} à {maxi} degrés. {pluie}").strip()
+                f"Aujourd'hui, les températures vont de {mini} à {maxi} degrés. {pluie}").strip() + conseil
     quand = "Demain" if jour == 1 else "Après-demain"
     ciel = _CIEL.get(q["weather_code"][jour], "temps variable")
     return f"{quand} à {nom} : {ciel}, de {mini} à {maxi} degrés. {pluie}".strip()
@@ -559,6 +619,11 @@ def _commande_ouvrir(t):
         return None
     for motif, cible, nom in APPLICATIONS:
         if re.search(rf"\b(?:{motif})\b", reste):
+            # La calculatrice de Windows peut avoir été désinstallée : on ne dit pas « j'ouvre » pour rien
+            if cible == "calc" and not os.path.isdir(os.path.expandvars(
+                    r"%LOCALAPPDATA%\Packages\Microsoft.WindowsCalculator_8wekyb3d8bbwe")):
+                return ("La calculatrice n'est pas installée sur ce PC. "
+                        "Tu peux la remettre gratuitement depuis le Microsoft Store.")
             os.startfile(cible)
             return f"J'ouvre {nom}."
     # Sinon, une application du menu Démarrer qui porte ce nom
@@ -662,7 +727,7 @@ def _commande_fermer(t):
             # Fermeture normale (sans forcer) : l'application peut proposer d'enregistrer
             resultat = subprocess.run(["taskkill", "/IM", programme], capture_output=True,
                                       creationflags=SANS_FENETRE)
-            return f"Je ferme {nom}." if resultat.returncode == 0 else f"{nom.capitalize()} n'est pas ouvert."
+            return f"Je ferme {nom}." if resultat.returncode == 0 else f"Je ne vois pas {nom} parmi les applications ouvertes."
     return None
 
 
@@ -881,11 +946,14 @@ def _commande_dictee(t, brut):
     if re.match(r"\W*(appuie sur|tape|fais) entrée\W*$", t) or re.match(r"\W*(valide|envoie)\W*$", t):
         _touche(0x0D)
         return "C'est fait."
-    m = re.match(r"\W*(?:dicte|dictée|dicter|saisis|tape|écris ceci|ecris ceci|écris le texte)\b[\s:,]*(.+)",
+    # « tap » : c'est ainsi que « tape » est parfois entendu
+    m = re.match(r"\W*(?:dicte|dictée|dicter|saisis|tape|tapes|tap|écris ceci|ecris ceci|écris le texte)\b[\s:,]*(.+)",
                  brut.strip(), re.I | re.S)
     if not m:
         return None
     texte = m.group(1).strip()
+    if len(texte.split()) <= 3:            # un mot ou deux (une recherche, un nom) : pas de point final
+        texte = texte.rstrip(".").strip() or texte
     texte = texte[0].upper() + texte[1:]
     threading.Timer(0.3, taper, args=(texte,)).start()
     return "C'est écrit."
@@ -1058,7 +1126,20 @@ def sans_whisper(texte_vosk):
     if re.search(r"\b(éteins|redémarre|en veille|capture d'écran|annule l'extinction)\b", t):
         return True
     if re.search(r"\b(ferme|quitte)\b", t):
-        return any(re.search(rf"\b(?:{motif})\b", t) for motif, _, _ in A_FERMER)
+        return (any(re.search(rf"\b(?:{motif})\b", t) for motif, _, _ in A_FERMER)
+                or _fenetre_claire(t, jarvis_fenetres.SEUIL_FERMER))
+    # Fenêtres : si le nom entendu désigne bien une fenêtre ouverte, inutile de réécouter
+    if not re.search(jarvis_fenetres._AUTRE_SUJET, t):
+        if re.search(jarvis_fenetres._BUREAU, t) or re.search(jarvis_fenetres._SUIVANTE, t):
+            return True
+        if any(re.search(motif, t) for motif in (jarvis_fenetres._AGRANDIR, jarvis_fenetres._REDUIRE,
+                                                 jarvis_fenetres._RESTAURER, jarvis_fenetres._PLACER,
+                                                 jarvis_fenetres._DEVANT)):
+            return _fenetre_claire(t, jarvis_fenetres.SEUIL)
+    # « un minuteur de dix minutes » : une durée et rien d'autre à comprendre
+    if re.search(r"\bminuteur (de |d'|pour )?.*\b(secondes?|minutes?|heures?|quart d'heure|demi[- ]heure)\W*$", t) \
+            and _duree(t):
+        return True
     if re.search(r"\b(quelle heure|quel jour|quelle date|point du jour|nouvelle conversation|"
                  r"oublie tout|répète|verrouille)\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
         return True
@@ -1073,6 +1154,15 @@ def sans_whisper(texte_vosk):
     return False
 
 
+def _fenetre_claire(t, seuil):
+    """Vrai si la demande vise la fenêtre active (aucun nom donné) ou une fenêtre ouverte reconnue."""
+    try:
+        hwnd, nom = jarvis_fenetres._cible(t, seuil)
+        return hwnd is not None
+    except Exception:
+        return False
+
+
 def commande_instantanee(textes, annoncer=None):
     """
     textes   : les retranscriptions de la demande (Whisper et Vosk).
@@ -1081,6 +1171,10 @@ def commande_instantanee(textes, annoncer=None):
     """
     if not confirmation_en_attente() and any(deux_demandes(_propre(b)) for b in textes if b):
         return None
+    if not confirmation_en_attente():
+        reponse = _ville_parmi(textes)
+        if reponse:
+            return reponse
     for brut in textes:
         if not brut:
             continue

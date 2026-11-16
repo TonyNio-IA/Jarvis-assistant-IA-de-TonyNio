@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.18**
+**Français : [README.md](README.md)** · **Current version: 1.19**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, thinking, answering, reminder" width="320"></p>
 
@@ -14,19 +14,40 @@ An animated reactor sits in a corner of the screen and shows what Jarvis is doin
 
 ## What you need
 
-- **Windows 11** and a **microphone**.
-- **Python 3.14**.
-- **Claude Code**, signed in with a Claude subscription (Pro or higher). Without it, only the instant commands work.
+- **Windows 11** (64-bit) and a **microphone**.
+- An Internet connection during setup, and about **3 GB** of free disk space.
+- Optional: a **Claude subscription** (Pro or higher), to ask it anything. Without it, Jarvis answers the instant commands: time, weather, timers, windows, music.
 - Nothing else to pay for: speech recognition and the voice use free tools.
 
 ## Installation
 
-1. Download the project (green **Code** button, then **Download ZIP**) and unzip it into the folder of your choice, for example `C:\Jarvis`.
-2. Install the modules from that folder: `python -m pip install -r requirements.txt`
-3. Download the French speech model **vosk-model-small-fr-0.22** from https://alphacephei.com/vosk/models and unzip it into the same folder. The Whisper model downloads by itself on first launch.
-4. Copy `config.exemple.json`, rename the copy to `config.json`, and fill in your first name and your topics (see "Personal settings").
-5. Start Jarvis: `pythonw jarvis_gardien.py`
-6. To start it with Windows: create a shortcut to `pythonw.exe "C:\Jarvis\jarvis_gardien.py"` (working folder: the Jarvis folder) and put it in `shell:startup`.
+1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 200 KB).
+2. **Double-click it.** Windows will probably show a blue screen, "Windows protected your PC": this is normal for a small free program that is not signed by a paid publisher. Click **More info**, then **Run anyway**.
+3. **Answer the two questions** (in French): your first name, and whether you want to use your Claude subscription. Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
+   - Python 3.14 (from python.org), in your user folder;
+   - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes**;
+   - Jarvis, its modules and its speech model, in `C:\Jarvis`;
+   - Claude Code (from claude.ai), if you chose it;
+   - a "Jarvis" shortcut on the desktop and at Windows startup.
+4. **If you chose Claude**, your browser opens so you can sign in to your Claude account. On a new PC, it may first show its own welcome screen: skip it. Sign in, accept the authorization, then go back to the installer window.
+5. **At the end, Jarvis starts.** The first launch takes a minute or two: it downloads its second speech model (Whisper). The very first check can also be slow on a new PC, while Windows examines the new files.
+
+To get your local weather, say once: "**Jarvis, ma ville est** …" followed by the name of your town.
+
+**Update, repair, add Claude or uninstall:** run the same file again. A copy is also kept in `C:\Jarvis` (Windows key + R, type `C:\Jarvis`, then Enter). A menu lets you update, uninstall, or add Claude if it is missing. Updating keeps your settings, its memory and your reminders.
+
+**If your antivirus rejects the .exe file:** download [Installer-Jarvis.bat](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat) instead. It runs exactly the same setup, without the reactor icon. The code of both is readable in the project's `installateur` folder.
+
+<details>
+<summary>Manual installation (for the curious)</summary>
+
+1. Download the project (green **Code** button, then **Download ZIP**) and unzip it, for example into `C:\Jarvis`.
+2. Install Python 3.14, then the modules from that folder: `python -m pip install -r requirements.txt`
+3. Download the French speech model **vosk-model-small-fr-0.22** from https://alphacephei.com/vosk/models and unzip it into the same folder.
+4. Copy `config.exemple.json`, rename the copy to `config.json`, and put your first name in it.
+5. Start Jarvis: `pythonw jarvis_gardien.py`. To start it with Windows, put a shortcut to this command in `shell:startup`.
+
+</details>
 
 ## Personal settings
 
@@ -35,7 +56,7 @@ These files stay on your PC, in the Jarvis folder. They are not part of the publ
 | File | Content |
 |---|---|
 | `config.json` | Your first name, the topics of your daily briefing, a website to check, and proper nouns you say often. Template: `config.exemple.json`. |
-| `ville.txt` | Your town for the weather, on one line: `Name;latitude;longitude` (example: `Paris;48.8566;2.3522`). Without this file, Jarvis gives the weather for Paris. |
+| `ville.txt` | Your town for the weather. The easiest way: say "Jarvis, ma ville est …" and it creates this file. Format: `Name;latitude;longitude` (example: `Paris;48.8566;2.3522`). Without this file, Jarvis gives the weather for Paris. |
 
 Jarvis also creates its own files as you use it (memory, reminders, notes, app list, log). They never leave your PC either.
 
@@ -102,6 +123,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_tts.py` | The fallback Windows voice |
 | `jarvis_config.py` | Reads the personal settings (`config.json`) |
 | `config.exemple.json` | The template for personal settings |
+| `installateur/` | The installer: `Installer-Jarvis.bat` does all the work; `lanceur.cs` is the small `.exe` program that carries the reactor icon and runs that `.bat` |
 | `requirements.txt` | The required Python modules |
 | `LICENSE.md` | The license (PolyForm Strict 1.0.0) |
 

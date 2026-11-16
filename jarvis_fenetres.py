@@ -212,6 +212,8 @@ def _touche(*codes):
 def premier_plan(hwnd):
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, 9)
+    if user32.GetForegroundWindow() == hwnd:      # déjà devant : rien à faire (un appui sur Alt y ouvrirait son menu)
+        return
     _touche(0x12)                                 # un appui sur Alt : Windows autorise alors le changement
     user32.SetForegroundWindow(hwnd)
 
