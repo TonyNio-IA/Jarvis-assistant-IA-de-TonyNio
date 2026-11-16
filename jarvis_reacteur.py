@@ -80,9 +80,10 @@ NB_FILAMENTS_BORD = 3   # filaments fins qui forment le bord extérieur
 NB_POUSSIERE = 40       # particules lumineuses à l'intérieur de l'anneau
 FICHIER_POSITION = os.path.join(DOSSIER, "position.txt")   # emplacement choisi à la souris
 AFFICHER_SYSTEME = True # processeur, mémoire et réseau sous le réacteur
-IMAGES_ACTIF = 30       # images par seconde quand Jarvis écoute, réfléchit ou répond
-IMAGES_VEILLE = 10      # images par seconde en veille (économise le processeur)
-IMAGES_VEILLE_LONGUE = 5   # après 30 secondes de veille : animation encore plus économe
+IMAGES_ACTIF = 60       # images par seconde quand Jarvis écoute, réfléchit ou répond
+IMAGES_VEILLE = 20      # images par seconde en veille (économise le processeur)
+IMAGES_VEILLE_LONGUE = 10  # après 30 secondes de veille : animation encore plus économe
+AFFICHAGE_RAPIDE = True # True = affichage pygame (60 images/s) ; False = ancien affichage (27 au plus)
 
 ETATS = {
     #  nom          couleur      vitesse  pulsation  texte
@@ -211,13 +212,14 @@ class Reacteur:
             self._dessiner_anneau()
         actif = (etat_actuel in ("ecoute", "traitement", "reponse", "erreur")
                  or time.time() - texte_depuis < 1)
+        # Ancien affichage (secours) : il ne dépasse pas 27 images par seconde
         if actif:
             self._dernier_actif = time.time()
-            images = IMAGES_ACTIF
+            images = min(IMAGES_ACTIF, 30)
         elif time.time() - getattr(self, "_dernier_actif", 0) < 30:
-            images = IMAGES_VEILLE
+            images = min(IMAGES_VEILLE, 10)
         else:
-            images = IMAGES_VEILLE_LONGUE
+            images = min(IMAGES_VEILLE_LONGUE, 5)
         self.root.after(int(1000 / images), self.dessiner)
 
     # ---------- Style « anneau » : objets créés une seule fois, puis déplacés ----------
@@ -661,6 +663,15 @@ def boucle_jarvis():
 if __name__ == "__main__":
     jarvis_claude.afficher_etat = changer_etat
     jarvis_claude.afficher_texte = changer_texte
-    reacteur = Reacteur()
+    reacteur = None
+    if AFFICHAGE_RAPIDE and STYLE == "anneau":
+        try:
+            import jarvis_affichage
+            jarvis_systeme.demarrer()
+            reacteur = jarvis_affichage.Affichage(sys.modules[__name__])
+        except Exception as erreur:
+            print("Affichage rapide indisponible (", erreur, ") : ancien affichage utilisé.")
+    if reacteur is None:
+        reacteur = Reacteur()
     threading.Thread(target=boucle_jarvis, daemon=True).start()
     reacteur.lancer()

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.05**
+**Version actuelle : 1.06**
 
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
@@ -30,7 +30,8 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 | `jarvis_claude.py` | L'écoute, la reconnaissance vocale et le dialogue avec Claude |
 | `jarvis_voix.py` | La voix naturelle « Henri » (edge-tts) |
 | `jarvis_commandes.py` | Les commandes instantanées (heure, date, volume, applications) |
-| `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, réseau) |
+| `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
+| `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
 | `requirements.txt` | Les modules Python nécessaires |
 
@@ -63,6 +64,7 @@ Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
 
 | Version | Contenu |
 |---|---|
+| 1.06 | Affichage réécrit avec pygame : 60 images par seconde quand Jarvis est actif ; jauges GPU et réseau |
 | 1.05 | Panneau sous le réacteur plus compact, style affichage de bord (jauges segmentées) ; le réacteur retient sa position |
 | 1.04 | Processeur, mémoire et réseau affichés sous le réacteur, « état du PC », notes vocales, Jarvis 3 fois plus léger en veille, démarrage en 3 secondes |
 | 1.03 | Claude allégé (environ 4 fois moins de quota), météo, minuteurs et musique sans Claude, voix par morceaux, réacteur réactif au son, sous-titre |
