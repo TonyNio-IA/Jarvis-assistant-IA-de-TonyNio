@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**Version actuelle : 1.12**
+**Version actuelle : 1.15**
 
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
@@ -24,6 +24,9 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 - « Éteins l'ordinateur », « redémarre l'ordinateur », « mets l'ordinateur en veille » : Jarvis demande toujours confirmation, et l'extinction peut être annulée pendant 30 secondes.
 - « Jarvis, état du PC » (ou « pourquoi ça rame ») : processeur, mémoire, programme le plus gourmand, place sur le disque.
 - Fenêtres : « mets Imou en plein écran », « réduis la fenêtre », « mets Chrome à gauche » (à droite, en haut, en bas), « mets Imou au premier plan », « ferme la fenêtre », « affiche le bureau ». Le nom d'une application ouverte est reconnu même mal entendu.
+- Écran : « qu'est-ce qu'il y a à l'écran ? », « explique-moi cette erreur » : Jarvis photographie la fenêtre active et Claude la regarde.
+- Texte copié : « lis ce que j'ai copié », « résume le texte copié », « traduis le texte sélectionné en anglais », « corrige le texte copié » (le résultat est remis dans le presse-papiers, prêt à coller).
+- « Jarvis, redémarre-toi ». Un gardien le relance tout seul s'il plante ou si le micro est débranché.
 - « Jarvis, note que... » et « Jarvis, lis mes notes » (fichier `notes.txt`).
 - Mémoire durable : « Jarvis, retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... », « efface toute ta mémoire » (avec confirmation). Jarvis garde aussi le fil des derniers échanges : il sait de quoi vous parliez même après un redémarrage. Tout reste dans `memoire.json`, sur le PC.
 - Sous le réacteur : l'heure, les mots compris au fil de l'écoute, puis la charge du processeur, la mémoire et le débit du réseau en temps réel.
@@ -36,7 +39,9 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 
 | Fichier | Rôle |
 |---|---|
-| `jarvis_reacteur.py` | Point d'entrée : le réacteur animé, qui lance Jarvis |
+| `jarvis_gardien.py` | Point d'entrée : lance Jarvis et le relance s'il s'arrête tout seul |
+| `jarvis_reacteur.py` | Le réacteur animé, qui lance l'écoute |
+| `jarvis_ecran.py` | La capture de l'écran et le presse-papiers |
 | `jarvis_claude.py` | L'écoute, la reconnaissance vocale et le dialogue avec Claude |
 | `jarvis_voix.py` | La voix naturelle « Henri » (edge-tts) |
 | `jarvis_commandes.py` | Les commandes instantanées (heure, date, volume, applications) |
@@ -62,8 +67,8 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 3. Installer les modules : `python -m pip install -r C:\Jarvis\requirements.txt`
 4. Télécharger le modèle Vosk **vosk-model-small-fr-0.22** sur https://alphacephei.com/vosk/models et le décompresser dans `C:\Jarvis`.
    Le modèle Whisper se télécharge tout seul au premier lancement (dans `C:\Jarvis\whisper`).
-5. Lancer : `pythonw C:\Jarvis\jarvis_reacteur.py`
-6. Pour le démarrage automatique : créer un raccourci vers `pythonw.exe "C:\Jarvis\jarvis_reacteur.py"` (dossier de travail `C:\Jarvis`) et le placer dans `shell:startup`.
+5. Lancer : `pythonw C:\Jarvis\jarvis_gardien.py`
+6. Pour le démarrage automatique : créer un raccourci vers `pythonw.exe "C:\Jarvis\jarvis_gardien.py"` (dossier de travail `C:\Jarvis`) et le placer dans `shell:startup`.
 
 ## Réglages utiles
 
@@ -76,6 +81,9 @@ Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
 
 | Version | Contenu |
 |---|---|
+| 1.15 | Corrections après essais : « mets » entendu « mais » est rétabli pour toutes les commandes (fenêtres, rappels), « mets un rappel à 13 h 56 » crée bien un rappel à cette heure, « fais une capture de l'écran » reconnu |
+| 1.14 | Jarvis voit l'écran (« qu'est-ce qu'il y a à l'écran ? ») et le texte copié (« résume / traduis / corrige ce que j'ai copié ») ; gardien qui le relance s'il plante ou si le micro est débranché ; « Jarvis, redémarre-toi » |
+| 1.13 | Jarvis se réveille aussi pendant qu'une vidéo ou de la musique joue (il guette son nom au fil de l'eau), et coupe presque le son du PC le temps de t'écouter |
 | 1.12 | Le son du PC est baissé pendant que tu parles à Jarvis, et il n'écoute plus de suite quand une vidéo ou de la musique joue ; Claude connaît les fenêtres ouvertes ; gestion des fenêtres à la voix ; applications déjà ouvertes reconnues même mal entendues ; réponses courtes (« oui », « non ») mieux comprises ; corrections après essais : « mets l'application en grand écran » ne lance plus une vidéo, les demandes doubles (« ferme ça et ouvre Chrome ») vont à Claude en entier, « Jarvis » redit en cours de conversation relance l'écoute, réveil et « éteins » mieux reconnus |
 | 1.11 | Mémoire durable (faits retenus à la demande, fil des derniers échanges) ; écoute plus fine (le bip ne coupe plus le début de la demande, « mets » mieux compris, réaction en 0,1 s) ; mots affichés pendant l'écoute ; couronne de spectre, halo, onde de réveil et heure dans l'affichage ; ville de la météo réglable dans un fichier local |
 | 1.10 | Rappels à heure fixe conservés au redémarrage, fermeture d'applications, capture d'écran, recherche de fichier, extinction / redémarrage / veille avec confirmation, ouverture des applications du menu Démarrer ; réveil plus tolérant ; panneau agrandi ; voix un peu plus rapide |

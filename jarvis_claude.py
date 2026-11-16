@@ -48,11 +48,12 @@ import jarvis_systeme
 import jarvis_voix
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
 import jarvis_commandes
+import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.12"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.15"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -60,6 +61,7 @@ SAMPLE_RATE = 16000
 # Économie : dans le silence, la reconnaissance vocale se repose (elle consomme autant sur du
 # silence que sur de la parole). Elle repart au premier son, avec les 0,8 s qui le précèdent.
 ECONOMIE_SILENCE = True
+MICRO_MUET = 10               # secondes sans aucun son du micro avant de relancer Jarvis (micro débranché)
 REPOS_APRES = 3.0             # secondes de silence avant le repos
 SEUIL_SON_MIN = 0.003         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
 SEUIL_SON_MAX = 0.012         # ... et même dans une pièce bruyante, ce niveau la relance toujours
@@ -117,7 +119,7 @@ MAINTIEN_PAUSE = 2.5          # secondes de pause gardées après le dernier son
 # Réveil : « Jarvis » en début de phrase, ou après une courte pause au milieu d'une phrase
 PAUSE_AVANT_JARVIS = 0.3      # secondes de silence avant « Jarvis » pour qu'il compte en milieu de phrase
 # Quand Vosk entend l'un de ces débuts, c'est parfois « Jarvis » mal compris : Whisper vérifie
-PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "gervais", "jervis", "j'arrive", "jarre", "djar")
+PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar")
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
 DOSSIER_ENREGISTREMENTS = r"C:\Jarvis\enregistrements"
@@ -150,6 +152,7 @@ CONSIGNES = (
     "Une demande peut commencer par une note entre parenthèses qui liste la fenêtre active et les "
     "fenêtres ouvertes : sers-t'en pour comprendre « ça », « la fenêtre » ou un nom d'application "
     "mal entendu, mais n'en parle pas. "
+    + jarvis_ecran.CONSIGNE +
     "Mémoire durable : si TonyNio te demande de retenir une information pour plus tard, "
     "termine ta réponse par une ligne « RETENIR: l'information » ; s'il te demande d'en oublier une, "
     "par une ligne « OUBLIER: l'information ». Ces lignes ne sont pas lues à voix haute. "
@@ -288,7 +291,31 @@ def lecture_en_cours():
 
 # ---------- Son du PC : baissé pendant que tu parles à Jarvis ----------
 
-BAISSE_SON = 0.12            # niveau des autres applications pendant la conversation (1 = pas de baisse)
+BAISSE_SON = 0.03            # niveau des autres applications pendant la conversation (1 = pas de baisse) :
+                             # presque coupé, sinon le micro entend la vidéo plus fort que ta voix
+# Quand une vidéo ou de la musique joue, il n'y a jamais de silence : Jarvis se réveille alors dès
+# qu'il entend son nom au fil de l'eau, sans attendre la fin de la phrase.
+REVEIL_PENDANT_SON = True
+PAUSE_APRES_FAUX_REVEIL = 15 # secondes sans réveil « au fil de l'eau » après un réveil qui n'a rien donné
+                             # (une vidéo qui prononce un mot proche de « Jarvis »)
+DUREE_MAX_DEMANDE = 20       # une demande ne dure jamais plus longtemps (secondes)
+_compteurs_son = []
+_compteurs_son_date = 0.0
+
+
+def son_pc_rapide():
+    """Comme son_pc(), mais très peu coûteux : la liste des applications n'est relue que toutes les 5 s."""
+    global _compteurs_son, _compteurs_son_date
+    if AudioUtilities is None:
+        return False
+    try:
+        if time.time() - _compteurs_son_date > DELAI_RECHERCHE_PROGRAMMES:
+            _compteurs_son_date = time.time()
+            _compteurs_son = [s._ctl.QueryInterface(IAudioMeterInformation) for s in _sessions_son()]
+        return any(compteur.GetPeakValue() > 0.01 for compteur in _compteurs_son)
+    except Exception:
+        _compteurs_son = []
+        return False
 FICHIER_VOLUMES = os.path.join(DOSSIER_JARVIS, "volumes.json")
 _volumes_baisses = []        # (réglage de volume, niveau d'origine) des applications baissées
 
@@ -318,20 +345,27 @@ def son_pc():
         return False
 
 
-def baisser_son():
-    """Baisse les applications qui jouent du son, pour que le micro t'entende mieux."""
+def baisser_son(insister=False):
+    """Baisse les applications qui jouent du son, pour que le micro t'entende mieux.
+    insister : on sait qu'une application joue ; on regarde trois fois de suite, au cas où
+    elle serait pile entre deux mots au premier coup d'œil."""
     if AudioUtilities is None or BAISSE_SON >= 1 or _volumes_baisses:
         return
     try:
         origines = {}
-        for session in _sessions_son():
-            if session._ctl.QueryInterface(IAudioMeterInformation).GetPeakValue() < 0.005:
-                continue
-            volume = session.SimpleAudioVolume
-            origine = volume.GetMasterVolume()
-            volume.SetMasterVolume(origine * BAISSE_SON, None)
-            _volumes_baisses.append((volume, origine))
-            origines[session.Process.name().lower()] = origine
+        sessions = _sessions_son()
+        for essai in range(3 if insister else 1):
+            if essai:
+                time.sleep(0.07)
+            for session in list(sessions):
+                if session._ctl.QueryInterface(IAudioMeterInformation).GetPeakValue() < 0.005:
+                    continue
+                sessions.remove(session)
+                volume = session.SimpleAudioVolume
+                origine = volume.GetMasterVolume()
+                volume.SetMasterVolume(origine * BAISSE_SON, None)
+                _volumes_baisses.append((volume, origine))
+                origines[session.Process.name().lower()] = origine
         if origines:
             # noté sur le disque : si Jarvis est arrêté à ce moment-là, le son sera remis au prochain démarrage
             with open(FICHIER_VOLUMES, "w", encoding="utf-8") as f:
@@ -548,6 +582,8 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN, bip_au_deb
         maintenant = time.time()
         if dernier_son is None and maintenant - debut > delai_debut:
             break
+        if maintenant - debut > DUREE_MAX_DEMANDE:
+            break
         if dernier_son is not None and maintenant - dernier_son > silence_fin:
             if morceaux or partiel:
                 break
@@ -694,7 +730,7 @@ class ClaudeContinu:
                     if "limit" in ligne.lower():
                         return "La limite d'utilisation de Claude est atteinte pour le moment.", True
                     return "Claude a rencontré un problème avec cette demande.", True
-                return re.sub(r"[*_#`>]", "", reponse), False
+                return reponse, False
 
 
 claude = ClaudeContinu()
@@ -913,6 +949,11 @@ def traiter(demande, recognizer):
         preparer_ecoute(recognizer)
         return False
 
+    if re.search(r"\b(redémarre|redémarrer|relance|relancer)[- ]toi\b|\b(redémarre|relance) jarvis\b", minuscules):
+        etat("reponse")
+        speak("Je redémarre.")
+        redemarrer()
+
     # Commandes instantanées : réponse immédiate, sans Claude
     reponse = commande_instantanee(derniers_textes or [demande],
                                    annoncer=lambda texte: point_pret.put((texte, False)))
@@ -950,6 +991,11 @@ def traiter(demande, recognizer):
         note = jarvis_fenetres.contexte()
     except Exception:
         note = ""
+    # « qu'est-ce qu'il y a à l'écran ? », « résume ce que j'ai copié » : Claude reçoit l'image ou le texte
+    try:
+        note += jarvis_ecran.complement(minuscules)
+    except Exception as erreur_ecran:
+        print("Écran ou presse-papiers illisible :", erreur_ecran)
 
     def travail():
         resultat["r"] = claude.demander(note + demande)
@@ -963,6 +1009,8 @@ def traiter(demande, recognizer):
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
     if not erreur:
+        reponse = jarvis_ecran.appliquer_copie(reponse)        # texte corrigé ou traduit -> presse-papiers
+        reponse = re.sub(r"[*_#`>]", "", reponse)
         reponse = jarvis_memoire.appliquer_balises(reponse) or "C'est noté."
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
     derniere_reponse = reponse
@@ -970,6 +1018,21 @@ def traiter(demande, recognizer):
     interrompu = parler(reponse)
     preparer_ecoute(recognizer)
     return interrompu
+
+
+def redemarrer():
+    """Relance Jarvis : par le gardien s'il est là, sinon par le raccourci."""
+    remonter_son()
+    try:
+        claude.arreter()
+    except Exception:
+        pass
+    print("(Redémarrage demandé.)")
+    if os.environ.get("JARVIS_GARDIEN"):
+        os._exit(3)
+    subprocess.Popen('cmd /c "timeout /t 2 >nul & start "" "' + os.path.join(DOSSIER_JARVIS, "Jarvis.lnk") + '""',
+                     shell=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    os._exit(0)
 
 
 def conversation(demande, recognizer):
@@ -1070,18 +1133,23 @@ def main():
     seuil_son = SEUIL_SON_MIN
     dernier_son = time.time()
     au_repos = False
+    reveil_son_bloque = 0.0
 
     try:
         with sd.RawInputStream(
             samplerate=SAMPLE_RATE,
             blocksize=BLOC_AUDIO,
+            latency="high",            # réserve de son plus grande : plus de « input overflow » quand le PC est occupé
             device=None,
             dtype="int16",
             channels=1,
             callback=audio_callback,
         ):
             while True:
-                data = audio_queue.get()
+                try:
+                    data = audio_queue.get(timeout=MICRO_MUET)
+                except queue.Empty:
+                    raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
                 claude.entretenir()
 
                 # Point du jour préparé en arrière-plan : on le lit maintenant
@@ -1142,6 +1210,31 @@ def main():
                 if len(tampon) > MAX_TAMPON:
                     del tampon[:len(tampon) - MAX_TAMPON]
                 if not recognizer.AcceptWaveform(data):
+                    # Une vidéo ou de la musique joue : pas de silence à attendre, on guette « Jarvis »
+                    # dans ce qui est entendu au fil de l'eau
+                    if (REVEIL_PENDANT_SON and maintenant > reveil_son_bloque and son_pc_rapide()
+                            and re.search(r"\bjarvis(\s+\S+)?$",
+                                          json.loads(recognizer.PartialResult()).get("partial", ""))):
+                        print("(« Jarvis » entendu pendant que le PC joue du son.)")
+                        etat("ecoute")
+                        baisser_son(insister=True)
+                        try:
+                            recognizer.Reset()
+                            tampon.clear()
+                            time.sleep(0.25)           # le temps que le son baisse vraiment
+                            vider_audio()
+                            bip(attendre=False)
+                            demande = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE, bip_au_debut=True)
+                            if demande:
+                                conversation(demande, recognizer)
+                            else:                      # rien de clair : sans doute la vidéo, on ne dit rien
+                                print("(Rien d'entendu ensuite : retour en veille sans rien dire.)")
+                                reveil_son_bloque = time.time() + PAUSE_APRES_FAUX_REVEIL
+                                preparer_ecoute(recognizer)
+                                etat("veille")
+                        finally:
+                            remonter_son()
+                        tampon.clear()
                     continue
 
                 resultat = json.loads(recognizer.Result())

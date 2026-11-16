@@ -280,7 +280,8 @@ _MOTS_COMMANDE = (r"\b(jarvis|est-ce que|tu peux|peux-tu|s'il te plaît|stp|moi|
                   r"à gauche|à droite|en haut|en bas|au premier plan|devant|en avant|"
                   r"la fenêtre|cette fenêtre|ma fenêtre|une fenêtre|fenêtre|l'application|cette application|"
                   r"application|appli|logiciel|programme|active|actuelle|en cours|de l'écran|sur l'écran|"
-                  r"écran|ecran|grande|grand|plein|pleine|taille|"
+                  r"écran|ecran|grande|grand|plein|pleine|taille|moitié|partie|côté|"
+                  r"à|a|sur|dans|en|au|"
                   r"le|la|les|l'|de|du|des|d'|un|une|ça|ca|cela|aussi|maintenant|et)\b")
 
 

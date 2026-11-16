@@ -665,6 +665,9 @@ def boucle_jarvis():
     except Exception as erreur:
         print("Erreur Jarvis :", erreur)
     changer_etat("erreur")
+    if os.environ.get("JARVIS_GARDIEN"):       # le gardien relance Jarvis (plantage, micro débranché...)
+        time.sleep(2)
+        os._exit(1)
 
 
 if __name__ == "__main__":

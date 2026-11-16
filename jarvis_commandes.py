@@ -36,6 +36,7 @@ import subprocess
 import threading
 import time
 
+import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
 import urllib.parse
@@ -420,6 +421,9 @@ def demarrer_rappels(annoncer):
 def _commande_minuteur(t, annoncer):
     if not re.search(r"\b(minuteur|compte à rebours|rappelle|rappel|préviens|réveille)\b", t):
         return None
+    # « un rappel à 13 h 56 » donne une heure, pas une durée : ce n'est pas un minuteur
+    if re.search(r"\b(à|a)\s+(\d|\S+\s+heures?\b)", t) and not re.search(r"\bdans\b|\bminuteur\b|compte à rebours", t):
+        return None
     duree = _duree(t)
     if duree is None or duree > 24 * 3600:
         return None
@@ -488,8 +492,10 @@ def _commande_rappel(t):
                 if q.tm_yday == time.localtime(time.time() + 86400).tm_yday else f"le {q.tm_mday} "
             phrases.append(f"{jour}à {_heure_parlee(q.tm_hour, q.tm_min)} : {r['message']}")
         return f"Tu as {len(rappels)} rappel{'s' if len(rappels) > 1 else ''}. " + " ".join(phrases)
-    if not re.search(r"\b(rappelle|préviens|réveille|reveille|alarme|réveil)\b", t):
+    if not re.search(r"\b(rappelle|préviens|réveille|reveille|alarme|réveil|rappel)\b", t):
         return None
+    if re.search(r"\bdans\b", t) and not re.search(r"\b(à|a)\s+\d|\bheures?\b.*\bdans\b", t):
+        return None                              # « un rappel dans 20 minutes » : c'est un minuteur
     if not re.search(r"\b(à|a|demain|midi|minuit|ce soir)\b", t):
         return None
     heure = _heure_fixe(t)
@@ -510,9 +516,14 @@ def _commande_rappel(t):
         # Le texte du rappel est ce qui suit « de » ou « d' », après l'heure
         heure_dite = re.search(r"\d{1,2}\s?h|\bheures?\b|\bmidi\b|\bminuit\b", t)
         if heure_dite:
-            trouve = re.search(r"\s(?:de |d'|que |qu')(?!l'après|la matin)(.+)$", t[heure_dite.end():])
-            if trouve:
-                texte = trouve.group(1)
+            # ce qui suit l'heure, une fois retirés les minutes et « du matin », « de », « pour »...
+            suite = t[heure_dite.end():].replace("-", " ").split()
+            while suite and (suite[0].isdigit() or suite[0] in _VALEURS or suite[0] in ("et", "demie", "demi", "quart")):
+                suite.pop(0)
+            suite = re.sub(r"^(du matin|du soir|de l'après[- ]midi|de la matinée|pile|précises?)\b\s*", "", " ".join(suite))
+            suite = re.sub(r"^(de |d'|que |qu'|pour |il faut |je dois )", "", suite).strip()
+            if len(suite) >= 3:
+                texte = suite
     if texte:
         message = "Rappel : " + texte.strip() + "."
     elif re.search(r"\b(réveille|reveille|réveil)\b", t):
@@ -646,7 +657,7 @@ def _commande_fermer(t):
 
 
 def _commande_capture(t):
-    if not re.search(r"capture (d'|l')[ée]cran|copie d'[ée]cran|screenshot", t):
+    if not re.search(r"capture (d'|de l'|l'|de mon |de )?[ée]cran|copie d'[ée]cran|screenshot", t):
         return None
     dossier = os.path.join(DOSSIER_PERSO, "Pictures", "Jarvis")
     os.makedirs(dossier, exist_ok=True)
@@ -988,7 +999,11 @@ def _commande_notes(t, brut):
 # ---------- Point d'entrée ----------
 
 def _propre(brut):
-    return brut.lower().replace("’", "'").strip(" .!?")
+    t = brut.lower().replace("’", "'").strip(" .!?")
+    # « mets » est presque toujours entendu « mais » en début de demande (« mais la fenêtre en plein
+    # écran », « mais un rappel à 14 h ») : on le rétablit, sauf devant « oui », « non »...
+    return re.sub(r"^(\W*(?:jarvis\W+)?)(?:mais|m'est)\s+(?!oui\b|non\b|si\b|pourquoi\b|comment\b|qu|je\b|tu\b|il\b|c')",
+                  r"\1mets ", t)
 
 
 _ACTIONS = (r"(?:ouvre|ouvres|ferme|fermes|lance|quitte|mets|cherche|recherche|trouve|monte|baisse|coupe|"
@@ -1072,6 +1087,7 @@ def commande_instantanee(textes, annoncer=None):
                 return _date()
             for commande in (lambda: _commande_memoire(brut),
                              lambda: _commande_routine(t),
+                             lambda: jarvis_ecran.lecture_directe(t),
                              lambda: _commande_dictee(t, brut),
                              lambda: _commande_alimentation(t),
                              lambda: _commande_rappel(t),
