@@ -14,7 +14,8 @@ Fonctionnement :
   5. Il se souvient de la conversation pendant 10 minutes.
      « Jarvis, nouvelle conversation » pour repartir de zéro.
   6. « Jarvis, fais-moi le point du jour » : météo, actualités, SpaceX, GTA 6, PS5, Logic-Sunrise.
-     Il le prépare aussi tout seul au premier démarrage du matin (une fois par jour).
+     Il le prépare en arrière-plan et le lit dès qu'il est prêt.
+     « Jarvis, annule le point du jour » (ou « arrête le point du jour ») pour l'annuler.
   8. « Stop » ou « Jarvis, stop » pendant qu'il parle : il se tait.
   9. Heure, date, volume et ouverture d'applications : réponse immédiate, sans Claude.
   7. Il se met en pause tout seul quand Claude lit un message à voix haute (touche F9).
@@ -68,7 +69,7 @@ PROGRAMMES_A_IGNORER = ("claude.exe",)
 VILLE_METEO = "Paris"
 
 # Point du jour automatique : au premier démarrage de Jarvis entre ces heures, une fois par jour
-POINT_DU_JOUR_AUTO = True
+POINT_DU_JOUR_AUTO = False              # True = le préparer tout seul au premier démarrage du matin
 POINT_DU_JOUR_HEURES = (5, 12)          # de 5 h à midi
 POINT_DU_JOUR_ATTENTE = 20              # secondes d'attente au démarrage (laisser Internet se connecter)
 FICHIER_POINT_DU_JOUR = r"C:\Jarvis\point_du_jour.date"
@@ -123,6 +124,8 @@ derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la derni
 rec_stop = None               # reconnaissance réduite aux mots « stop »
 point_pret = queue.Queue()    # point du jour préparé en arrière-plan, en attente de lecture
 point_en_preparation = threading.Event()
+point_annule = threading.Event()
+proc_ponctuel = None          # programme Claude lancé pour le point du jour (pour pouvoir l'annuler)
 
 # Mémoire de la conversation en cours
 session_id = None
@@ -202,6 +205,12 @@ def _normaliser(texte):
     return re.sub(r"[^a-z0-9àâäçéèêëîïôöùûüœ]+", " ", texte.lower()).strip()
 
 
+def _repetitif(texte):
+    """Vrai si Whisper a « inventé » une phrase qui tourne en boucle (sur du bruit)."""
+    mots = _normaliser(texte).split()
+    return len(mots) >= 6 and len(set(mots)) <= len(mots) / 3
+
+
 def transcrire(octets, texte_vosk):
     """Retranscrit l'audio avec Whisper. En cas de souci, garde le texte de Vosk."""
     if whisper is None or not octets or not texte_vosk:
@@ -222,6 +231,9 @@ def transcrire(octets, texte_vosk):
     # Hallucinations connues de Whisper sur du bruit
     if not texte or re.search(r"amara|sous-titr", texte, re.I):
         return texte_vosk
+    if _repetitif(texte):
+        print("Whisper a inventé une phrase en boucle (bruit) : demande ignorée. Vosk :", texte_vosk)
+        return None
     print("Whisper :", texte, "| Vosk :", texte_vosk)
     return texte
 
@@ -278,7 +290,10 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN):
     if fin:
         morceaux.append(fin)
     texte_vosk = " ".join(morceaux).strip()
-    return combiner(transcrire(bytes(octets), texte_vosk), texte_vosk)
+    precise = transcrire(bytes(octets), texte_vosk)
+    if precise is None:
+        return ""                      # ce n'était que du bruit
+    return combiner(precise, texte_vosk)
 
 
 # ---------- Claude ----------
@@ -377,10 +392,23 @@ def oublier_conversation():
     threading.Thread(target=claude.demarrer, daemon=True).start()
 
 
+def _tuer(proc):
+    """Arrête un programme et ceux qu'il a lancés."""
+    try:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
     """Demande ponctuelle (programme lancé pour une seule question), utilisée pour
     le point du jour, qui a ses propres consignes et le modèle le plus puissant.
     Renvoie (réponse, erreur)."""
+    global proc_ponctuel
     if not os.path.exists(CLAUDE_EXE):
         return "Je ne trouve pas Claude Code sur cet ordinateur.", True
     commande = [
@@ -390,32 +418,37 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
         "--permission-mode", MODE_PERMISSIONS,
         "--output-format", "json",
     ]
+    proc = None
     try:
-        resultat = subprocess.run(
+        proc = proc_ponctuel = subprocess.Popen(
             commande,
             cwd=DOSSIER_JARVIS,
             stdin=subprocess.DEVNULL,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=delai,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+        sortie, erreurs = proc.communicate(timeout=delai)
     except subprocess.TimeoutExpired:
+        _tuer(proc)
         return "Claude met trop de temps à répondre, j'abandonne cette demande.", True
     except Exception as erreur:
         print("Erreur Claude :", erreur)
         return "Je n'arrive pas à joindre Claude.", True
+    finally:
+        proc_ponctuel = None
 
-    sortie = (resultat.stdout or "").strip()
+    sortie = (sortie or "").strip()
     try:
         donnees = json.loads(sortie)
     except Exception:
         donnees = None
     if not donnees:
-        print("Claude (erreurs) :", (resultat.stderr or "").strip() or sortie)
-        if "limit" in ((resultat.stderr or "") + sortie).lower():
+        print("Claude (erreurs) :", (erreurs or "").strip() or sortie)
+        if "limit" in ((erreurs or "") + sortie).lower():
             return "La limite d'utilisation de Claude est atteinte pour le moment.", True
         return "Claude ne m'a pas répondu.", True
     reponse = str(donnees.get("result") or "").strip()
@@ -468,12 +501,20 @@ def preparer_point_du_jour(attente=0):
     if point_en_preparation.is_set():
         return
     point_en_preparation.set()
+    point_annule.clear()
     try:
-        time.sleep(attente)
+        fin_attente = time.time() + attente
+        while time.time() < fin_attente and not point_annule.is_set():
+            time.sleep(0.2)
+        if point_annule.is_set():
+            return
         print("Préparation du point du jour...")
         texte, erreur = demander_a_claude(question_point_du_jour(),
                                           consignes=CONSIGNES_POINT_DU_JOUR,
                                           delai=DELAI_MAX_POINT_DU_JOUR)
+        if point_annule.is_set():
+            print("Point du jour annulé.")
+            return
         if erreur:
             print("Point du jour impossible :", texte)
             point_pret.put(("Je n'ai pas réussi à préparer ton point du jour. " + texte, True))
@@ -486,6 +527,17 @@ def preparer_point_du_jour(attente=0):
         point_pret.put((texte, False))
     finally:
         point_en_preparation.clear()
+
+
+def annuler_point_du_jour():
+    """Arrête la préparation en cours. Renvoie False s'il n'y en avait pas."""
+    if not point_en_preparation.is_set():
+        return False
+    point_annule.set()
+    proc = proc_ponctuel
+    if proc is not None:
+        _tuer(proc)
+    return True
 
 
 # ---------- Interruption ----------
@@ -542,34 +594,36 @@ def traiter(demande, recognizer):
         preparer_ecoute(recognizer)
         return interrompu
 
-    etat("traitement")
     if re.search(r"point du jour", minuscules):
-        if point_en_preparation.is_set():
+        etat("reponse")
+        if re.search(r"\b(annule\w*|arr[êe]te\w*|stop|laisse tomber)\b", minuscules):
+            if annuler_point_du_jour():
+                speak("D'accord, j'annule le point du jour.")
+            else:
+                speak("Aucun point du jour n'est en préparation.")
+        elif point_en_preparation.is_set():
             speak("Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt.")
-            preparer_ecoute(recognizer)
-            return False
-        speak("Je prépare ton point du jour, ça peut prendre quelques minutes.")
-        point_en_preparation.set()
-        try:
-            reponse, erreur = demander_a_claude(question_point_du_jour(),
-                                                consignes=CONSIGNES_POINT_DU_JOUR,
-                                                delai=DELAI_MAX_POINT_DU_JOUR)
-        finally:
-            point_en_preparation.clear()
-    else:
-        # Claude travaille pendant que Jarvis parle : on ne perd pas de temps
-        resultat = {}
+        else:
+            # Préparé en arrière-plan : tu peux continuer à me parler, ou l'annuler
+            threading.Thread(target=preparer_point_du_jour, daemon=True).start()
+            speak("Je prépare ton point du jour, je te le lis dès qu'il est prêt.")
+        preparer_ecoute(recognizer)
+        return False
 
-        def travail():
-            resultat["r"] = claude.demander(demande)
+    etat("traitement")
+    # Claude travaille pendant que Jarvis parle : on ne perd pas de temps
+    resultat = {}
 
-        fil = threading.Thread(target=travail, daemon=True)
-        fil.start()
-        fil.join(DELAI_AVANT_PATIENCE)
-        if fil.is_alive():
-            speak("Je m'en occupe.")
-        fil.join()
-        reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
+    def travail():
+        resultat["r"] = claude.demander(demande)
+
+    fil = threading.Thread(target=travail, daemon=True)
+    fil.start()
+    fil.join(DELAI_AVANT_PATIENCE)
+    if fil.is_alive():
+        speak("Je m'en occupe.")
+    fil.join()
+    reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
     etat("erreur" if erreur else "reponse")
     interrompu = parler(reponse)
@@ -619,7 +673,8 @@ def main():
     charger_whisper()
     preparer(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
-              "Je prépare ton point du jour, ça peut prendre quelques minutes.",
+              "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
+              "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",
               "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."])
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
 
@@ -702,7 +757,8 @@ def main():
                 if demande:
                     derniers_textes[:] = [demande]
                     # Retranscription précise de toute la phrase, sans le mot « Jarvis »
-                    precise = retirer_nom(transcrire(audio_phrase, phrase))
+                    brut = transcrire(audio_phrase, phrase)
+                    precise = retirer_nom(brut) if brut else None
                     demande = combiner(precise, demande) if precise else demande
                 else:
                     bip()                      # signal court : tu peux parler tout de suite

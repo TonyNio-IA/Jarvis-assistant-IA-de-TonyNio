@@ -9,7 +9,8 @@ Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis �
 - Enchaîner une autre demande dans les 3 secondes sans redire « Jarvis ».
 - Se souvenir de la conversation pendant 10 minutes (« Jarvis, nouvelle conversation » pour repartir de zéro).
 - « Jarvis, fais-moi le point du jour » : météo de Paris, actualités, SpaceX, GTA 6, PS5 et Logic-Sunrise.
-  Il le prépare aussi tout seul au premier démarrage du matin (entre 5 h et midi, une fois par jour).
+  Il le prépare en arrière-plan et le lit dès qu'il est prêt ; « Jarvis, annule le point du jour » l'arrête.
+  (Réglage `POINT_DU_JOUR_AUTO = True` pour qu'il le prépare tout seul au premier démarrage du matin.)
 - Réponse immédiate, sans Claude, pour l'heure, la date, le volume (« monte le son », « volume à 30 », « coupe le son »...) et l'ouverture d'applications courantes (Chrome, calculatrice, bloc-notes, documents, téléchargements...).
 - « Stop », « Jarvis, stop » ou « Tais-toi » pendant qu'il parle : il se tait.
 - Se mettre en pause tout seul quand l'application Claude lit un message à voix haute (touche F9).
