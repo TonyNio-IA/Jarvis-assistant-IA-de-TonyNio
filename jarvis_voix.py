@@ -13,6 +13,7 @@ import hashlib
 import os
 import subprocess
 import tempfile
+import time
 
 import edge_tts
 import numpy as np
@@ -47,9 +48,20 @@ def _decoder(fichier):
     return np.concatenate(morceaux).astype(np.int16)
 
 
-def _jouer_echantillons(echantillons, freq=FREQ):
+def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
+    """Joue le son. Si « interruption() » devient vraie, coupe et renvoie True."""
     sd.play(echantillons, freq)
+    if interruption is None:
+        sd.wait()
+        return False
+    fin = time.time() + len(echantillons) / freq + 0.5
+    while time.time() < fin:
+        if interruption():
+            sd.stop()
+            return True
+        time.sleep(0.05)
     sd.wait()
+    return False
 
 
 def _jouer_powershell(fichier):
@@ -108,15 +120,15 @@ def bip():
         print("Bip impossible :", erreur)
 
 
-def speak(texte):
-    """Fait parler Jarvis avec la voix naturelle (ou la voix Windows en secours)."""
+def speak(texte, interruption=None):
+    """Fait parler Jarvis avec la voix naturelle (ou la voix Windows en secours).
+    Si « interruption » est donnée, la lecture peut être coupée : renvoie alors True."""
     if not texte:
-        return
+        return False
     if texte in _cache and sd is not None:
         print("JARVIS :", texte)
         try:
-            _jouer_echantillons(_cache[texte])
-            return
+            return _jouer_echantillons(_cache[texte], interruption=interruption)
         except Exception as erreur:
             print("Lecture directe impossible :", erreur)
     fichier = _fichier_pour(texte)
@@ -125,18 +137,19 @@ def speak(texte):
     except Exception as erreur:
         print("Voix naturelle indisponible (", erreur, ") : voix Windows utilisée.")
         voix_windows(texte)
-        return
+        return False
     print("JARVIS :", texte)
     try:
         if av is None:
             raise RuntimeError("lecture directe indisponible")
-        _jouer_echantillons(_decoder(fichier))
+        return _jouer_echantillons(_decoder(fichier), interruption=interruption)
     except Exception as erreur:
         print("Lecture directe impossible (", erreur, ") : lecture par PowerShell.")
         try:
             _jouer_powershell(fichier)
         except Exception:
             voix_windows(texte)
+        return False
     finally:
         try:
             os.remove(fichier)

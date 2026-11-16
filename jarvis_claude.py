@@ -14,6 +14,9 @@ Fonctionnement :
   5. Il se souvient de la conversation pendant 10 minutes.
      « Jarvis, nouvelle conversation » pour repartir de zéro.
   6. « Jarvis, fais-moi le point du jour » : météo, actualités, SpaceX, GTA 6, PS5, Logic-Sunrise.
+     Il le prépare aussi tout seul au premier démarrage du matin (une fois par jour).
+  8. « Stop » ou « Jarvis, stop » pendant qu'il parle : il se tait.
+  9. Heure, date, volume et ouverture d'applications : réponse immédiate, sans Claude.
   7. Il se met en pause tout seul quand Claude lit un message à voix haute (touche F9).
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py   (avec le réacteur)
@@ -34,6 +37,7 @@ import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
+from jarvis_commandes import commande_instantanee  # heure, volume, applications...
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
@@ -62,6 +66,15 @@ VOCABULAIRE = ("Jarvis, TonyNio, Paris, "
 PROGRAMMES_A_IGNORER = ("claude.exe",)
 
 VILLE_METEO = "Paris"
+
+# Point du jour automatique : au premier démarrage de Jarvis entre ces heures, une fois par jour
+POINT_DU_JOUR_AUTO = True
+POINT_DU_JOUR_HEURES = (5, 12)          # de 5 h à midi
+POINT_DU_JOUR_ATTENTE = 20              # secondes d'attente au démarrage (laisser Internet se connecter)
+FICHIER_POINT_DU_JOUR = r"C:\Jarvis\point_du_jour.date"
+
+# Mots qui interrompent Jarvis pendant qu'il parle
+MOTS_STOP = ["jarvis stop", "stop", "jarvis arrête", "arrête", "tais-toi", "jarvis tais-toi"]
 
 CONSIGNES = (
     "Tu es Jarvis, l'assistant vocal de TonyNio sur son PC Windows 11. "
@@ -106,6 +119,10 @@ def etat(nom):
 
 
 derniere_erreur = False
+derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la dernière demande
+rec_stop = None               # reconnaissance réduite aux mots « stop »
+point_pret = queue.Queue()    # point du jour préparé en arrière-plan, en attente de lecture
+point_en_preparation = threading.Event()
 
 # Mémoire de la conversation en cours
 session_id = None
@@ -211,6 +228,8 @@ def transcrire(octets, texte_vosk):
 
 def combiner(texte_whisper, texte_vosk):
     """Texte envoyé à Claude : une version si elles concordent, sinon les deux."""
+    global derniers_textes
+    derniers_textes = [t for t in (texte_whisper, texte_vosk) if t]
     if not texte_vosk or _normaliser(texte_whisper) == _normaliser(texte_vosk):
         return texte_whisper or texte_vosk
     if not texte_whisper:
@@ -360,11 +379,10 @@ def oublier_conversation():
 
 def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
     """Demande ponctuelle (programme lancé pour une seule question), utilisée pour
-    le point du jour, qui a ses propres consignes et le modèle le plus puissant."""
-    global derniere_erreur
-    derniere_erreur = True
+    le point du jour, qui a ses propres consignes et le modèle le plus puissant.
+    Renvoie (réponse, erreur)."""
     if not os.path.exists(CLAUDE_EXE):
-        return "Je ne trouve pas Claude Code sur cet ordinateur."
+        return "Je ne trouve pas Claude Code sur cet ordinateur.", True
     commande = [
         CLAUDE_EXE,
         "-p", demande,
@@ -385,10 +403,10 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except subprocess.TimeoutExpired:
-        return "Claude met trop de temps à répondre, j'abandonne cette demande."
+        return "Claude met trop de temps à répondre, j'abandonne cette demande.", True
     except Exception as erreur:
         print("Erreur Claude :", erreur)
-        return "Je n'arrive pas à joindre Claude."
+        return "Je n'arrive pas à joindre Claude.", True
 
     sortie = (resultat.stdout or "").strip()
     try:
@@ -398,14 +416,13 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
     if not donnees:
         print("Claude (erreurs) :", (resultat.stderr or "").strip() or sortie)
         if "limit" in ((resultat.stderr or "") + sortie).lower():
-            return "La limite d'utilisation de Claude est atteinte pour le moment."
-        return "Claude ne m'a pas répondu."
+            return "La limite d'utilisation de Claude est atteinte pour le moment.", True
+        return "Claude ne m'a pas répondu.", True
     reponse = str(donnees.get("result") or "").strip()
     if donnees.get("is_error") or not reponse:
         print("Claude (erreur) :", sortie[:500])
-        return "Claude a rencontré un problème avec cette demande."
-    derniere_erreur = False
-    return re.sub(r"[*_#`>]", "", reponse)
+        return "Claude a rencontré un problème avec cette demande.", True
+    return re.sub(r"[*_#`>]", "", reponse), False
 
 
 def question_point_du_jour():
@@ -438,6 +455,65 @@ def question_point_du_jour():
     )
 
 
+def point_du_jour_deja_fait():
+    try:
+        with open(FICHIER_POINT_DU_JOUR, encoding="utf-8") as f:
+            return f.read().strip() == time.strftime("%Y-%m-%d")
+    except OSError:
+        return False
+
+
+def preparer_point_du_jour(attente=0):
+    """Prépare le point du jour en arrière-plan ; il sera lu dès qu'il est prêt."""
+    if point_en_preparation.is_set():
+        return
+    point_en_preparation.set()
+    try:
+        time.sleep(attente)
+        print("Préparation du point du jour...")
+        texte, erreur = demander_a_claude(question_point_du_jour(),
+                                          consignes=CONSIGNES_POINT_DU_JOUR,
+                                          delai=DELAI_MAX_POINT_DU_JOUR)
+        if erreur:
+            print("Point du jour impossible :", texte)
+            point_pret.put(("Je n'ai pas réussi à préparer ton point du jour. " + texte, True))
+            return
+        try:
+            with open(FICHIER_POINT_DU_JOUR, "w", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d"))
+        except OSError:
+            pass
+        point_pret.put((texte, False))
+    finally:
+        point_en_preparation.clear()
+
+
+# ---------- Interruption ----------
+
+def interruption():
+    """Vrai si TonyNio a dit « stop » pendant que Jarvis parle."""
+    if rec_stop is None:
+        return False
+    while True:
+        try:
+            data = audio_queue.get_nowait()
+        except queue.Empty:
+            return False
+        if rec_stop.AcceptWaveform(data):
+            texte = json.loads(rec_stop.Result()).get("text", "")
+            if texte and texte in MOTS_STOP:
+                print("Interruption :", texte)
+                return True
+
+
+def parler(texte):
+    """Parle en restant à l'écoute du mot « stop ». Renvoie True si interrompu."""
+    if rec_stop is not None:
+        rec_stop.Reset()
+    vider_audio()
+    return bool(speak(texte, interruption=interruption))
+
+
 # ---------- Déroulement ----------
 
 def preparer_ecoute(recognizer):
@@ -447,7 +523,7 @@ def preparer_ecoute(recognizer):
 
 
 def traiter(demande, recognizer):
-    global derniere_erreur
+    """Traite une demande. Renvoie True si Jarvis a été interrompu."""
     print("Demande :", demande)
     minuscules = demande.lower()
     if re.search(r"nouvelle conversation|oublie tout", minuscules):
@@ -455,13 +531,31 @@ def traiter(demande, recognizer):
         etat("reponse")
         speak("D'accord, on repart de zéro.")
         preparer_ecoute(recognizer)
-        return
+        return False
+
+    # Commandes instantanées : réponse immédiate, sans Claude
+    reponse = commande_instantanee(derniers_textes or [demande])
+    if reponse:
+        print("Commande instantanée :", reponse)
+        etat("reponse")
+        interrompu = parler(reponse)
+        preparer_ecoute(recognizer)
+        return interrompu
+
     etat("traitement")
     if re.search(r"point du jour", minuscules):
+        if point_en_preparation.is_set():
+            speak("Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt.")
+            preparer_ecoute(recognizer)
+            return False
         speak("Je prépare ton point du jour, ça peut prendre quelques minutes.")
-        reponse = demander_a_claude(question_point_du_jour(),
-                                    consignes=CONSIGNES_POINT_DU_JOUR,
-                                    delai=DELAI_MAX_POINT_DU_JOUR)
+        point_en_preparation.set()
+        try:
+            reponse, erreur = demander_a_claude(question_point_du_jour(),
+                                                consignes=CONSIGNES_POINT_DU_JOUR,
+                                                delai=DELAI_MAX_POINT_DU_JOUR)
+        finally:
+            point_en_preparation.clear()
     else:
         # Claude travaille pendant que Jarvis parle : on ne perd pas de temps
         resultat = {}
@@ -475,11 +569,12 @@ def traiter(demande, recognizer):
         if fil.is_alive():
             speak("Je m'en occupe.")
         fil.join()
-        reponse, derniere_erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
+        reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
-    etat("erreur" if derniere_erreur else "reponse")
-    speak(reponse)
+    etat("erreur" if erreur else "reponse")
+    interrompu = parler(reponse)
     preparer_ecoute(recognizer)
+    return interrompu
 
 
 def conversation(demande, recognizer):
@@ -500,7 +595,8 @@ def conversation(demande, recognizer):
             demande = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE)
             continue
         essais_courts = 0
-        traiter(demande, recognizer)
+        if traiter(demande, recognizer):
+            break                      # interrompu : retour en veille
         print("(J'écoute une éventuelle suite pendant", DELAI_SUITE, "secondes...)")
         etat("ecoute")
         demande = ecouter_demande(recognizer, DELAI_SUITE)
@@ -509,6 +605,7 @@ def conversation(demande, recognizer):
 
 
 def main():
+    global rec_stop
     if AudioUtilities is not None:
         try:
             comtypes.CoInitialize()
@@ -518,11 +615,19 @@ def main():
     print("Chargement du modèle français...")
     model = Model(MODEL_PATH)
     recognizer = KaldiRecognizer(model, SAMPLE_RATE)
+    rec_stop = KaldiRecognizer(model, SAMPLE_RATE, json.dumps(MOTS_STOP + ["[unk]"], ensure_ascii=False))
     charger_whisper()
     preparer(["Je m'en occupe.", "Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
-              "Je prépare ton point du jour, ça peut prendre quelques minutes."])
+              "Je prépare ton point du jour, ça peut prendre quelques minutes.",
+              "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."])
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
+
+    heure = time.localtime().tm_hour
+    if (POINT_DU_JOUR_AUTO and POINT_DU_JOUR_HEURES[0] <= heure < POINT_DU_JOUR_HEURES[1]
+            and not point_du_jour_deja_fait()):
+        threading.Thread(target=preparer_point_du_jour, args=(POINT_DU_JOUR_ATTENTE,),
+                         daemon=True).start()
 
     etat("veille")
     print("\nJARVIS EST EN ÉCOUTE PERMANENTE (relié à Claude).")
@@ -545,6 +650,16 @@ def main():
         ):
             while True:
                 data = audio_queue.get()
+
+                # Point du jour préparé en arrière-plan : on le lit maintenant
+                if not point_pret.empty():
+                    texte, erreur = point_pret.get()
+                    etat("erreur" if erreur else "reponse")
+                    parler(texte)
+                    preparer_ecoute(recognizer)
+                    tampon.clear()
+                    etat("veille")
+                    continue
 
                 # Pause pendant que Claude lit un message à voix haute
                 maintenant = time.time()
@@ -585,6 +700,7 @@ def main():
                 demande = m.group(1).strip()
                 etat("ecoute")
                 if demande:
+                    derniers_textes[:] = [demande]
                     # Retranscription précise de toute la phrase, sans le mot « Jarvis »
                     precise = retirer_nom(transcrire(audio_phrase, phrase))
                     demande = combiner(precise, demande) if precise else demande
