@@ -42,6 +42,8 @@ from vosk import Model, KaldiRecognizer
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
+VERSION = "1.03"              # numéro de version de Jarvis (même numéro que sur GitHub)
+
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"
 SAMPLE_RATE = 16000
@@ -742,7 +744,7 @@ def main():
                          daemon=True).start()
 
     etat("veille")
-    print("\nJARVIS EST EN ÉCOUTE PERMANENTE (relié à Claude).")
+    print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE (relié à Claude).")
     print("Dis : « Jarvis », puis ta demande.\n")
 
     tampon = bytearray()             # audio de la phrase en cours

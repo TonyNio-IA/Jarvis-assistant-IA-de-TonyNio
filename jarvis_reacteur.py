@@ -146,6 +146,8 @@ class Reacteur:
         self.c.bind("<ButtonPress-1>", self._debut_deplacement)
         self.c.bind("<B1-Motion>", self._deplacer)
         self.menu = tk.Menu(self.root, tearoff=0)
+        self.menu.add_command(label=f"Jarvis version {jarvis_claude.VERSION}", state="disabled")
+        self.menu.add_separator()
         self.menu.add_command(label="Nouvelle conversation",
                               command=jarvis_claude.oublier_conversation)
         self.menu.add_separator()

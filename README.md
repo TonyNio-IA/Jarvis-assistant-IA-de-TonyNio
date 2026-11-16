@@ -1,5 +1,7 @@
 # Jarvis, assistant IA de TonyNio
 
+**Version actuelle : 1.03**
+
 Assistant vocal en français pour Windows 11. On l'appelle en disant « Jarvis », il comprend la demande, la confie à Claude (Claude Code, abonnement Claude Pro) et répond à voix haute. Un réacteur animé en bas à droite de l'écran montre ce qu'il fait.
 
 ## Ce qu'il sait faire
@@ -52,3 +54,12 @@ En haut de `jarvis_claude.py` : `MODELE` et `MODELE_POINT_DU_JOUR` (« sonnet »
 En haut de `jarvis_reacteur.py` : `STYLE` (« anneau » ou « hud »), `TAILLE`, les couleurs des états...
 
 Le journal `C:\Jarvis\jarvis.log` note tout ce que Jarvis entend et répond.
+
+## Versions
+
+| Version | Contenu |
+|---|---|
+| 1.03 | Claude allégé (environ 4 fois moins de quota), météo, minuteurs et musique sans Claude, voix par morceaux, réacteur réactif au son, sous-titre |
+| 1.02 | Point du jour à la demande et annulable, filtre des phrases inventées par Whisper |
+| 1.01 | Commandes instantanées, interruption « stop », point du jour automatique |
+| 1.0 | Première sauvegarde : écoute, Claude en continu, voix Henri, réacteur animé |
