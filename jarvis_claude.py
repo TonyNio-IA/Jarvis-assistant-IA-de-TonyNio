@@ -45,7 +45,7 @@ import jarvis_systeme
 from jarvis_voix import speak, bip, preparer  # voix naturelle Henri (voix Windows en secours)
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.06"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.07"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = r"C:\Jarvis\vosk-model-small-fr-0.22"

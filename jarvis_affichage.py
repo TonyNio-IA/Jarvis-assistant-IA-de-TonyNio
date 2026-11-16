@@ -31,6 +31,11 @@ user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, 
 user32.TrackPopupMenu.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_int,
                                   ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
 user32.DestroyMenu.argtypes = [ctypes.c_void_p]
+# Sur un Windows 64 bits, « toujours au premier plan » (-1) doit être passé comme un pointeur :
+# sans cette déclaration, la demande était ignorée et le réacteur passait derrière les fenêtres.
+user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+PREMIER_PLAN = ctypes.c_void_p(-1)
 
 
 class POINT(ctypes.Structure):
@@ -117,7 +122,7 @@ class Affichage:
     # ---------- Fenêtre ----------
 
     def _premier_plan(self):
-        user32.SetWindowPos(self.hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+        user32.SetWindowPos(self.hwnd, PREMIER_PLAN, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
 
     def _position(self):
         r = RECT()
@@ -378,7 +383,7 @@ class Affichage:
             self.image()
             pygame.display.flip()
             maintenant = time.time()
-            if maintenant - self._dernier_premier_plan > 3:
+            if maintenant - self._dernier_premier_plan > 1:
                 self._dernier_premier_plan = maintenant
                 self._premier_plan()
             actif = (src.etat_actuel in ("ecoute", "traitement", "reponse", "erreur")
