@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.22**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.23**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -105,6 +105,24 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - « Jarvis, qu'est-ce que tu sais faire ? » : il résume ses commandes.
 - Mails, seulement quand tu les demandes : « est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails » (expéditeur et objet des 5 derniers non lus), « lis-moi le premier mail ». Jarvis ne fait que lire : il n'envoie, ne supprime et ne déplace rien, les mails restent « non lus », et leur contenu n'est pas envoyé à Claude. Mise en place une fois, voir la rubrique [Mails](#mails).
 - Mode enfant : « Active le mode enfant ». Les vidéos et la musique passent par YouTube Kids (« mets une vidéo de dinosaures »), les recherches Google sont filtrées (SafeSearch), les sites d'achat ne s'ouvrent pas, et Claude répond avec des mots simples. Quiz et devinettes (« on fait un quiz sur les animaux ? ») : une question à la fois, Jarvis attend la réponse. Longues histoires d'environ 10 minutes (« raconte-moi une histoire de pirates »), lues au fur et à mesure, avec la suite le lendemain (« raconte la suite »). « Désactive le mode enfant » pour revenir à la normale. Jarvis ne filtre que ce qu'on lui demande : ce n'est pas un contrôle parental.
+- Alertes météo de Météo-France : dès qu'une vigilance jaune, orange ou rouge touche ton département (retrouvé tout seul à partir de ta ville), Jarvis te prévient une fois et le réacteur s'anime à la couleur de l'alerte, avec un symbole (éclair, gouttes, flocon, soleil, vent). Aussi à la voix : « y a-t-il une alerte météo ? ». Sans compte ni clé, voir la rubrique [Alertes météo](#alertes-météo).
+- « Quelle heure est-il à Tokyo ? » : l'heure dans n'importe quelle ville du monde, avec le décalage.
+- « Ouvre le dernier téléchargement » (un programme n'est jamais lancé, seulement montré dans le dossier) ; « où j'en étais ? » rouvre tes onglets de Chrome.
+- « Ferme tout » : ferme toutes les fenêtres après confirmation ; chaque application propose d'enregistrer ce qui ne l'est pas.
+- Recette pas à pas : « donne-moi la recette des crêpes étape par étape », puis « étape suivante », « étape précédente », « répète l'étape », « étape 3 ».
+- Anniversaires des proches : « l'anniversaire de Marie est le 3 mars » ; Jarvis le rappelle la veille et le jour même. « Quels sont les prochains anniversaires ? »
+- « Raconte-moi un truc » : une anecdote vraie et étonnante.
+- « Résume cette vidéo » sur YouTube : Jarvis ouvre la transcription de la vidéo et Claude la résume.
+- « Lis ça » : lit à voix haute le texte sélectionné.
+- Mode cinéma (« active le mode cinéma ») : vidéo en plein écran et réponses écrites pour ne pas déranger. Mode invité (« active le mode invité ») : ni mails, ni notes, ni mémoire, et rien n'est enregistré.
+- Couleurs du réacteur : « mets le réacteur en bleu » (Vice City, bleu, vert, rouge, violet ou orange).
+- Un profil par personne du foyer : « crée un profil pour Marie » (ou « un profil enfant pour Léo », en mode enfant d'office), puis « Jarvis, c'est Marie ». Chaque profil a sa propre mémoire et ses propres notes ; les rappels, la liste de courses et la ville restent communs, et les mails ne se lisent que sur le profil principal. « Qui suis-je ? », « quels sont les profils ? », « supprime le profil de Marie » (avec confirmation). Reconnaissance de la voix (facultative) : avec le petit modèle `vosk-model-spk-0.4` (13 Mo, à télécharger sur alphacephei.com/vosk/models et à décompresser dans le dossier de Jarvis), dis « Jarvis, apprends ma voix » sur chaque profil ; Jarvis passe ensuite tout seul sur le profil de la personne qu'il reconnaît, et ne change rien quand il hésite. Tout reste sur le PC. Ce n'est pas une sécurité : deux voix proches peuvent être confondues.
+- Minuteurs de cuisine nommés : « minuteur pâtes 10 minutes », « un minuteur de 25 minutes pour le four », puis « combien de temps pour les pâtes ? », « où en sont les minuteurs ? », « annule le minuteur du four ». Jarvis dit lequel sonne.
+- Avec plusieurs profils, chaque rappel dit pour qui il est (« Rappel pour Marie : ... »), et « Jarvis, bonjour » ne donne à chacun que ses rappels. « Ma musique du matin, c'est … » : « Jarvis, bonjour » la lance ensuite pour ce profil.
+- Devoirs (profil enfant ou mode enfant) : « on fait les devoirs », « aide-moi à réviser les tables », « on fait une dictée ». Une question à la fois, au niveau de sa classe (« Léo est en CE1 » : la classe avance seule à chaque rentrée), un indice plutôt que la réponse, les points comptés. « On arrête les devoirs » pour finir.
+- Coucher (profil enfant seulement) : « c'est l'heure du dodo » : une courte histoire calme, puis le réacteur se fait très doux et Jarvis répond par écrit. Il se réveille dès qu'on repasse sur un autre profil, ou avec « bonjour Jarvis ».
+- « Qu'est-ce qu'on a fait aujourd'hui ? » : le résumé de la journée, avec les rappels qui ont sonné et ceux de demain.
+- Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
 - Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
 
 ## Mails
@@ -116,6 +134,12 @@ cmdkey /generic:Jarvis-Mails /user:ton.adresse@icloud.com /pass
 ```
 
 Windows demande alors le mot de passe (il ne s'affiche pas pendant la frappe). Avec iCloud, ce n'est pas ton mot de passe Apple mais un **mot de passe pour app**, à créer sur account.apple.com, rubrique « Connexion et sécurité », puis « Mots de passe pour app ». Jarvis utilise iCloud par défaut ; pour une autre messagerie, ajoute dans `config.json` par exemple `"mails": {"serveur": "imap.gmail.com"}`. Pour retirer l'accès : `cmdkey /delete:Jarvis-Mails`.
+
+## Alertes météo
+
+Rien à régler : Jarvis lit la carte de Vigilance que Météo-France publie en données ouvertes sur [data.gouv.fr](https://www.data.gouv.fr/datasets/vigilance-meteorologique-archivee) (Licence Ouverte), sans compte ni clé, et la vérifie toutes les 30 minutes. Le département est retrouvé à partir de ta ville ; pour le forcer : `"departement": "33"` dans `config.json`.
+
+Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.meteofrance.fr, API « Données Publiques Vigilance »), Jarvis a une source de secours si data.gouv.fr ne répond pas : `cmdkey /generic:Jarvis-MeteoFrance /user:vigilance /pass`.
 
 ## Fichiers
 
@@ -135,6 +159,12 @@ Windows demande alors le mot de passe (il ne s'affiche pas pendant la frappe). A
 | `jarvis_sources.py` | Les titres du jour (franceinfo, Le Monde) et la page du site suivi, lus directement depuis le PC pour le point du jour |
 | `jarvis_mails.py` | La lecture des mails à la demande (sans rien modifier dans la messagerie) |
 | `jarvis_enfant.py` | Le mode enfant : YouTube Kids, recherches filtrées, quiz, devinettes et longues histoires avec la suite |
+| `jarvis_vigilance.py` | Les alertes de la Vigilance de Météo-France pour ton département |
+| `jarvis_extras.py` | Heure dans le monde, dernier téléchargement, onglets, ferme tout, recette pas à pas, anniversaires, modes cinéma et invité, couleurs du réacteur, résumé d'une vidéo YouTube |
+| `jarvis_profils.py` | Un profil par personne du foyer (mémoire et notes séparées) |
+| `jarvis_locuteur.py` | La reconnaissance de la voix de chaque profil (facultative) |
+| `jarvis_famille.py` | Devoirs, coucher, résumé de la journée, musique du matin de chaque profil |
+| `jarvis_accueil.py` | Les premiers pas d'un nouvel utilisateur (une question à la fois) |
 | `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
 | `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
@@ -175,6 +205,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.23 | Alertes de la Vigilance Météo-France pour ton département, avec animation du réacteur à la couleur de l'alerte ; heure dans une autre ville ; dernier téléchargement ; « où j'en étais ? » (onglets de Chrome) ; « ferme tout » avec confirmation ; recette pas à pas ; anniversaires des proches rappelés la veille et le jour même ; anecdotes ; résumé d'une vidéo YouTube ; lecture du texte sélectionné ; modes cinéma et invité ; couleurs du réacteur au choix ; un profil par personne du foyer, reconnu à sa voix ; minuteurs nommés ; devoirs et coucher pour les enfants ; résumé de la journée ; premiers pas guidés pour les nouveaux utilisateurs ; « avance de… / recule de… » mieux compris et plus précis ; « mets la première vidéo sur lecture » |
 | 1.22 | Mode enfant (YouTube Kids, recherches filtrées, quiz, devinettes, longues histoires lues au fur et à mesure avec la suite) ; lecture des mails à la demande, sans rien modifier ; point du jour plus fiable (titres de franceinfo et du Monde, site suivi lu directement depuis le PC) ; « Jarvis » coupe la parole et enchaîne sur une nouvelle demande ; écoute mieux réglée (commandes mal entendues, « des actives » ne rallume plus le mode nuit) ; réponses plus naturelles et variées, salutation du jour, remerciements avec humour, petit son à la fin des longues tâches ; affichage : couleurs Vice City en veille, mode discret avec les jauges, icônes des jauges, reflet lumineux, réacteur qui danse avec la musique, regarde la souris et se fait doux la nuit, animations de minuit et d'anniversaire ; bip plus fort |
 | 1.21 | Mises à jour automatiques : au démarrage, Jarvis vérifie s'il existe une nouvelle version sur GitHub, te l'annonce à ta demande suivante et l'installe seulement si tu dis « oui » (« Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ») ; le mode nuit ne s'active plus à heures fixes mais seulement quand tu le demandes, et reste actif après un redémarrage jusqu'à « désactive le mode nuit » |
 | 1.20 | Nouvelles commandes, sans Claude : calculs et conversions (y compris monnaies), chronomètre, listes de courses et de tâches, raccourcis clavier (copier, coller, annuler...), avance et recul dans une vidéo, son d'une seule application, mode sombre ou clair, Bluetooth, luminosité ; navigateur à la voix (« clique sur… », « la deuxième vidéo », « le premier résultat », défilement, retour, lecture et résumé d'une page, recherche sur YouTube, Amazon, Google...) ; mode nuit (réponses écrites, sans voix) ; voix de femme et vitesse de parole ; « qu'est-ce que tu sais faire ? » ; corrections : la dictée n'abîme plus les longs textes, sans micro Jarvis attend au lieu de redémarrer en boucle, mots mal entendus mieux compris (« ma ville et Toulouse », « des oufs ») |

@@ -193,10 +193,21 @@ CONSIGNE = ("Quand une note t'indique une capture d'écran, lis l'image avec l'o
             "s'il veut un résumé ou une explication, réponds simplement à la voix. ")
 
 
+_LIRE_SELECTION = (r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|lit|lit-moi)(?:-moi| moi)?\s+"
+                   r"(?:ça|ca|ceci|la sélection|le texte sélectionné|ce que j'ai sélectionné|ce que j'ai surligné|"
+                   r"le texte surligné|ce qui est sélectionné)\W*$")
+
+
 def lecture_directe(t):
-    """« lis ce que j'ai copié » : renvoie le texte à lire à voix haute, ou None."""
-    if not re.search(_LIRE_COPIE, t) or re.search(r"\b(résume|traduis|corrige|explique)\b", t):
+    """« lis ce que j'ai copié », « lis ça » (le texte sélectionné) : renvoie le texte à lire, ou None."""
+    selection = bool(re.search(_LIRE_SELECTION, t.replace("’", "'")))
+    if not selection and (not re.search(_LIRE_COPIE, t) or re.search(r"\b(résume|traduis|corrige|explique)\b", t)):
         return None
+    if selection:
+        avant = lire_presse_papiers()
+        copier_selection()
+        if lire_presse_papiers() == avant and not avant:
+            return "Je ne vois pas de texte sélectionné. Surligne un texte, puis redis : lis ça."
     texte = " ".join(lire_presse_papiers().split())
     if not texte:
         return "Le presse-papiers ne contient pas de texte."
@@ -215,10 +226,25 @@ def complement(t):
                      + " : " + " ; ".join(chemins) + ".) ")
         except Exception as erreur:
             print("Capture de l'écran impossible :", erreur)
+    # « résume cette vidéo » sur YouTube : la transcription de la vidéo est jointe à la demande
+    try:
+        import jarvis_extras
+        if jarvis_extras.VIDEO_POUR_CLAUDE.search(t):
+            video = jarvis_extras.transcription_youtube().strip()
+            if video:
+                if len(video) > 3 * TEXTE_MAX:
+                    video = video[:3 * TEXTE_MAX] + " […]"
+                note += ("(Transcription de la vidéo YouTube ouverte chez " + jarvis_config.NOM
+                         + ", entre les trois guillemets : \"\"\"" + video + "\"\"\") ")
+                return note
+    except Exception as erreur:
+        print("Transcription de la vidéo impossible :", erreur)
     # « résume cette page » : le texte de la page ouverte dans le navigateur est joint à la demande
     try:
         import jarvis_web
-        if jarvis_web.PAGE_POUR_CLAUDE.search(t) and jarvis_web.navigateur_actif():
+        import jarvis_extras
+        if (jarvis_web.PAGE_POUR_CLAUDE.search(t) or jarvis_extras.VIDEO_POUR_CLAUDE.search(t)) \
+                and jarvis_web.navigateur_actif():
             page = jarvis_web.texte_principal(jarvis_web.texte_de_la_page()).strip()
             if page:
                 if len(page) > TEXTE_MAX:

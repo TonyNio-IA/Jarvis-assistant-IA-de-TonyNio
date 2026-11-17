@@ -574,6 +574,9 @@ def commande_aide(t):
             "Je peux aussi lire ou résumer un texte que tu as copié, et regarder ton écran. "
             "Dis « active le mode nuit » pour que je réponde par écrit, ou « active le mode enfant » "
             "pour les vidéos YouTube Kids, les quiz, les devinettes et les longues histoires. "
+            "Je te donne l'heure dans une autre ville, les alertes météo, une recette étape par étape, "
+            "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. "
+            "Il y a aussi le mode cinéma et le mode invité. "
             "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")
 
 
@@ -661,11 +664,18 @@ def _fenetre_active():
 
 def commande_avance(t):
     """« avance de 30 secondes », « recule d'une minute » dans la vidéo ou la musique de la fenêtre active."""
+    t = t.replace("’", "'")
+    # « avance » est souvent mal entendu : « avant de », « à vent de », « six de », « va de »...
+    t = re.sub(r"^\W*(?:jarvis\W+)?(?:avant|à vent|a vent|avant ce|six|cie|va|vas|avancé|avancez|avances)"
+               r"(?=\s+(?:de |d')\s*\S+\s+(?:secondes?|minutes?)\b)", "avance", t)
+    t = re.sub(r"^\W*(?:jarvis\W+)?(?:recul|reculent|reculez|reculé|recules|requiert)(?=\s+(?:de |d'))", "recule", t)
     m = re.match(r"^\W*(?:jarvis\W+)?(?P<sens>avance|avancer|recule|reculer|reviens|revenir|retourne)"
-                 r"(?: la vidéo| la video| la musique| le film)?(?: en arrière| en avant)?\s+(?:de |d')\s*(?P<duree>.+?)\W*$",
-                 t.replace("’", "'"))
+                 r"(?: la vidéo| la video| la musique| le film)?(?: en arrière| en avant)?\s+(?:de |d')\s*(?P<duree>.+?)\W*$", t)
     if not m:
-        return None
+        # « de 30 secondes » tout seul (le verbe s'est perdu) : on avance, si une vidéo est au premier plan
+        m = re.match(r"^\W*(?:jarvis\W+)?(?P<sens>)(?:de |d')\s*(?P<duree>\S+\s+(?:secondes?|minutes?))\W*$", t)
+        if not m or not re.search(r"youtube|netflix|vlc|lecteur|film|vidéo|video|prime video|disney", _fenetre_active().lower()):
+            return None
     mots = _decouper(m.group("duree"))
     if mots and mots[0] in ("une", "un") and len(mots) == 2:
         valeur, j = 1, 1
@@ -679,8 +689,16 @@ def commande_avance(t):
         return None
     en_arriere = m.group("sens").startswith(("recul", "revien", "reven", "retourn"))
     if "youtube" in _fenetre_active().lower():
-        # Sur YouTube, J et L reculent ou avancent de 10 secondes
-        _plus_tard(0x4A if en_arriere else 0x4C, repetitions=max(1, round(secondes / 10)))
+        # Sur YouTube, J et L reculent ou avancent de 10 secondes, les flèches de 5 secondes
+        dizaines, reste = divmod(int(secondes), 10)
+        cinq = round(reste / 5) if dizaines else max(1, round(reste / 5))
+
+        def appuyer():
+            if dizaines:
+                touches(0x4A if en_arriere else 0x4C, repetitions=dizaines)
+            if cinq:
+                touches(0x25 if en_arriere else 0x27, repetitions=cinq)
+        threading.Timer(0.3, appuyer).start()
     else:
         # Ailleurs, les flèches gauche et droite : 5 secondes dans la plupart des lecteurs (YouTube, Netflix...)
         _plus_tard(0x25 if en_arriere else 0x27, repetitions=max(1, round(secondes / 5)))

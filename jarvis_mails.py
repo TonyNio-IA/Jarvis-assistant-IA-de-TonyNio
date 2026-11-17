@@ -49,15 +49,15 @@ class _CREDENTIAL(ctypes.Structure):
                 ("UserName", wt.LPWSTR)]
 
 
-def identifiants():
-    """(adresse, mot de passe) rangés sous « Jarvis-Mails », ou None."""
+def identifiants(cible=CIBLE):
+    """(identifiant, mot de passe) rangés sous « Jarvis-Mails » (ou un autre nom), ou None."""
     try:
         advapi = ctypes.WinDLL("advapi32", use_last_error=True)
         advapi.CredReadW.argtypes = [wt.LPCWSTR, wt.DWORD, wt.DWORD, ctypes.POINTER(ctypes.POINTER(_CREDENTIAL))]
         advapi.CredReadW.restype = wt.BOOL
         advapi.CredFree.argtypes = [ctypes.c_void_p]
         pointeur = ctypes.POINTER(_CREDENTIAL)()
-        if not advapi.CredReadW(CIBLE, 1, 0, ctypes.byref(pointeur)):      # 1 = identifiant générique
+        if not advapi.CredReadW(cible, 1, 0, ctypes.byref(pointeur)):      # 1 = identifiant générique
             return None
         try:
             c = pointeur.contents

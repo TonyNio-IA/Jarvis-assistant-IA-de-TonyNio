@@ -34,6 +34,8 @@ import pygame
 
 import jarvis_claude
 import jarvis_systeme
+import jarvis_famille
+import jarvis_vigilance
 import jarvis_voix
 
 CLE = (1, 2, 3)          # couleur rendue invisible (transparence de la fenêtre)
@@ -42,8 +44,10 @@ NB_GRADUATIONS = 72      # traits de la couronne extérieure (ils dessinent le s
 MODE_DISCRET = True      # en veille, le réacteur rétrécit et le panneau disparaît
 TAILLE_DISCRETE = 0.45   # taille du réacteur en veille (1 = taille normale)
 DELAI_DISCRET = 35       # secondes de veille avant de rétrécir
-VITESSE_REFLET = 58      # vitesse du reflet de lumière qui fait le tour des panneaux et du réacteur (points/s)
-LONGUEUR_REFLET = 40     # longueur du reflet (points)
+VITESSE_REFLET = 174      # vitesse du reflet de lumière qui fait le tour des panneaux et du réacteur (points/s)
+TOUR_REFLET_REACTEUR = 7.0   # secondes pour que le reflet fasse le tour du cercle du réacteur (vitesse régulière)
+NB_REFLETS = 2          # nombre de reflets sur chaque contour, répartis à égale distance
+LONGUEUR_REFLET = 160     # longueur du reflet (points)
 PAUSE_REFLET = 0.0       # secondes de pause entre deux tours (0 : il tourne sans s'arrêter)
 REFLET_REACTEUR = True   # le reflet fait aussi le tour du cercle du réacteur
 DANSE_MUSIQUE = True     # en veille, le réacteur bouge au rythme du son du PC (musique, vidéo)
@@ -52,6 +56,8 @@ DOUX_LA_NUIT = True      # la nuit (après le coucher du soleil), le réacteur e
 FETES = True             # petite animation à minuit et le jour de l'anniversaire
 DUREE_FETE = 8.0         # secondes
 COULEURS_FETE = ((255, 215, 90), (255, 46, 151), (80, 220, 255), (157, 77, 255), (120, 255, 150))
+DUREE_VIGILANCE = 12.0   # secondes d'animation quand une alerte météo de Météo-France est annoncée
+COULEURS_VIGILANCE = {2: (255, 214, 0), 3: (255, 128, 0), 4: (255, 30, 30)}     # jaune, orange, rouge
 ICONES_JAUGES = True     # petite icône entre le nom et la valeur de chaque jauge
 PANNEAU_COMPACT = True   # en mode discret, les jauges restent visibles dans un petit panneau (sinon il disparaît)
 DUREE_NAISSANCE = 1.4    # secondes que met le réacteur à se former au lancement
@@ -179,6 +185,7 @@ class Affichage:
         self._musique = 0.0                        # niveau lissé du son du PC (le réacteur danse)
         self._regard = (0.0, 0.0)                  # décalage du cœur vers la souris
         self._fete, self._fete_vue = None, None    # animation de minuit ou d'anniversaire en cours
+        self._vigilance_vue, self._vigilance = None, None    # alerte météo animée
         self._jour = time.strftime("%Y-%m-%d")
         self._nuit_calcul, self._nuit = 0.0, False
         ang = np.arange(NB_GRADUATIONS) * (2 * math.pi / NB_GRADUATIONS)
@@ -320,6 +327,14 @@ class Affichage:
         alerte = maintenant - self._alerte
         if FETES:
             self._detecter_fete(maintenant)
+        vigilance = jarvis_vigilance.animation
+        if vigilance and maintenant - vigilance[0] >= DUREE_VIGILANCE:
+            vigilance = None
+        if vigilance and vigilance[0] != self._vigilance_vue:
+            self._vigilance_vue = vigilance[0]
+            self._message("Vigilance " + jarvis_vigilance.COULEURS.get(vigilance[1], "") + " : "
+                          + ", ".join(vigilance[2]))
+        self._vigilance = vigilance
         if alerte < DUREE_ALERTE and e in ("veille", "pause", "reponse"):
             e = "rappel"
         self._en_alerte = e == "rappel"
@@ -328,6 +343,10 @@ class Affichage:
         palette = getattr(src, "COULEURS_VEILLE", None)
         if e == "veille" and palette:                  # veille : les couleurs défilent lentement
             cible = _degrade([_rgb(c) for c in palette], t / max(1.0, getattr(src, "CYCLE_VEILLE", 12)))
+        if vigilance and e in ("veille", "pause", "reponse", "rappel"):    # alerte météo : couleur de la vigilance
+            cible = COULEURS_VIGILANCE.get(vigilance[1], cible)
+            if e in ("veille", "pause"):
+                titre = "Alerte météo"
         self.couleur = _melange(self.couleur, cible, 1 - math.exp(-dt * 4))
         base = self.couleur
         if e == "erreur":
@@ -368,6 +387,9 @@ class Affichage:
         # La nuit, en veille, il se fait plus doux
         if DOUX_LA_NUIT and e in ("veille", "pause") and self._est_nuit(maintenant):
             eclat *= 0.72
+        if jarvis_famille.dodo["actif"] and e in ("veille", "pause"):     # l'enfant dort : lumière très douce
+            eclat *= 0.4
+            amplitude *= 0.5
         self._amp += (amplitude - self._amp) * (1 - math.exp(-dt * 14))
         amplitude = self._amp
         self.angle += vitesse * 0.6 * dt
@@ -384,6 +406,7 @@ class Affichage:
         # Taille du réacteur : discret en veille, normal dès qu'il se passe quelque chose
         en_fete = self._fete is not None and maintenant - self._fete[0] < DUREE_FETE
         actif = (e not in ("veille", "pause") or self.glisse is not None or alerte < DUREE_ALERTE or en_fete
+                 or self._vigilance is not None
                  or maintenant - src.texte_depuis < src.DUREE_TEXTE)
         if actif:
             self._dernier_eveil = maintenant
@@ -525,6 +548,19 @@ class Affichage:
                 cercle(surf, teinte(eclair, COULEURS_FETE[j % len(COULEURS_FETE)]),
                        (cx + rr * math.cos(a), cy + rr * math.sin(a)), (1.2 + 1.2 * eclair) * s)
 
+        # Alerte météo : des ondes à la couleur de la vigilance et le symbole du phénomène au centre
+        if self._vigilance is not None:
+            age = maintenant - self._vigilance[0]
+            fondu = min(1.0, age / 0.4, (DUREE_VIGILANCE - age) / 1.5)
+            couleur = COULEURS_VIGILANCE.get(self._vigilance[1], (255, 214, 0))
+            for i in range(3):
+                p = (age / 1.6 + i / 3) % 1
+                cercle(surf, teinte((1 - p) ** 1.3 * fondu, couleur), (cx, cy), R * (0.2 + 0.8 * p),
+                       max(1, int((3 - 2 * p) * s)))
+            battement = 0.75 + 0.25 * math.sin(age * 5)
+            self._symbole_meteo(surf, self._vigilance[2][0], cx, cy, R * 0.34,
+                                teinte(fondu * battement, _melange(couleur, (255, 255, 255), 0.25)), s)
+
         # Halo : le dessin est réduit puis agrandi (ce qui le rend flou) et ajouté par-dessus
         if HALO:
             zone = self._zone
@@ -537,7 +573,7 @@ class Affichage:
             surf.blit(self._masque, zone)
             aaligne(surf, teinte(0.22 * eclat), True, contour)
         if REFLET_REACTEUR and naissance >= 1:           # le reflet fait aussi le tour du cercle du réacteur
-            self._reflet(surf, teinte, blanc, contour, time.time(), decalage=4.0)
+            self._reflet(surf, teinte, blanc, contour, time.time(), tour_fixe=TOUR_REFLET_REACTEUR)
 
         self._couronne(surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext)
         self._zone_compacte = None
@@ -546,6 +582,43 @@ class Affichage:
         elif PANNEAU_COMPACT and src.AFFICHER_SYSTEME and naissance >= 1 and self._fermeture is None:
             # mode discret : un petit panneau juste sous le réacteur, avec seulement les jauges
             self._panneau_compact(surf, teinte, blanc, e, t, cx, cy + Rext + 5 * self.s, dt)
+
+    @staticmethod
+    def _symbole_meteo(surf, phenomene, cx, cy, r, couleur, s):
+        """Un symbole simple dessiné en traits : éclair, gouttes, flocon, soleil, thermomètre, vent ou vagues."""
+        epais = max(2, int(3 * s))
+        if phenomene == "orages":
+            pts = [(0.15, -1), (-0.45, 0.1), (0.0, 0.1), (-0.2, 1), (0.5, -0.2), (0.05, -0.2), (0.35, -1)]
+            pygame.draw.polygon(surf, couleur, [(cx + x * r, cy + y * r) for x, y in pts])
+        elif phenomene in ("pluie-inondation", "crues"):
+            for dx, dy, k in ((-0.45, -0.15, 0.55), (0.45, -0.15, 0.55), (0.0, 0.25, 0.7)):
+                x, y, t = cx + dx * r, cy + dy * r, k * r
+                pygame.draw.circle(surf, couleur, (int(x), int(y + 0.35 * t)), max(2, int(0.42 * t)))
+                pygame.draw.polygon(surf, couleur, [(x, y - 0.75 * t), (x - 0.41 * t, y + 0.3 * t),
+                                                    (x + 0.41 * t, y + 0.3 * t)])
+            if phenomene == "crues":
+                pygame.draw.line(surf, couleur, (cx - r, cy + 0.95 * r), (cx + r, cy + 0.95 * r), epais)
+        elif phenomene in ("neige-verglas", "grand froid", "avalanches"):
+            for k in range(6):
+                a = k * math.pi / 3
+                x, y = cx + r * math.cos(a), cy + r * math.sin(a)
+                pygame.draw.line(surf, couleur, (cx, cy), (x, y), epais)
+                for c in (-1, 1):                          # les petites branches du flocon
+                    mx, my = cx + 0.6 * r * math.cos(a), cy + 0.6 * r * math.sin(a)
+                    b = a + c * 0.7
+                    pygame.draw.line(surf, couleur, (mx, my), (mx + 0.3 * r * math.cos(b),
+                                                           my + 0.3 * r * math.sin(b)), max(1, epais - 1))
+        elif phenomene == "canicule":
+            pygame.draw.circle(surf, couleur, (int(cx), int(cy)), max(3, int(0.45 * r)))
+            for k in range(8):
+                a = k * math.pi / 4
+                pygame.draw.line(surf, couleur, (cx + 0.62 * r * math.cos(a), cy + 0.62 * r * math.sin(a)),
+                                 (cx + r * math.cos(a), cy + r * math.sin(a)), epais)
+        else:                                              # vent violent, vagues-submersion : trois ondulations
+            for j, dy in enumerate((-0.5, 0.0, 0.5)):
+                pts = [(cx + (i / 10 * 2 - 1) * r * (1 - 0.15 * j),
+                        cy + dy * r + 0.18 * r * math.sin(i / 10 * 2 * math.pi)) for i in range(11)]
+                pygame.draw.lines(surf, couleur, False, pts, epais)
 
     def _suivre_regard(self, cx, cy, R, dt):
         """Décalage du cœur vers la souris quand elle s'approche du réacteur (sinon il revient au centre)."""
@@ -557,7 +630,7 @@ class Affichage:
                 dx, dy = x - (fx + cx), y - (fy + cy)
                 distance = math.hypot(dx, dy)
                 if 1 < distance < R * 5:
-                    force = 0.12 * R * min(1.0, distance / (1.2 * R)) * min(1.0, (R * 5 - distance) / (R * 1.5))
+                    force = 0.195 * R * min(1.0, distance / (1.2 * R)) * min(1.0, (R * 5 - distance) / (R * 1.5))
                     cible = (dx / distance * force, dy / distance * force)
             except Exception:
                 pass
@@ -784,7 +857,7 @@ class Affichage:
         return [tuple(int(c) for c in _degrade(couleurs, decalage + i * len(couleurs) / nombre))
                 for i in range(nombre)]
 
-    def _reflet(self, surf, teinte, blanc, points, t, decalage=0.0):
+    def _reflet(self, surf, teinte, blanc, points, t, decalage=0.0, tour_fixe=None):
         """Un reflet de lumière fait tout le tour d'un contour (panneau ou cercle du réacteur), puis une
         courte pause avant le tour suivant. points : les sommets du contour, dans l'ordre."""
         S = self.s
@@ -794,11 +867,17 @@ class Affichage:
         total = sum(longueurs)
         if total < 1:
             return
+        longueur = min(LONGUEUR_REFLET * S, 0.7 * total / max(1, NB_REFLETS))   # jamais deux reflets qui se touchent
         tour = total / (VITESSE_REFLET * S) + PAUSE_REFLET           # secondes pour un tour, pause comprise
         avance = ((t + decalage) % tour) * VITESSE_REFLET * S
-        if PAUSE_REFLET <= 0:
+        if tour_fixe:
+            # Le cercle du réacteur change sans cesse de taille (il respire, grandit, rétrécit) : son reflet
+            # tourne donc à vitesse régulière, un tour en « tour_fixe » secondes, quelle que soit sa taille.
+            avance = ((t + decalage) % tour_fixe) / tour_fixe * total + total
+            longueur = min(longueur, 0.22 * total)
+        elif PAUSE_REFLET <= 0:
             avance += total                    # sans pause : la traîne continue sur le tour précédent
-        elif avance > total + LONGUEUR_REFLET * S:
+        elif avance > total + longueur:
             return
 
         def point(d):
@@ -811,24 +890,28 @@ class Affichage:
                 d -= l
             return pts[0]
 
-        morceaux = 8
-        pas = LONGUEUR_REFLET * S / morceaux
+        morceaux = 24
+        pas = longueur / morceaux
         epais = max(1, int(1.7 * S))
-        for k in range(morceaux):
-            d1, d2 = avance - k * pas, avance - (k + 1) * pas
-            if d1 <= 0:
-                break
-            if d1 > total and PAUSE_REFLET > 0:         # la tête a fini le tour : seule la traîne finit de passer
-                continue
-            force = 0.95 * (1 - k / morceaux) ** 1.4
-            depart = max(0.0, d2)
-            # on suit le contour même dans les angles (plusieurs petits traits)
-            n = max(1, int((d1 - depart) / (3 * S)))
-            prec = point(depart)
-            for m in range(1, n + 1):
-                cour = point(depart + (d1 - depart) * m / n)
-                pygame.draw.line(surf, teinte(force, blanc), prec, cour, epais)
-                prec = cour
+        # plusieurs reflets, répartis à égale distance sur le contour (deux : l'un à l'opposé de l'autre)
+        nombre = NB_REFLETS if PAUSE_REFLET <= 0 else 1
+        for r in range(max(1, nombre)):
+            tete = avance + r * total / max(1, nombre)
+            for k in range(morceaux):
+                d1, d2 = tete - k * pas, tete - (k + 1) * pas
+                if d1 <= 0:
+                    break
+                if d1 > total and PAUSE_REFLET > 0:     # la tête a fini le tour : seule la traîne finit de passer
+                    continue
+                force = 0.95 * (1 - k / morceaux) ** 1.4
+                depart = max(0.0, d2)
+                # on suit le contour même dans les angles (plusieurs petits traits)
+                n = max(1, int((d1 - depart) / (3 * S)))
+                prec = point(depart)
+                for m in range(1, n + 1):
+                    cour = point(depart + (d1 - depart) * m / n)
+                    pygame.draw.line(surf, teinte(force, blanc), prec, cour, epais)
+                    prec = cour
 
     def _etiquette(self, surf, police, nom, valeur, unite, couleur, xc, yc):
         """« CPU [icône] 12% », centré sur (xc, yc). L'icône a la hauteur des lettres."""

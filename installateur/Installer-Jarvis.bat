@@ -36,7 +36,7 @@ $CLE        = 'HKCU:\Software\Jarvis-TonyNio'
 $AUTO       = [bool]$env:JARVIS_AUTO          # mode sans question (essais automatiques)
 $JOURNAL    = Join-Path $env:TEMP 'Jarvis-installation.log'
 $TEMP       = Join-Path $env:TEMP 'Jarvis-installation'
-$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json','liste.json','reglages_voix.json','mise_a_jour.json','enfant.json','salutation.date'
+$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json','liste.json','reglages_voix.json','mise_a_jour.json','enfant.json','salutation.date','vigilance.json','recette.json','anniversaires.date','apparence.json','accueil.json','profils.json','profils','rappels_faits.json'
 $UTF8       = New-Object Text.UTF8Encoding $false
 
 function Journal($texte) {
@@ -234,6 +234,8 @@ function Ecrire-Reglages($dossier, $prenom, $ville) {
         $texte = [regex]::Replace($texte, '"prenom"\s*:\s*"[^"]*"', ('"prenom": "' + $propre.Replace('$', '$$') + '"'))
         [IO.File]::WriteAllText($config, $texte, $UTF8)
         Bon "Réglages créés (prénom : $propre). Tu pourras les modifier dans config.json."
+        # nouvel utilisateur : Jarvis fera connaissance pendant les premières conversations (voix, tutoiement...)
+        [IO.File]::WriteAllText((Join-Path $dossier 'accueil.json'), '{"nouveau": true}', $UTF8)
     }
     $fichierVille = Join-Path $dossier 'ville.txt'
     if ((Test-Path -LiteralPath $fichierVille) -or -not $ville) { return }

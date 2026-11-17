@@ -300,7 +300,8 @@ _CLIC = re.compile(r"^\W*(?:jarvis\W+)?(?:clique|cliques|clic|clik|cliquer|appui
 # « lance » est souvent entendu « Lille » ou « Lila »
 _ORDINAL_SANS_CLIC = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:lance|lances|lancer|mets|met|mais|joue|regarde|montre|"
                                 r"prends|prend|lille|lila|lis|lit)(?:-moi| moi)?\s+)?(?:sur\s+)?"
-                                r"(?P<cible>(?:le |la |l')?\S+ (?:vidéo|video|résultat|resultat|lien))\W*$")
+                                r"(?P<cible>(?:le |la |l')?\S+ (?:vidéo|video|résultat|resultat|lien))"
+                                r"(?:\s+(?:sur|en)\s+lecture|\s+s'il te pla[iî]t|\s+stp)?\W*$")
 
 
 def commande_clic(t):

@@ -45,6 +45,12 @@ import jarvis_config
 import jarvis_ecran
 import jarvis_enfant
 import jarvis_mails
+import jarvis_vigilance
+import jarvis_extras
+import jarvis_accueil
+import jarvis_profils
+import jarvis_locuteur
+import jarvis_famille
 import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
@@ -451,10 +457,33 @@ def _ecrire_rappels(rappels):
         json.dump(rappels, f, ensure_ascii=False, indent=1)
 
 
-def _ajouter_rappel(quand, message):
+def _pour_qui():
+    """Le prénom de la personne qui demande le rappel, quand plusieurs profils existent (sinon None)."""
+    try:
+        return (jarvis_profils.prenom_actif() or None) if jarvis_profils._lire() else None
+    except Exception:
+        return None
+
+
+def _message_pour(r):
+    """« Rappel pour Marie : ... » quand le rappel a été demandé par quelqu'un en particulier."""
+    message, pour = r["message"], r.get("pour")
+    if not pour or message.startswith("Le minuteur"):
+        return message
+    if message.startswith("Rappel : "):
+        return f"Rappel pour {pour} : " + message[len("Rappel : "):]
+    return f"{pour}, " + message[:1].lower() + message[1:]
+
+
+def _ajouter_rappel(quand, message, nom=None):
     with _verrou_rappels:
         rappels = _lire_rappels()
-        rappels.append({"quand": quand, "message": message, "debut": time.time()})
+        rappel = {"quand": quand, "message": message, "debut": time.time()}
+        if _pour_qui():
+            rappel["pour"] = _pour_qui()
+        if nom:
+            rappel["nom"] = nom
+        rappels.append(rappel)
         _ecrire_rappels(rappels)
 
 
@@ -487,12 +516,13 @@ def demarrer_rappels(annoncer):
                     if dus:
                         _ecrire_rappels([r for r in rappels if r["quand"] > maintenant])
                 for r in dus:
+                    jarvis_famille.noter_rappel_fait(r)
                     if maintenant - r["quand"] > 120:      # le PC était éteint à ce moment-là
                         t = time.localtime(r["quand"])
                         annoncer(f"Tu avais un rappel prévu à {_heure_parlee(t.tm_hour, t.tm_min)}, "
-                                 f"pendant que j'étais éteint. {r['message']}")
+                                 f"pendant que j'étais éteint. {_message_pour(r)}")
                     else:
-                        annoncer(r["message"])
+                        annoncer(_message_pour(r))
             except Exception as erreur:
                 print("Rappels :", erreur)
             time.sleep(2)
@@ -508,13 +538,74 @@ def _commande_minuteur(t, annoncer):
     duree = _duree(t)
     if duree is None or duree > 24 * 3600:
         return None
+    nom = _nom_minuteur(t)
     m = re.search(r"\b(?:minutes?|secondes?|heures?)\s+(?:de |d'|que |qu')(.+)$", t)
-    if m:
+    if nom:
+        message = f"Le minuteur {nom} est terminé."
+    elif m:
         message = "Rappel : " + m.group(1).strip() + "."
     else:
         message = f"Le minuteur de {_duree_parlee(duree)} est terminé."
-    _ajouter_rappel(time.time() + duree, message)
+    _ajouter_rappel(time.time() + duree, message, nom)
+    if nom:
+        return f"C'est parti, minuteur {nom} pour {_duree_parlee(duree)}."
     return f"C'est noté, je te préviens dans {_duree_parlee(duree)}."
+
+
+_MOTS_VIDES_MINUTEUR = {"de", "d", "pour", "les", "le", "la", "l", "des", "du", "un", "une", "mets", "mettre", "met",
+                        "lance", "lancer", "démarre", "fais", "moi", "dans", "et", "à", "a", "au", "sur", "s'il",
+                        "te", "plaît", "stp", "jarvis", "nouveau", "autre", "deuxième", "second", "minuteur"}
+
+
+def _nom_minuteur(t):
+    """« minuteur pâtes 10 minutes », « un minuteur de 25 minutes pour le four » : « pâtes », « four »."""
+    if not re.search(r"\bminuteurs?\b", t):
+        return None
+    reste = re.sub(r"\bdemi[- ]heure\b|\bquart d'heure\b", " ", t)
+    mots = [m for m in re.split(r"[\s,.!?']+", reste.replace("-", " ")) if m]
+    garde = []
+    for i, mot in enumerate(mots):
+        if mot.isdigit() or mot in _VALEURS or mot in ("heure", "heures", "minute", "minutes", "seconde", "secondes",
+                                                        "demie", "demi", "quart", "et", "h", "min", "s"):
+            continue
+        if mot in _MOTS_VIDES_MINUTEUR or len(mot) < 3:
+            continue
+        garde.append(mot)
+    if not garde or len(garde) > 3:
+        return None
+    return " ".join(garde)
+
+
+def _commande_minuteurs_nommes(t):
+    """« combien de temps pour les pâtes ? », « annule le minuteur du four », « où en sont les minuteurs ? »"""
+    if not re.search(r"\bminuteurs?\b|\bcombien de temps (?:il reste |reste-t-il )?pour\b", t):
+        return None
+    if _duree(t) and not re.search(r"\b(annule|arrête|arrete|supprime|stoppe|enlève|combien|reste)\b", t):
+        return None                             # « minuteur pâtes 10 minutes » : c'en est un nouveau
+    with _verrou_rappels:
+        rappels = [r for r in _lire_rappels() if r.get("nom") and r["quand"] > time.time()]
+    if not rappels:
+        return None
+    def trouve():
+        for r in rappels:
+            if re.search(r"\b" + re.escape(r["nom"]) + r"\b", t):
+                return r
+        return None
+    r = trouve()
+    if re.search(r"\b(annule|arrête|arrete|supprime|stoppe|enlève)\b", t):
+        if r is None:
+            return None                         # « annule les minuteurs » : tous, plus loin
+        with _verrou_rappels:
+            _ecrire_rappels([x for x in _lire_rappels() if not (x.get("nom") == r["nom"] and x["quand"] == r["quand"])])
+        return f"J'annule le minuteur {r['nom']}."
+    if r is not None:
+        reste = int(r["quand"] - time.time())
+        return f"Il reste {_duree_parlee(max(1, reste))} pour le minuteur {r['nom']}."
+    if re.search(r"\b(o[uù] en sont|combien|quels|il reste|les minuteurs)\b", t):
+        phrases = [f"{r['nom']}, encore {_duree_parlee(max(1, int(r['quand'] - time.time())))}"
+                   for r in sorted(rappels, key=lambda x: x["quand"])]
+        return "Minuteurs en cours : " + " ; ".join(phrases) + "."
+    return None
 
 
 def _heure_fixe(t):
@@ -781,6 +872,8 @@ def demander_confirmation(action):
 
 
 def _executer_alimentation(action):
+    if callable(action):                 # une action préparée ailleurs (« ferme tout »)
+        return action()
     if action == "maj":
         return jarvis_maj.installer()
     if action == "effacer_memoire":
@@ -891,6 +984,7 @@ def _rappels_du_jour(decalage=0):
 def _commande_routine(t):
     global _attente
     if re.match(r"\W*(bonjour|bonsoir|salut)\b(?! (à|a) )", t) and len(t.split()) <= 3:
+        enfant = jarvis_famille.enfant_actif()
         h = time.localtime().tm_hour
         phrases = [("Bonsoir" if h >= 18 else "Bonjour") + f"{jarvis_config.SALUT}.", _date(), _heure()]
         try:
@@ -899,7 +993,8 @@ def _commande_routine(t):
                 phrases.append(meteo)
         except Exception:
             pass
-        rappels = _rappels_du_jour()
+        pour = _pour_qui()
+        rappels = [r for r in _rappels_du_jour() if not r.get("pour") or r.get("pour") == pour]
         if rappels:
             details = []
             for r in rappels[:4]:
@@ -912,15 +1007,23 @@ def _commande_routine(t):
         try:
             import jarvis_systeme
             m = jarvis_systeme.mesures
-            if m["pret"]:
+            if m["pret"] and not enfant:
                 etat = f"Côté ordinateur, le processeur est à {m['cpu']:.0f} pour cent"
                 if m["temp"] is not None:
                     etat += f" et la température à {m['temp']:.0f} degrés"
                 phrases.append(etat + ".")
         except Exception:
             pass
+        musique = jarvis_famille.musique_du_profil()      # la musique du matin de cette personne
+        if musique:
+            try:
+                lance = _commande_musique("mets " + musique)
+                if lance:
+                    phrases.append(lance)
+            except Exception as erreur:
+                print("Musique du matin :", erreur)
         return " ".join(phrases)
-    if re.match(r"\W*bonne nuit\b", t):
+    if re.match(r"\W*bonne nuit\b", t) and not jarvis_famille.enfant_actif():   # enfant : c'est le coucher
         demain = _rappels_du_jour(1)
         info = ""
         if demain:
@@ -1230,17 +1333,36 @@ def commande_instantanee(textes, annoncer=None):
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: jarvis_pratique.commande_aide(t),
+            for commande in (lambda: jarvis_famille.commande_reveil(t),
+                             lambda: jarvis_accueil.reponse(t, brut, _commande_ville),
+                             lambda: jarvis_pratique.commande_aide(t),
                              lambda: jarvis_enfant.commande(t),
                              lambda: jarvis_enfant.commande_web(t),
+                             lambda: jarvis_profils.commande(t, demander_confirmation),
+                             lambda: jarvis_locuteur.commande(t),
+                             lambda: jarvis_famille.commande_fin_devoirs(t),
+                             lambda: jarvis_famille.commande_classe(t),
+                             lambda: jarvis_famille.commande_musique_profil(t),
+                             lambda: jarvis_profils.refus(t),
+                             lambda: jarvis_extras.commande_invite(t),
+                             lambda: jarvis_extras.refus_invite(t),
                              lambda: jarvis_mails.commande(t, enfant=jarvis_enfant.actif()),
+                             lambda: jarvis_vigilance.commande(t),
                              lambda: jarvis_maj.commande(t, demander_confirmation),
+                             lambda: jarvis_extras.commande_cinema(t),
+                             lambda: jarvis_extras.commande_couleur(t),
+                             lambda: jarvis_extras.commande_heure_ailleurs(t),
+                             lambda: jarvis_extras.commande_ferme_tout(t, demander_confirmation),
+                             lambda: jarvis_extras.commande_dernier_telechargement(t),
+                             lambda: jarvis_extras.commande_ou_jen_etais(t),
+                             lambda: jarvis_extras.commande_etape(t),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
                              lambda: jarvis_reglages.commande_voix(t),
                              lambda: jarvis_reglages.commande_luminosite(t),
                              lambda: jarvis_reglages.commande_bluetooth(t),
                              lambda: jarvis_pratique.commande_liste(t),
                              lambda: _commande_memoire(brut),
+                             lambda: jarvis_extras.commande_anniversaire(t, brut),
                              lambda: _commande_routine(t),
                              lambda: jarvis_ecran.lecture_directe(t),
                              lambda: _commande_dictee(t, brut),
@@ -1249,6 +1371,7 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_web.commande_lire_page(t),
                              lambda: jarvis_web.commande_recherche(t),
                              lambda: jarvis_pratique.commande_chrono(t),
+                             lambda: _commande_minuteurs_nommes(t),
                              lambda: _commande_rappel(t),
                              lambda: _commande_minuteur(t, annoncer),
                              lambda: jarvis_pratique.commande_conversion(t),

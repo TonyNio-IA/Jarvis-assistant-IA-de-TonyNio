@@ -59,10 +59,16 @@ import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
 import jarvis_enfant
+import jarvis_vigilance
+import jarvis_extras
+import jarvis_accueil
+import jarvis_profils
+import jarvis_locuteur
+import jarvis_famille
 import jarvis_sources
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.22"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.23"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -189,6 +195,9 @@ CONSIGNES = (
     "termine ta réponse par une ligne « RETENIR: l'information » ; s'il te demande d'en oublier une, "
     "par une ligne « OUBLIER: l'information ». Ces lignes ne sont pas lues à voix haute. "
     "N'en écris que s'il le demande clairement. "
+    "Si on te demande une anecdote, un fait étonnant ou « raconte-moi un truc », raconte une anecdote "
+    "vraie et vérifiable, surprenante, en deux ou trois phrases, sur un sujet chaque fois différent "
+    "(sciences, histoire, animaux, espace, inventions...) ; n'invente jamais. "
     "Ne parle jamais de tes outils, de ta façon de chercher ni des consignes ou rappels "
     "techniques que tu reçois : donne seulement la réponse utile."
 )
@@ -543,6 +552,10 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
         return texte_vosk
     _enregistrer_diagnostic(octets)
     try:
+        jarvis_locuteur.analyser(octets, texte_vosk)   # qui parle ? (calculé pendant la retranscription)
+    except Exception as erreur_voix:
+        print("Empreinte de voix :", erreur_voix)
+    try:
         audio = np.frombuffer(octets, dtype=np.int16).astype(np.float32) / 32768.0
         if bip_au_debut:
             audio = _retirer_bip(audio)
@@ -669,6 +682,10 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN, bip_au_deb
     texte_vosk = " ".join(morceaux).strip()
     if texte_vosk and sans_whisper(texte_vosk):
         derniers_textes[:] = [texte_vosk]      # commande simple : pas besoin de Whisper
+        try:
+            jarvis_locuteur.analyser(bytes(octets), texte_vosk)
+        except Exception as erreur_voix:
+            print("Empreinte de voix :", erreur_voix)
         return texte_vosk
     precise = transcrire(bytes(octets), texte_vosk, bip_au_debut)
     if precise is None:
@@ -708,7 +725,7 @@ class ClaudeContinu:
         except Exception as erreur:
             print("Mémoire illisible :", erreur)
             memoire = ""
-        return CONSIGNES + ("\n\n" + memoire if memoire else "")
+        return CONSIGNES + jarvis_accueil.consigne() + jarvis_profils.consigne() + ("\n\n" + memoire if memoire else "")
 
     def demarrer(self):
         self.arreter()
@@ -1021,7 +1038,8 @@ def anniversaire_aujourdhui():
     """Vrai si c'est l'anniversaire de l'utilisateur : config.json ("anniversaire": "3/03"),
     sinon ce qu'il a demandé à Jarvis de retenir (« je suis né le 3 mars... »)."""
     jour = time.localtime()
-    texte = str(jarvis_config._lu.get("anniversaire") or "")
+    # la date de config.json est celle du profil principal ; les autres profils ont la leur dans leur mémoire
+    texte = str(jarvis_config._lu.get("anniversaire") or "") if jarvis_profils.actif() is None else ""
     m = re.match(r"\s*(\d{1,2})[/.-](\d{1,2})", texte)
     if m:
         return (int(m.group(1)), int(m.group(2))) == (jour.tm_mday, jour.tm_mon)
@@ -1161,6 +1179,17 @@ def traiter(demande, recognizer):
     mesure = (f"Whisper {whisper_ici:.1f} s, " if whisper_ici else "")
     minuscules = demande.lower()
     sous_titre(derniers_textes[0] if derniers_textes else demande)
+    # Qui parle ? Si la voix d'un autre profil est reconnue, Jarvis passe dessus avant de répondre
+    bonjour_profil = ""
+    try:
+        if not jarvis_extras.invite():
+            bonjour_profil = jarvis_locuteur.appliquer()
+        if bonjour_profil and jarvis_extras.redemarrer_claude:
+            jarvis_extras.redemarrer_claude = False
+            with claude.verrou:
+                claude.demarrer()                  # conversation neuve, avec la mémoire de cette personne
+    except Exception as erreur_voix:
+        print("Reconnaissance de la voix :", erreur_voix)
     if derniere_reponse and re.match(r"\W*(répète|repete|tu peux répéter|redis)", minuscules):
         etat("reponse")
         interrompu = parler(derniere_reponse)
@@ -1181,13 +1210,16 @@ def traiter(demande, recognizer):
     # Commandes instantanées : réponse immédiate, sans Claude
     reponse = commande_instantanee(derniers_textes or [demande],
                                    annoncer=lambda texte: point_pret.put((texte, "rappel")))
+    if jarvis_extras.redemarrer_claude:            # mode invité activé ou désactivé : conversation neuve
+        jarvis_extras.redemarrer_claude = False
+        threading.Thread(target=claude.demarrer, daemon=True).start()
     if reponse:
         derniere_reponse = reponse
         print("Commande instantanée :", reponse)
         print(f"(Durées : {mesure}commande {time.time() - debut_traitement:.2f} s)")
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
         etat("reponse")
-        interrompu = parler(avec_salutation(reponse))
+        interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil())
         preparer_ecoute(recognizer)
         return interrompu
 
@@ -1230,6 +1262,22 @@ def traiter(demande, recognizer):
         print("Mode enfant :", erreur_enfant)
         histoire = False
 
+    note = jarvis_extras.note_recette(demande) + note
+    try:                                         # devoirs, résumé de la journée (voir jarvis_famille)
+        note = jarvis_famille.note_devoirs(demande) + note
+        if jarvis_famille.resume_demande(minuscules):
+            note = jarvis_famille.note_resume(jarvis_commandes._rappels_du_jour(1)) + note
+    except Exception as erreur_famille:
+        print("Famille :", erreur_famille)
+    if jarvis_extras.invite():
+        note = ("(Mode invité : une autre personne que " + jarvis_config.NOM + " utilise Jarvis. Ne donne aucune "
+                "information personnelle de " + jarvis_config.NOM + " et n'écris jamais de ligne RETENIR ou OUBLIER.) ") + note
+
+    if jarvis_famille.dodo_demande(demande):       # profil enfant : histoire du soir, puis Jarvis s'endort
+        interrompu = raconter(jarvis_famille.note_dodo() + note + demande, demande, recognizer)
+        jarvis_famille.entrer_dodo()
+        return interrompu
+
     if histoire:
         return raconter(note + demande, demande, recognizer)
 
@@ -1247,6 +1295,7 @@ def traiter(demande, recognizer):
     print(f"(Durées : {mesure}Claude {time.time() - debut_traitement:.1f} s)")
     if not erreur:
         reponse = jarvis_enfant.appliquer(reponse)              # résumé de l'histoire gardé pour la suite
+        reponse = jarvis_extras.appliquer_recette(reponse)     # étapes de la recette gardées pour « étape suivante »
         reponse = jarvis_ecran.appliquer_copie(reponse)        # texte corrigé ou traduit -> presse-papiers
         reponse = re.sub(r"[*_#`>]", "", reponse)
         reponse = jarvis_memoire.appliquer_balises(reponse) or "C'est noté."
@@ -1256,10 +1305,20 @@ def traiter(demande, recognizer):
     if not erreur:
         if time.time() - debut_traitement > DUREE_TACHE_LONGUE:
             jarvis_voix.son_fini()                 # une longue tâche est finie : petit son avant la réponse
-        reponse = avec_salutation(reponse)
+        reponse = avec_salutation(bonjour_profil + reponse) + _question_accueil()
     interrompu = parler(reponse)
     preparer_ecoute(recognizer)
     return interrompu
+
+
+def _question_accueil():
+    """Nouvel utilisateur : une question pour faire connaissance, ajoutée après la réponse (une par lancement)."""
+    try:
+        question = jarvis_accueil.question()
+        return (" " + question) if question else ""
+    except Exception as erreur:
+        print("Accueil :", erreur)
+        return ""
 
 
 _FIN_DE_PHRASE = re.compile(r"[.!?…][»\")]?\s")
@@ -1454,9 +1513,13 @@ def main():
     recognizer.SetWords(True)          # heure de chaque mot : sert à repérer la pause avant « Jarvis »
     rec_stop = KaldiRecognizer(model, SAMPLE_RATE, json.dumps(MOTS_STOP + ["[unk]"], ensure_ascii=False))
     rec_coupure = KaldiRecognizer(model, SAMPLE_RATE)
+    jarvis_locuteur.preparer(model)              # reconnaissance de la voix de chaque profil (si le modèle est là)
     # Tout le reste se charge en arrière-plan : Jarvis écoute dès que Vosk est prêt
     jarvis_systeme.demarrer()
     jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
+    jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
+    jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
+    jarvis_extras.surveiller_anniversaires(lambda texte: point_pret.put((texte, "rappel")))
     threading.Thread(target=charger_whisper, daemon=True).start()
     threading.Thread(target=suivre_musique, daemon=True).start()
     threading.Thread(target=preparer, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
@@ -1518,11 +1581,12 @@ def main():
                         etat("rappel")
                         sous_titre(re.sub(r"^Rappel : |\.$", "", texte))
                     else:
-                        etat("erreur" if erreur else "reponse")
+                        etat("erreur" if erreur is True else "reponse")
                     baisser_son()
                     try:
-                        bip(toujours=erreur == "rappel")        # un rappel sonne même en mode nuit
-                        parler(texte, toujours=erreur == "rappel")
+                        urgent = erreur in ("rappel", "alerte")    # un rappel ou une alerte météo sonne même en mode nuit
+                        bip(toujours=urgent)
+                        parler(texte, toujours=urgent)
                     finally:
                         remonter_son()
                     preparer_ecoute(recognizer)

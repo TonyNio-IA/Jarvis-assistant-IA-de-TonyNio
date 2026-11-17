@@ -130,8 +130,16 @@ _MOTS_VIDES = set("le la les l un une des de du d et que qu je j tu il elle on m
 
 # ---------- Fil des échanges ----------
 
+def _invite():
+    try:
+        import jarvis_extras
+        return jarvis_extras.invite()
+    except Exception:
+        return False
+
+
 def noter_echange(demande, reponse):
-    if not demande or not reponse:
+    if not demande or not reponse or _invite():         # mode invité : rien n'est enregistré
         return
     with _verrou:
         donnees = _charger()
@@ -149,6 +157,8 @@ def _court(texte):
 
 def contexte():
     """Texte ajouté aux consignes de Claude au début d'une conversation."""
+    if _invite():                    # mode invité : Claude ne reçoit pas la mémoire
+        return ""
     with _verrou:
         donnees = _charger()
         _non_transmis.clear()
@@ -173,6 +183,8 @@ def contexte():
 
 def nouveautes():
     """Faits retenus depuis le début de la conversation en cours (Claude ne les connaît pas encore)."""
+    if _invite():
+        return ""
     with _verrou:
         nouveaux = list(_non_transmis)
         _non_transmis.clear()

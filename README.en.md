@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.22**
+**Français : [README.md](README.md)** · **Current version: 1.23**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -99,6 +99,13 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Night mode, only when you ask for it (« active le mode nuit »): answers are written under the reactor, with no voice or beep (reminders still ring). It stays on, even after a restart, until « désactive le mode nuit ». Fixed hours are possible in `config.json`: `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voice: a female voice (« prends une voix de femme »), faster or slower speech. « Qu'est-ce que tu sais faire ? » lists the commands.
 
+**New in 1.23**
+- Météo-France weather warnings (Vigilance) for your département, found from your city: yellow, orange or red, announced once, with the reactor animated in the warning colour and a symbol. No account or key needed: Jarvis reads the Vigilance map that Météo-France publishes as open data on data.gouv.fr.
+- Time in another city (« quelle heure est-il à Tokyo ? »), last download, reopen Chrome tabs (« où j'en étais ? »), « ferme tout » with confirmation, step-by-step recipes (« étape suivante »), relatives' birthdays reminded the day before and on the day, anecdotes, YouTube video summary, read the selected text (« lis ça »).
+- One profile per household member (« crée un profil pour Marie », then « Jarvis, c'est Marie »): separate memory and notes; reminders, shopping list and city stay shared.
+- Named kitchen timers, homework help and bedtime story for kids' profiles, a summary of the day, a morning song per profile, and optional speaker recognition to switch profiles by voice.
+- Cinema mode, guest mode (no mails, notes or memory), reactor colours of your choice, and a guided first run for new users (one question at a time).
+
 **New in 1.22**
 - Kids mode, mails on request and a more reliable daily briefing (see below).
 - Say « Jarvis » while it speaks: it stops at once and listens to your new request.
@@ -153,6 +160,12 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_sources.py` | Today's headlines (franceinfo, Le Monde) and the followed site's home page, read directly from the PC for the daily briefing |
 | `jarvis_mails.py` | Reads mails on request (never changes anything in the mailbox) |
 | `jarvis_enfant.py` | Kids mode: YouTube Kids, filtered searches, quizzes, riddles and long stories with the next chapter |
+| `jarvis_vigilance.py` | Météo-France weather warnings for your département |
+| `jarvis_extras.py` | World time, last download, tabs, close all, step-by-step recipes, birthdays, cinema and guest modes, reactor colours, YouTube summary |
+| `jarvis_profils.py` | One profile per household member (separate memory and notes) |
+| `jarvis_locuteur.py` | Optional speaker recognition for profiles (needs `vosk-model-spk-0.4`) |
+| `jarvis_famille.py` | Homework, bedtime, day summary, morning song per profile |
+| `jarvis_accueil.py` | Guided first run for new users |
 | `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
 | `jarvis_affichage.py` | Fast drawing of the reactor and the panel (pygame) |
 | `jarvis_systeme.py` | PC monitoring (processor, memory, graphics, network) |

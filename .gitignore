@@ -25,6 +25,14 @@ reglages_voix.json
 mise_a_jour.json
 enfant.json
 salutation.date
+vigilance.json
+recette.json
+anniversaires.date
+apparence.json
+accueil.json
+profils.json
+profils/
+rappels_faits.json
 images_gif.npz
 enregistrements/
 /Installer-Jarvis.exe

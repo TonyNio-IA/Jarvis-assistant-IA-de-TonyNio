@@ -224,7 +224,7 @@ def preparer(phrases):
 NOTES_BIP = ((880, 0.09), (1320, 0.13))    # les deux notes du bip : (fréquence, durée)
 
 
-VOLUME_BIP = 0.85     # 0 à 1 (0,25 avant le 17/11/2026 : trop faible ; 0,6 encore un peu faible)
+VOLUME_BIP = 0.75     # 0 à 1 (0,25 avant le 17/11/2026 : trop faible ; 0,6 encore un peu faible)
 
 
 def bip(attendre=True, toujours=False):
