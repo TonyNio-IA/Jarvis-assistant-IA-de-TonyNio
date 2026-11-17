@@ -33,7 +33,15 @@ accueil.json
 profils.json
 profils/
 rappels_faits.json
+calendrier.json
+messages.json
+preferences.json
+corrections.json
+reprise.json
+Jarvis-demarrage-desactive.lnk
 images_gif.npz
 enregistrements/
 /Installer-Jarvis.exe
 installateur/corps.ps1
+publication/
+tests/

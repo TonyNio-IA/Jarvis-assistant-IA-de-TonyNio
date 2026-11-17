@@ -66,7 +66,103 @@ def _regler(valeur):
 
 
 def _ouvrir(adresse):
-    os.startfile(adresse)
+    import jarvis_web
+    jarvis_web.ouvrir_devant(adresse)             # le navigateur passe devant la fenêtre active
+
+
+LANCER_PREMIERE_VIDEO = True     # après une recherche sur YouTube Kids, la première vidéo se lance toute seule
+FRANCAIS_SEULEMENT = True        # …et c'est la première vidéo dont le titre est en français
+annoncer = None                  # fonction (texte) -> None, donnée par jarvis_claude : Jarvis parle sans qu'on lui demande
+
+_MOTS_FR = frozenset("""le la les des du de un une et en pour avec dans sur au aux qui que est sont ce ces son sa ses mon ma mes
+    nos vos chez où il elle ils nous vous je tu pas plus tout tous très bébé bébés chanson chansons dessin animé animés
+    épisode épisodes saison saisons français française francais comptine comptines histoire histoires aventure aventures
+    conte contes apprendre amis ami petit petite petits petites grand grande drôle drôles nouveau nouvelle meilleur meilleurs
+    maison école vacances noël fête ensemble aussi mais comme quand sans sous entre vers""".split())
+_MOTS_EN = frozenset("""the and with of to for in is are you your my our we at from by all song songs learn learning nursery
+    rhymes rhyme cartoons full funny best new official english spanish español hindi hello morning little ready let's
+    lets their his her they when what who how why this that these those""".split())
+
+
+def est_francais(titre):
+    """True si le titre est clairement français, False s'il est clairement dans une autre langue,
+    None si on ne peut pas savoir (un simple nom : « Peppa Pig »)."""
+    mots = re.findall(r"[^\W\d_]+", titre.lower().replace("’", "'"))
+    fr = sum(1 for m in mots if m in _MOTS_FR)
+    en = sum(1 for m in mots if m in _MOTS_EN and m not in _MOTS_FR)
+    if re.search(r"[éèêàçùâîôûœ]", titre.lower()):
+        fr += 2
+    if fr > en and fr >= 1:
+        return True
+    if en >= 1:
+        return False
+    return None
+
+
+def _videos_de_la_page():
+    """Les vidéos affichées par YouTube Kids, dans l'ordre de la page : [(titre, élément)]."""
+    import jarvis_web
+    elements = jarvis_web._elements_visibles(hors_ecran=True)
+    trouvees = [e for e in elements if e.dans_page and e.genre == 50005 and re.match(r"(?i)vid[ée]o\s", e.nom)]
+    trouvees.sort(key=lambda e: (e.haut // 40, e.gauche))
+    vus, liste = set(), []
+    for e in trouvees:
+        titre = re.sub(r"(?i)^vid[ée]o\s+", "", jarvis_web._DUREE.sub("", e.nom)).strip()
+        if titre and titre not in vus:
+            vus.add(titre)
+            liste.append((titre, e))
+    return liste
+
+
+def _lancer_premiere_video(quoi=""):
+    """Attend que la page des résultats de YouTube Kids soit affichée, puis lance la première vidéo
+    (en français si FRANCAIS_SEULEMENT) : une vidéo choisie par YouTube Kids lui-même, rien d'autre n'est ouvert."""
+    import jarvis_fenetres
+    import jarvis_web
+    debut = time.time()
+    premiere_liste = None
+    ramenee = 0
+    time.sleep(2.5)
+    while time.time() - debut < 20:
+        try:
+            fenetre = jarvis_fenetres.active()
+            titre = jarvis_fenetres._texte(fenetre).replace("\xa0", " ").lower() if fenetre else ""
+            if not (jarvis_web.navigateur_actif() and "youtube kids" in titre) and ramenee < 2:
+                # l'onglet s'est ouvert derrière une autre fenêtre : Jarvis le ramène devant (deux fois au plus)
+                for hwnd, nom, _ in jarvis_fenetres.fenetres():
+                    if "youtube kids" in (nom or "").replace("\xa0", " ").lower():
+                        jarvis_fenetres.premier_plan(hwnd)
+                        ramenee += 1
+                        time.sleep(1.0)
+                        fenetre = jarvis_fenetres.active()
+                        titre = jarvis_fenetres._texte(fenetre).replace("\xa0", " ").lower() if fenetre else ""
+                        break
+            if jarvis_web.navigateur_actif() and "youtube kids" in titre:
+                if not FRANCAIS_SEULEMENT:
+                    reponse = jarvis_web.commande_clic("clique sur la première vidéo")
+                    if reponse and not reponse.startswith("Je ne trouve pas") and not reponse.startswith("Je n'arrive"):
+                        print("(YouTube Kids :", reponse, ")")
+                        return
+                else:
+                    videos = _videos_de_la_page()
+                    if videos and premiere_liste is None:
+                        premiere_liste = time.time()
+                    for nom, e in videos:
+                        if est_francais(nom):
+                            jarvis_web._activer(e)
+                            print(f"(YouTube Kids : j'ouvre « {nom[:80]} ».)")
+                            return
+                    # aucune vidéo française : on attend que la page soit bien remplie avant de renoncer
+                    if videos and (len(videos) >= 6 or time.time() - premiere_liste > 6):
+                        print("(YouTube Kids : aucune vidéo en français parmi", [n[:40] for n, _ in videos[:8]], ")")
+                        if annoncer:
+                            annoncer("Je n'ai pas trouvé de vidéo en français" + (f" pour {quoi}" if quoi else "")
+                                     + ". Tu veux que je cherche autre chose ?")
+                        return
+        except Exception as erreur:
+            print("YouTube Kids :", erreur)
+        time.sleep(1.5)
+    print("(YouTube Kids : la première vidéo n'a pas pu être lancée toute seule.)")
 
 
 # ---------- Activer, désactiver ----------
@@ -79,8 +175,12 @@ def commande(t):
     t = re.sub(r"^\W*(?:jarvis\W+)?", "", t.replace("’", "'")).strip(" .!?")
     if not _MODE.search(t):
         return None
-    if re.search(r"\b(?:est-ce que|es-tu|tu es|t'es|c'est)\b", t) and not re.search(
-            r"\b(?:active|désactive|desactive|mets|passe|enlève|enleve|coupe|arrête|arrete|quitte|sors)\b", t):
+    # une question (« est-ce que le mode enfant est activé ? », écrit parfois « … est active ») ne change jamais rien
+    if (re.search(r"\b(?:est-ce que|es-tu|tu es|t'es|c'est)\b", t) and not re.search(
+            r"\b(?:active|désactive|desactive|mets|passe|enlève|enleve|coupe|arrête|arrete|quitte|sors)\b", t)
+                 and not re.search(r"\b(?:peux|pourrais|veux|voudrais)\b", t)) \
+            or (re.search(r"\bmode enfants? (?:est|il est)\s+(?:activ[ée]e?|actif|allumé|en marche|mis)\b", t)
+                and not re.search(r"\b(?:peux|pourrais|veux|voudrais|faut)\b", t)):
         return "Le mode enfant est activé." if actif() else "Le mode enfant n'est pas activé."
     if re.search(r"\b(?:désactive|desactive|enlève|enleve|retire|arrête|arrete|coupe|quitte|sors du|stop|fin du)\b", t):
         _regler(False)
@@ -101,6 +201,12 @@ def commande_web(t):
     if not actif():
         return None
     t = re.sub(r"^\W*(?:jarvis\W+)?", "", t.replace("’", "'")).strip(" .!?")
+    t = t.replace(",", " ")
+    # « mets-moi » est souvent entendu « mes mots », « mes mois », « mais moi » ; « mets » : « mais », « may »
+    t = re.sub(r"^(?:mets|mes|mais|mai|may|met|m'est)[- ](?:mots?|mois|moi)\b", "mets-moi", t)
+    t = re.sub(r"^(?:mais|mes|mai|may|m'est)\b(?=.*\b(?:vidéos?|video|youtube|dessins? animés?|musiques?|chansons?)\b)", "mets", t)
+    t = re.sub(r"\byoutube (?:quittes?|kit|kits|kid|quid|qui)\b", "youtube kids", t)
+    t = " ".join(t.split())
     if re.search(r"\b(?:" + SITES_INTERDITS + r")\b", t):
         return "En mode enfant, je n'ouvre pas les sites d'achat."
     # « ouvre YouTube »
@@ -132,14 +238,18 @@ def commande_web(t):
                                               r"musiques?|épisodes?)\b", t)   # « une vidéo de dinosaures » (suite)
     if video and action:
         quoi = re.sub("^" + verbes, "", t)
-        quoi = re.sub(r"\b(?:sur youtube(?: kids)?|youtube(?: kids)?|s'il te plaît|stp)\b", " ", quoi)
-        quoi = re.sub(r"^\s*(?:moi\s+)?(?:une |des |la |les |le |un )?(?:vidéos?|video|musiques?|chansons?|clips?|"
+        quoi = re.sub(r"\b(?:(?:est |qui est )?sur youtube(?: kids)?|youtube(?: kids)?|s'il te plaît|stp)\b", " ", quoi)
+        quoi = re.sub(r"^\s*(?:moi\s+)?(?:une |des |la |les |le |un |en )?(?:vidéos?|video|musiques?|chansons?|clips?|"
                       r"épisodes?)?\s*(?:de la |de l'|des |du |de |d'|sur les |sur le |sur la |sur )?", "", quoi)
-        quoi = _nettoyer(quoi)
+        quoi = _nettoyer(re.sub(r"\s+(?:est|qui est)\s*$", "", quoi.strip(" .,!?")))
         if not quoi:
             _ouvrir(YOUTUBE_KIDS)
             return "J'ouvre YouTube Kids."
-        _ouvrir(RECHERCHE_YOUTUBE_KIDS.format(urllib.parse.quote(quoi)))
+        recherche = quoi + " en français" if FRANCAIS_SEULEMENT and not re.search(r"fran[cç]ais|vf\b", quoi) else quoi
+        _ouvrir(RECHERCHE_YOUTUBE_KIDS.format(urllib.parse.quote(recherche)))
+        if LANCER_PREMIERE_VIDEO:
+            threading.Thread(target=_lancer_premiere_video, args=(quoi,), daemon=True).start()
+            return f"Je lance une vidéo de {quoi} sur YouTube Kids."
         return f"Je cherche {quoi} sur YouTube Kids."
     return None
 
@@ -152,6 +262,7 @@ def _nettoyer(quoi):
 
 # ---------- Ce que Claude reçoit en mode enfant ----------
 
+DEUX_VOIX = True               # histoires à deux voix (Henri et Denise)
 LONGUEUR_HISTOIRE = 1500        # mots, environ 10 minutes de lecture à voix haute
 _HISTOIRE = re.compile(r"\b(?:histoire|conte|la suite|raconte)\b")
 _BALISE = re.compile(r"^\s*HISTOIRE\s*:\s*(.+)$", re.M)
@@ -174,6 +285,7 @@ def note(demande):
                   f"des descriptions, des dialogues et de plusieurs péripéties), avec un titre dit au "
                   f"début, des personnages attachants, et une fin de chapitre qui donne envie de connaître "
                   f"la suite. Écris seulement le texte à lire, sans titre de section ni mise en forme. "
+                  f"{consigne_deux_voix()}"
                   f"Termine toujours par une ligne « HISTOIRE: » suivie d'un résumé de toute l'histoire "
                   f"jusqu'ici (personnages, lieux, ce qui s'est passé) en quatre phrases au plus : "
                   f"cette ligne n'est pas lue, elle sert à raconter la suite plus tard. ")
@@ -184,6 +296,18 @@ def note(demande):
             texte += ("Il demande la suite de l'histoire déjà commencée, dont voici le résumé : "
                       + histoire + " Raconte le chapitre suivant, avec les mêmes personnages. ")
     return texte + ")\n"
+
+
+def consigne_deux_voix():
+    """Histoires à deux voix : les répliques des personnages de l'autre voix sont écrites entre ⟨ et ⟩."""
+    import jarvis_voix
+    if not DEUX_VOIX:
+        return ""
+    qui = ("féminins (une fille, une maman, une reine, une renarde...)" if jarvis_voix.VOIX == jarvis_voix.VOIXS["henri"]
+           else "masculins (un garçon, un papa, un roi, un renard...)")
+    return ("Deux voix lisent l'histoire : écris les paroles des personnages " + qui + " entre ⟨ et ⟩, seulement "
+            "leurs paroles, par exemple : ⟨Viens vite !⟩ cria la petite renarde. Le reste du texte, et les paroles "
+            "des autres personnages, s'écrivent normalement. ")
 
 
 def appliquer(reponse):

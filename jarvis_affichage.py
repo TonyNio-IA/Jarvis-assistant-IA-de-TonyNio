@@ -52,6 +52,13 @@ PAUSE_REFLET = 0.0       # secondes de pause entre deux tours (0 : il tourne san
 REFLET_REACTEUR = True   # le reflet fait aussi le tour du cercle du réacteur
 DANSE_MUSIQUE = True     # en veille, le réacteur bouge au rythme du son du PC (musique, vidéo)
 REGARD_SOURIS = True     # le cœur du réacteur se tourne un peu vers la souris quand elle approche
+FORCE_DANSE = 0.22       # intensité de la danse sur la musique
+FORCE_REGARD = 0.195     # intensité du suivi de la souris (décalage du cœur, en part du rayon)
+DOUCEUR_NUIT = 0.72      # luminosité du réacteur en veille la nuit (1 = comme le jour)
+JAUGES = ("CPU", "RAM", "GPU", "NET", "TMP")   # jauges affichées sous le réacteur
+actuel = None            # l'affichage en cours (pour les réglages : position de la fenêtre)
+GRAND_EN_MODE_ENFANT = True   # en mode enfant, le réacteur est bien plus grand (l'enfant voit s'il écoute, réfléchit...)
+ECHELLE_ENFANT = 3.0     # 3 fois sa taille normale (limité à la hauteur de l'écran)
 DOUX_LA_NUIT = True      # la nuit (après le coucher du soleil), le réacteur en veille est moins lumineux
 FETES = True             # petite animation à minuit et le jour de l'anniversaire
 DUREE_FETE = 8.0         # secondes
@@ -124,17 +131,18 @@ def _degrade(couleurs, position):
 class Affichage:
     def __init__(self, source):
         """source : le module jarvis_reacteur (réglages, état et texte à afficher)."""
+        global actuel
+        actuel = self
         self.src = source
         try:
             dpi = user32.GetDpiForSystem()
         except Exception:
             dpi = 96
-        s = self.s = dpi / 96.0
-        self.d = int(source.TAILLE * s)
-        self.m = int(4 * s)
-        # Le panneau est un peu plus large que le réacteur, pour des jauges bien lisibles
-        self.w = self.d + 2 * self.m + int((2 * ELARGISSEMENT if source.AFFICHER_SYSTEME else 0) * s)
-        self.h = self.d + 2 * self.m + int((70 if source.AFFICHER_SYSTEME else 44) * s)
+        self._s0 = dpi / 96.0
+        self._echelle = 1.0                        # 3 en mode enfant : le réacteur se voit de loin
+        self._echelle_vue = 0.0
+        self._calculer_tailles(1.0)
+        s = self.s
 
         largeur_ecran, hauteur_ecran = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         x = largeur_ecran - self.w - int(source.MARGE_DROITE * s)
@@ -198,6 +206,7 @@ class Affichage:
         self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.m, self.d, self.d)
         self._masque = pygame.Surface((self.d, self.d))
         self._masque.set_colorkey((255, 0, 255))
+        self._polices()
 
         n = self.n = 160
         th = np.arange(n + 1) * (2 * math.pi / n)
@@ -208,14 +217,72 @@ class Affichage:
                            "v": random.uniform(0.6, 1.4), "p": random.uniform(0, 6.3)}
                           for _ in range(source.NB_POUSSIERE)]
 
+        self._zone_compacte = None                  # rectangle du petit panneau (pour le survol de la souris)
+        self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
+
+    def _calculer_tailles(self, echelle):
+        """Tailles de la fenêtre pour cette échelle (1 = normale, 3 = mode enfant)."""
+        source = self.src
+        s = self.s = self._s0 * echelle
+        self.d = int(source.TAILLE * s)
+        self.m = int(4 * s)
+        # Le panneau est un peu plus large que le réacteur, pour des jauges bien lisibles
+        self.w = self.d + 2 * self.m + int((2 * ELARGISSEMENT if source.AFFICHER_SYSTEME else 0) * s)
+        self.h = self.d + 2 * self.m + int((70 if source.AFFICHER_SYSTEME else 44) * s)
+
+    def _polices(self):
+        s = self.s
         self.police_titre = pygame.font.SysFont("segoeui", int(13.5 * s), bold=True)
         self.police_jauge = pygame.font.SysFont("consolas", int(11 * s), bold=True)
         self.police_jauge_petite = pygame.font.SysFont("consolas", int(11 * s), bold=True)
         self.police_compacte = pygame.font.SysFont("consolas", max(9, int(10 * s)), bold=True)
-        self._zone_compacte = None                  # rectangle du petit panneau (pour le survol de la souris)
         self.police_texte = pygame.font.SysFont("segoeui", int(11 * s))
         self._textes = {}
-        self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
+
+    def _echelle_voulue(self):
+        """3 quand le mode enfant est actif (profil enfant ou « active le mode enfant »), sinon 1."""
+        if not GRAND_EN_MODE_ENFANT:
+            return 1.0
+        maintenant = time.time()
+        if maintenant - self._echelle_vue < 1.0:
+            return self._echelle
+        self._echelle_vue = maintenant
+        try:
+            import jarvis_enfant
+            voulue = ECHELLE_ENFANT if jarvis_enfant.actif() else 1.0
+        except Exception:
+            return self._echelle
+        # jamais plus grand que l'écran
+        hauteur_ecran = user32.GetSystemMetrics(1)
+        hauteur_normale = self.h / self._echelle
+        return max(1.0, min(voulue, 0.92 * hauteur_ecran / max(1.0, hauteur_normale)))
+
+    def _changer_echelle(self, echelle):
+        """Agrandit ou réduit le réacteur en gardant son centre et son bas au même endroit ; en revenant à la
+        taille normale, il reprend exactement sa place d'avant."""
+        ancien_x, ancien_y = self._position()
+        centre, bas = ancien_x + self.w / 2, ancien_y + self.h
+        if self._echelle == 1.0 and echelle != 1.0:
+            self._place_normale = (ancien_x, ancien_y)
+        self._echelle = echelle
+        self._calculer_tailles(echelle)
+        largeur_ecran, hauteur_ecran = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        x = int(max(0, min(largeur_ecran - self.w, centre - self.w / 2)))
+        y = int(max(0, min(hauteur_ecran - self.h, bas - self.h)))
+        if echelle == 1.0 and getattr(self, "_place_normale", None):
+            x, y = self._place_normale
+            self._place_normale = None
+        self.ecran = pygame.display.set_mode((self.w, self.h), pygame.NOFRAME)
+        style = user32.GetWindowLongW(self.hwnd, -20)
+        user32.SetWindowLongW(self.hwnd, -20, style | 0x80000 | 0x80)
+        user32.SetLayeredWindowAttributes(self.hwnd, CLE[0] | CLE[1] << 8 | CLE[2] << 16, 0, 1)
+        user32.SetWindowPos(self.hwnd, PREMIER_PLAN, x, y, 0, 0, 0x0001 | 0x0010)
+        petit = max(8, self.d // 4)
+        self._halo_petit = (petit, petit)
+        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.m, self.d, self.d)
+        self._masque = pygame.Surface((self.d, self.d))
+        self._masque.set_colorkey((255, 0, 255))
+        self._polices()
 
     # ---------- Fenêtre ----------
 
@@ -236,6 +303,7 @@ class Affichage:
         menu = user32.CreatePopupMenu()
         user32.AppendMenuW(menu, 0x1, 0, f"Jarvis version {jarvis_claude.VERSION}")
         user32.AppendMenuW(menu, 0x800, 0, None)
+        user32.AppendMenuW(menu, 0, 3, "Réglages…")
         user32.AppendMenuW(menu, 0, 1, "Nouvelle conversation")
         user32.AppendMenuW(menu, 0x800, 0, None)
         user32.AppendMenuW(menu, 0, 2, "Arrêter Jarvis")
@@ -243,7 +311,13 @@ class Affichage:
         user32.SetForegroundWindow(self.hwnd)
         choix = user32.TrackPopupMenu(menu, 0x100 | 0x2, x, y, 0, self.hwnd, None)
         user32.DestroyMenu(menu)
-        if choix == 1:
+        if choix == 3:
+            try:
+                import jarvis_reglages_ui
+                jarvis_reglages_ui.ouvrir()
+            except Exception as erreur:
+                print("Réglages indisponibles :", erreur)
+        elif choix == 1:
             jarvis_claude.oublier_conversation()
         elif choix == 2:
             print("(Arrêt demandé par le menu du réacteur.)")
@@ -315,6 +389,12 @@ class Affichage:
         return np.column_stack((cx + r * self.cos_t, cy + r * self.sin_t))
 
     def image(self):
+        voulue = self._echelle_voulue()
+        if abs(voulue - self._echelle) > 0.01:
+            try:
+                self._changer_echelle(voulue)
+            except Exception as erreur:
+                print("Taille du réacteur :", erreur)
         src, s, surf = self.src, self.s, self.ecran
         e = src.etat_actuel
         maintenant = time.time()
@@ -382,11 +462,11 @@ class Affichage:
         brut = min(1.0, jarvis_claude.niveau_musique * 1.4) if DANSE_MUSIQUE and e in ("veille", "pause") else 0.0
         self._musique += (brut - self._musique) * (1 - math.exp(-dt * (22 if brut > self._musique else 5)))
         if self._musique > 0.02:
-            amplitude += 0.22 * self._musique
+            amplitude += FORCE_DANSE * self._musique
             eclat = min(1.0, eclat + 0.25 * self._musique)
         # La nuit, en veille, il se fait plus doux
         if DOUX_LA_NUIT and e in ("veille", "pause") and self._est_nuit(maintenant):
-            eclat *= 0.72
+            eclat *= DOUCEUR_NUIT
         if jarvis_famille.dodo["actif"] and e in ("veille", "pause"):     # l'enfant dort : lumière très douce
             eclat *= 0.4
             amplitude *= 0.5
@@ -630,7 +710,7 @@ class Affichage:
                 dx, dy = x - (fx + cx), y - (fy + cy)
                 distance = math.hypot(dx, dy)
                 if 1 < distance < R * 5:
-                    force = 0.195 * R * min(1.0, distance / (1.2 * R)) * min(1.0, (R * 5 - distance) / (R * 1.5))
+                    force = FORCE_REGARD * R * min(1.0, distance / (1.2 * R)) * min(1.0, (R * 5 - distance) / (R * 1.5))
                     cible = (dx / distance * force, dy / distance * force)
             except Exception:
                 pass
@@ -982,7 +1062,8 @@ class Affichage:
         jauges.append(("NET", m.get("reseau", 0.0), "%"))
         if m.get("temp") is not None:
             jauges.append(("TMP", m["temp"], "°"))
-        return jauges
+        choisies = [j for j in jauges if j[0] in JAUGES]
+        return choisies or jauges[:1]
 
     def _panneau_compact(self, surf, teinte, blanc, e, t, cx, y0, dt=0.05):
         """Mode discret : un panneau fin sous le réacteur, avec seulement les jauges, toujours lisibles.

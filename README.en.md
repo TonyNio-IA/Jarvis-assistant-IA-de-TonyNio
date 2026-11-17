@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.23**
+**Français : [README.md](README.md)** · **Current version: 1.24**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -11,6 +11,24 @@
 An animated reactor sits in a corner of the screen and shows what Jarvis is doing: listening, thinking, answering.
 
 > **Language note.** The voice commands, the spoken answers and the on-screen labels are in French only. This page is in English so the project is easier to find and understand, but you need to speak French to Jarvis.
+
+## The settings window
+
+Everything can be set without editing a file: right-click the reactor then « Réglages… », or say « **Jarvis, ouvre les réglages** ». Every change applies live, with a preview of the reactor.
+
+<p align="center">
+<img src="docs/reglages_apparence.png" alt="Settings: themes, colours and reflections of the reactor" width="49%">
+<img src="docs/reglages_son.png" alt="Settings: beeps, voice, speed and microphone sensitivity" width="49%">
+<img src="docs/reglages_profils.png" alt="Settings: one profile per household member" width="49%">
+<img src="docs/reglages_aide.png" alt="Settings: every command, with search" width="49%">
+</p>
+
+- **Apparence** (appearance): ready-made themes (Vice City, Iron Man, Ocean, Forest...), reflections, mouse tracking, dancing to music, compact mode, gauges, position and size.
+- **Son** (sound): beeps, male or female voice, speed, microphone and wake-word sensitivity, French-only videos for kids.
+- **Alertes, Profils, Historique**: weather alerts, household members, the latest requests and answers.
+- **Aide** (help): every command by theme, with search.
+- **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
+- **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 
 ## What you need
 
@@ -99,11 +117,20 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Night mode, only when you ask for it (« active le mode nuit »): answers are written under the reactor, with no voice or beep (reminders still ring). It stays on, even after a restart, until « désactive le mode nuit ». Fixed hours are possible in `config.json`: `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voice: a female voice (« prends une voix de femme »), faster or slower speech. « Qu'est-ce que tu sais faire ? » lists the commands.
 
+**New in 1.24**
+
+- The settings window above, plus a family calendar, messages between profiles, a family quiz (« avec Léo », « Marie ne joue pas »), a daily challenge with stars and two-voice stories.
+- Better understanding: built-in fixes for common mishearings, and your own (« quand tu entends mes mots, c'est mets-moi »); one-word commands (« pause », « suivant »).
+- Reliability: « Jarvis, fais un diagnostic », a report after a crash, app volumes always restored.
+- Safety, after a full voice test: cancelling a timer no longer clears reminders, asking whether night or kids mode is on no longer turns it on, « verrouille l'ordinateur » asks for confirmation, and one person's voice can no longer be mixed into another's voiceprint.
+- French-only videos for kids, cleaner page reading, and the morning song keeps the real title even when misheard.
+
 **New in 1.23**
 - Météo-France weather warnings (Vigilance) for your département, found from your city: yellow, orange or red, announced once, with the reactor animated in the warning colour and a symbol. No account or key needed: Jarvis reads the Vigilance map that Météo-France publishes as open data on data.gouv.fr.
 - Time in another city (« quelle heure est-il à Tokyo ? »), last download, reopen Chrome tabs (« où j'en étais ? »), « ferme tout » with confirmation, step-by-step recipes (« étape suivante »), relatives' birthdays reminded the day before and on the day, anecdotes, YouTube video summary, read the selected text (« lis ça »).
 - One profile per household member (« crée un profil pour Marie », then « Jarvis, c'est Marie »): separate memory and notes; reminders, shopping list and city stay shared.
 - Named kitchen timers, homework help and bedtime story for kids' profiles, a summary of the day, a morning song per profile, and optional speaker recognition to switch profiles by voice.
+- Family calendar, messages between profiles, family quiz, daily challenge with stars, two-voice stories, a three times bigger reactor in kids mode, and a settings window in Jarvis's colours (right-click the reactor, « Réglages… »).
 - Cinema mode, guest mode (no mails, notes or memory), reactor colours of your choice, and a guided first run for new users (one question at a time).
 
 **New in 1.22**
@@ -165,6 +192,10 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_profils.py` | One profile per household member (separate memory and notes) |
 | `jarvis_locuteur.py` | Optional speaker recognition for profiles (needs `vosk-model-spk-0.4`) |
 | `jarvis_famille.py` | Homework, bedtime, day summary, morning song per profile |
+| `jarvis_foyer.py` | Family calendar, messages, daily challenge, family quiz |
+| `jarvis_reglages_ui.py` | Settings window |
+| `jarvis_corrections.py` | Fixes for mishearings (built-in and taught by voice) |
+| `jarvis_sante.py` | Self-check and crash report |
 | `jarvis_accueil.py` | Guided first run for new users |
 | `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
 | `jarvis_affichage.py` | Fast drawing of the reactor and the panel (pygame) |

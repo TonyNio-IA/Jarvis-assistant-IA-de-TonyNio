@@ -46,6 +46,13 @@ def main():
             time.sleep(1)
             continue
         noter(f"Jarvis s'est arrêté tout seul (code {code}) après {time.time() - debut:.0f} s : relance.")
+        reprise = os.path.join(DOSSIER, "reprise.json")      # Jarvis dira au redémarrage qu'il s'est relancé
+        if not os.path.exists(reprise):                        # (sauf s'il a déjà noté la cause lui-même)
+            try:
+                with open(reprise, "w", encoding="utf-8") as f:
+                    f.write('{"quand": %d, "cause": "plantage", "detail": "code %s"}' % (time.time(), code))
+            except OSError:
+                pass
         relances = [t for t in relances if time.time() - t < 600] + [time.time()]
         time.sleep(60 if len(relances) > 5 else 3)
 

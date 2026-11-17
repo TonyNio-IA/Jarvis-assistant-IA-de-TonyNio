@@ -59,16 +59,18 @@ import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
 import jarvis_enfant
+import jarvis_sante
 import jarvis_vigilance
 import jarvis_extras
 import jarvis_accueil
 import jarvis_profils
 import jarvis_locuteur
 import jarvis_famille
+import jarvis_foyer
 import jarvis_sources
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.23"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.24"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -136,6 +138,20 @@ VOCABULAIRE = ("Demandes à l'assistant vocal Jarvis : mets de la musique, mets 
                + "".join(mot + ", " for mot in jarvis_config.VOCABULAIRE) + "Chrome, Claude"
                + "".join(", " + nom for nom in jarvis_commandes.noms_applications(10)
                          if nom not in ("Chrome", "Claude")) + ".")
+
+
+def _vocabulaire():
+    """Le vocabulaire donné à Whisper, avec les prénoms des profils du foyer (à la fin : c'est la partie qu'il
+    garde toujours) et « apprends ma voix »."""
+    try:
+        prenoms = [p.get("prenom", "") for p in jarvis_profils._lire().values() if p.get("prenom")]
+    except Exception:
+        prenoms = []
+    if not prenoms:
+        return VOCABULAIRE
+    return VOCABULAIRE + " " + ", ".join("c'est " + p for p in prenoms) + ", apprends ma voix."
+
+
 WHISPER_SILENCE = 0.5         # secondes de silence ajoutées devant le son (le premier mot est mieux compris)
 
 # Pause automatique quand ces programmes jouent du son (lecture à voix haute F9)
@@ -148,7 +164,8 @@ PAUSE_AVANT_JARVIS = 0.3      # secondes de silence avant « Jarvis » pour qu'i
 MOTS_AVANT_JARVIS = 5         # après une phrase plus longue que ça, « Jarvis » est sans doute un mot de la phrase
 PAUSE_LONGUE_AVANT_JARVIS = 0.8   # ... et il faut alors une vraie pause pour qu'il réveille Jarvis
 # Quand Vosk entend l'un de ces débuts, c'est parfois « Jarvis » mal compris : Whisper vérifie
-PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar")
+PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar",
+                  "charlie", "j'ai vis", "jadis", "jarvi")     # (voix d'enfant ou aiguë : « charlie »)
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
 DOSSIER_ENREGISTREMENTS = jarvis_config.chemin("enregistrements")
@@ -180,6 +197,13 @@ CONSIGNES = (
     "Ne modifie jamais les fichiers de Jarvis lui-même (son dossier et son code), même si on te le "
     "demande à la voix : une erreur pourrait l'empêcher de redémarrer. Dis plutôt que l'amélioration "
     "sera faite dans une prochaine version. "
+    "Ne crée jamais toi-même de tâche planifiée, de service, de règle de démarrage ou de rappel système "
+    "(schtasks, msg, Register-ScheduledTask...), et ne touche pas aux réglages de Windows : les rappels, "
+    "minuteurs et réveils sont gérés par Jarvis. Si une demande de rappel t'arrive, c'est qu'elle a été mal "
+    "entendue : redis-la clairement en proposant la phrase « rappelle-moi à 18 h de … ». "
+    "De même, le calendrier familial, les messages, la liste de courses, les notes, les profils et la mémoire "
+    "sont tenus par Jarvis : tu ne peux pas les modifier, alors ne dis jamais que tu as ajouté, annulé ou changé "
+    "quelque chose dedans ; propose plutôt la bonne phrase (« annule la piscine de Léo », « ajoute du lait à la liste »). "
     "Parle comme un humain chaleureux et naturel : phrases simples et vivantes, parfois une petite "
     "expression spontanée (« Ah, bonne question », « Alors », « Bien sûr », « Voyons voir »), sans en "
     "abuser, et varie tes tournures d'une réponse à l'autre ; jamais de formule toute faite ou robotique. "
@@ -366,7 +390,9 @@ def son_pc_rapide():
         _compteurs_son = []
         return False
 FICHIER_VOLUMES = os.path.join(DOSSIER_JARVIS, "volumes.json")
-_volumes_baisses = []        # (réglage de volume, niveau d'origine) des applications baissées
+_volumes_baisses = []        # (réglage de volume, niveau d'origine, nom, processus) des applications baissées
+_a_remettre = {}             # nom -> niveau d'origine : application arrêtée pendant qu'elle était baissée.
+                             # Windows retient son volume baissé : on le lui rend dès qu'elle rejoue du son.
 
 
 def _sessions_son():
@@ -377,9 +403,26 @@ def _sessions_son():
             if (session.Process and session.Process.pid != os.getpid()
                     and session.Process.name().lower() not in PROGRAMMES_A_IGNORER):
                 sessions.append(session)
+                nom = session.Process.name().lower()
+                if nom in _a_remettre and not _volumes_baisses:
+                    session.SimpleAudioVolume.SetMasterVolume(float(_a_remettre.pop(nom)), None)
+                    print(f"(Son de {nom} remis à son niveau d'avant.)")
+                    _noter_a_remettre()
         except Exception:
             pass
     return sessions
+
+
+def _noter_a_remettre():
+    """Garde sur le disque les volumes à rendre (au cas où Jarvis serait arrêté entre-temps)."""
+    try:
+        if _a_remettre:
+            with open(FICHIER_VOLUMES, "w", encoding="utf-8") as f:
+                json.dump(_a_remettre, f)
+        elif os.path.exists(FICHIER_VOLUMES):
+            os.remove(FICHIER_VOLUMES)
+    except OSError:
+        pass
 
 
 def son_pc():
@@ -413,12 +456,12 @@ def baisser_son(insister=False):
                 volume = session.SimpleAudioVolume
                 origine = volume.GetMasterVolume()
                 volume.SetMasterVolume(origine * BAISSE_SON, None)
-                _volumes_baisses.append((volume, origine))
+                _volumes_baisses.append((volume, origine, session.Process.name().lower(), session.Process))
                 origines[session.Process.name().lower()] = origine
         if origines:
             # noté sur le disque : si Jarvis est arrêté à ce moment-là, le son sera remis au prochain démarrage
             with open(FICHIER_VOLUMES, "w", encoding="utf-8") as f:
-                json.dump(origines, f)
+                json.dump(dict(_a_remettre, **origines), f)
             print("(Son du PC baissé pendant la conversation :", ", ".join(origines) + ".)")
     except Exception as erreur:
         print("Baisse du son impossible :", erreur)
@@ -428,16 +471,18 @@ def remonter_son():
     """Remet le son des applications comme il était."""
     if not _volumes_baisses:
         return
-    for volume, origine in _volumes_baisses:
+    for volume, origine, nom, processus in _volumes_baisses:
         try:
             volume.SetMasterVolume(origine, None)
         except Exception:
             pass
+        try:
+            if not processus.is_running():      # arrêtée pendant la conversation : Windows garde le volume baissé
+                _a_remettre[nom] = origine
+        except Exception:
+            pass
     _volumes_baisses.clear()
-    try:
-        os.remove(FICHIER_VOLUMES)
-    except OSError:
-        pass
+    _noter_a_remettre()
 
 
 def reparer_volumes():
@@ -450,10 +495,10 @@ def reparer_volumes():
     except (OSError, ValueError):
         return
     try:
-        for session in AudioUtilities.GetAllSessions():
-            if session.Process and session.Process.name().lower() in origines:
-                session.SimpleAudioVolume.SetMasterVolume(float(origines[session.Process.name().lower()]), None)
-        os.remove(FICHIER_VOLUMES)
+        if isinstance(origines, dict):
+            _a_remettre.update({str(n): float(v) for n, v in origines.items()})
+        _sessions_son()                          # rend tout de suite le son aux applications ouvertes
+        _noter_a_remettre()                      # les autres le retrouveront dès qu'elles rejoueront du son
         print("(Son remis à son niveau après un arrêt de Jarvis en pleine conversation.)")
     except Exception as erreur:
         print("Remise du son impossible :", erreur)
@@ -523,6 +568,26 @@ def est_politesse(texte):
             and bool(CLES_POLITESSE.search(propre)))
 
 
+def _recopie_du_vocabulaire(texte, texte_vosk):
+    """Vrai si Whisper a recopié un morceau de son vocabulaire (« c'est Paul, apprends ma voix ») au lieu
+    d'écouter : ça arrive sur le son d'une vidéo ou de la musique. Vosk, qui n'a pas ce vocabulaire,
+    n'a alors rien entendu de tel."""
+    mots = _normaliser(texte).split()
+    if len(mots) < 3:
+        return False
+    vocab = " ".join(_normaliser(_vocabulaire()).split())
+    vosk = set(_normaliser(texte_vosk or "").split())
+    if len(set(mots) & vosk) / len(set(mots)) >= 0.3:
+        return False                              # les deux ont entendu à peu près la même chose
+    # un passage de 3 mots du vocabulaire, absent de ce qu'a entendu Vosk
+    for i in range(len(mots) - 2):
+        bout = " ".join(mots[i:i + 3])
+        if bout in vocab and not set(mots[i:i + 3]) <= vosk:
+            if re.search(r"\bapprends ma voix\b|\bc est \w+\b", bout):
+                return True                       # seulement ce qui change de profil ou apprend une voix
+    return False
+
+
 def _repetitif(texte):
     """Vrai si Whisper a « inventé » une phrase qui tourne en boucle (sur du bruit)."""
     mots = _normaliser(texte).split()
@@ -567,7 +632,7 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
             audio = np.concatenate((np.zeros(int(SAMPLE_RATE * WHISPER_SILENCE), dtype=np.float32), audio))
         debut_whisper = time.time()
         segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
-                                         initial_prompt=VOCABULAIRE)
+                                         initial_prompt=_vocabulaire())
         texte = " ".join(s.text for s in segments).strip()
         duree_whisper = time.time() - debut_whisper
     except Exception as erreur:
@@ -579,6 +644,10 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
     if _repetitif(texte):
         print("Whisper a inventé une phrase en boucle (bruit) : demande ignorée. Vosk :", texte_vosk)
         return None
+    if _recopie_du_vocabulaire(texte, texte_vosk):
+        print("Whisper a recopié son vocabulaire (bruit) : je garde ce qu'a entendu Vosk :", texte_vosk,
+              "| Whisper :", texte)
+        return texte_vosk
     print("Whisper :", texte, "| Vosk :", texte_vosk)
     if sons_perdus:
         print(f"(Attention : {sons_perdus} morceau(x) de son perdu(s) par le micro pendant cette demande.)")
@@ -680,6 +749,8 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN, bip_au_deb
     if fin:
         morceaux.append(fin)
     texte_vosk = " ".join(morceaux).strip()
+    if texte_vosk:
+        jarvis_voix.bip_fin_ecoute()           # « je t'ai entendu » : un son léger, différent du bip de réveil
     if texte_vosk and sans_whisper(texte_vosk):
         derniers_textes[:] = [texte_vosk]      # commande simple : pas besoin de Whisper
         try:
@@ -1182,7 +1253,10 @@ def traiter(demande, recognizer):
     # Qui parle ? Si la voix d'un autre profil est reconnue, Jarvis passe dessus avant de répondre
     bonjour_profil = ""
     try:
-        if not jarvis_extras.invite():
+        # « apprends ma voix » (voix pas encore connue) ou « c'est Marie » (la personne dit qui elle est) :
+        # la voix ne fait pas changer de profil
+        if (not jarvis_extras.invite() and not re.search(r"\bappren\w*\b.{0,15}\b(?:voix|voie|envoie)\b", minuscules)
+                and not any(jarvis_profils._CEST.match(jarvis_commandes._propre(x)) for x in (derniers_textes or [demande]))):
             bonjour_profil = jarvis_locuteur.appliquer()
         if bonjour_profil and jarvis_extras.redemarrer_claude:
             jarvis_extras.redemarrer_claude = False
@@ -1190,6 +1264,10 @@ def traiter(demande, recognizer):
                 claude.demarrer()                  # conversation neuve, avec la mémoire de cette personne
     except Exception as erreur_voix:
         print("Reconnaissance de la voix :", erreur_voix)
+    try:                                           # un message laissé par quelqu'un du foyer ?
+        bonjour_profil += jarvis_foyer.messages_en_attente()
+    except Exception as erreur_message:
+        print("Messages :", erreur_message)
     if derniere_reponse and re.match(r"\W*(répète|repete|tu peux répéter|redis)", minuscules):
         etat("reponse")
         interrompu = parler(derniere_reponse)
@@ -1220,6 +1298,8 @@ def traiter(demande, recognizer):
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
         etat("reponse")
         interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil())
+        if not interrompu and jarvis_locuteur.guide_demande():     # « apprends ma voix » : phrase par phrase
+            interrompu = apprendre_voix_guidee(recognizer)
         preparer_ecoute(recognizer)
         return interrompu
 
@@ -1267,6 +1347,8 @@ def traiter(demande, recognizer):
         note = jarvis_famille.note_devoirs(demande) + note
         if jarvis_famille.resume_demande(minuscules):
             note = jarvis_famille.note_resume(jarvis_commandes._rappels_du_jour(1)) + note
+        note = jarvis_foyer.note_defi(demande) + note
+        note = jarvis_foyer.note_quiz(demande, jarvis_locuteur.dernier_identifie) + note
     except Exception as erreur_famille:
         print("Famille :", erreur_famille)
     if jarvis_extras.invite():
@@ -1296,6 +1378,8 @@ def traiter(demande, recognizer):
     if not erreur:
         reponse = jarvis_enfant.appliquer(reponse)              # résumé de l'histoire gardé pour la suite
         reponse = jarvis_extras.appliquer_recette(reponse)     # étapes de la recette gardées pour « étape suivante »
+        reponse = jarvis_foyer.appliquer_defi(reponse)         # étoile gagnée au défi du jour
+        reponse = jarvis_foyer.appliquer_quiz(reponse)         # points du quiz en famille
         reponse = jarvis_ecran.appliquer_copie(reponse)        # texte corrigé ou traduit -> presse-papiers
         reponse = re.sub(r"[*_#`>]", "", reponse)
         reponse = jarvis_memoire.appliquer_balises(reponse) or "C'est noté."
@@ -1311,11 +1395,56 @@ def traiter(demande, recognizer):
     return interrompu
 
 
+def apprendre_voix_guidee(recognizer):
+    """Jarvis dit une phrase, attend qu'on la répète, puis passe à la suivante (empreinte de la voix)."""
+    prenom = jarvis_profils.prenom_actif()
+    bravo = ["Super !", "Très bien !", "Bravo !", "Parfait !", "Génial !"]
+    debut = "Écoute bien, et répète chaque phrase après le bip. "
+    silences = 0                                  # réponses vides d'affilée : personne n'est là
+    for i, phrase in enumerate(jarvis_locuteur.phrases_guide(prenom)):
+        for essai in range(3):
+            etat("reponse")
+            consigne = (f"{debut}Répète : {phrase}" if essai == 0
+                        else f"Pas grave ! Écoute bien, et répète après le bip : {phrase}")
+            speak(consigne)             # dit en entier : un mot entendu pendant la consigne ne coupe rien
+            preparer_ecoute(recognizer)
+            bip(attendre=False)
+            etat("ecoute")
+            entendu = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE, bip_au_debut=True) or ""
+            print(f"(Voix : phrase {i + 1}, entendu : {entendu!r})")
+            silences = 0 if entendu.strip() else silences + 1
+            if silences >= 4:
+                etat("reponse")
+                jarvis_locuteur.annuler_guide()
+                parler("Je n'entends personne, alors on arrête. Tu pourras recommencer quand tu veux.")
+                return False
+            if re.search(r"\b(stop|arr[eê]te|annule|j'arr[eê]te|on arr[eê]te)\b", entendu.lower()):
+                etat("reponse")
+                if len(jarvis_locuteur._guide["vecteurs"]) >= 4:          # assez de phrases : on garde
+                    return parler("D'accord, on arrête là. " + jarvis_locuteur.terminer_guide(prenom))
+                jarvis_locuteur.annuler_guide()
+                parler("D'accord, on arrête. Tu pourras recommencer quand tu veux.")
+                return False
+            if entendu and jarvis_locuteur.apprendre_phrase(entendu, phrase):
+                print(f"(Voix : phrase {i + 1} retenue.)")
+                debut = random.choice(bravo) + " "
+                break
+            jarvis_locuteur._resultat(delai=0)        # empreinte de cette réponse : oubliée
+            debut = ""
+        else:
+            debut = "On passe à la suivante. "
+    etat("reponse")
+    return parler(jarvis_locuteur.terminer_guide(prenom))
+
+
 def _question_accueil():
-    """Nouvel utilisateur : une question pour faire connaissance, ajoutée après la réponse (une par lancement)."""
+    """Ajouté après la réponse : une question de premiers pas (nouvel utilisateur), sinon, sur un profil enfant,
+    le bilan des étoiles du dimanche ou la proposition du défi du jour (une fois par jour au plus)."""
     try:
         question = jarvis_accueil.question()
-        return (" " + question) if question else ""
+        if question:
+            return " " + question
+        return jarvis_foyer.a_ajouter_apres(True)
     except Exception as erreur:
         print("Accueil :", erreur)
         return ""
@@ -1349,6 +1478,7 @@ def raconter(message, demande, recognizer):
     etat("reponse")
     speak("Je prépare ton histoire.")
     lu, interrompu, tout = 0, False, ""
+    replique_ouverte = False
     while True:
         termine = fini.is_set()
         with verrou:
@@ -1365,7 +1495,12 @@ def raconter(message, demande, recognizer):
                 bout = ""
         if bout.strip():
             lu += len(bout)
-            interrompu = parler(re.sub(r"[*_#`>]", "", bout))
+            # Deux voix : une réplique coupée entre deux morceaux garde sa voix dans le morceau suivant
+            texte_bout = (jarvis_voix.OUVRE_AUTRE_VOIX if replique_ouverte else "") + bout
+            replique_ouverte = texte_bout.count(jarvis_voix.OUVRE_AUTRE_VOIX) > texte_bout.count(jarvis_voix.FERME_AUTRE_VOIX)
+            if replique_ouverte:
+                texte_bout += jarvis_voix.FERME_AUTRE_VOIX
+            interrompu = parler(re.sub(r"[*_#`>]", "", texte_bout))
             if interrompu:
                 break
             continue
@@ -1378,8 +1513,8 @@ def raconter(message, demande, recognizer):
         etat("erreur")
         interrompu = parler(reponse)
     print("Claude (histoire lue au fur et à mesure) :", len(tout.split()), "mots")
-    derniere_reponse = re.sub(r"[*_#`>]", "", (tout[:_DEBUT_BALISE.search(tout).start()]
-                                                if _DEBUT_BALISE.search(tout) else tout)).strip() or derniere_reponse
+    derniere_reponse = jarvis_voix.sans_balises_voix(re.sub(r"[*_#`>]", "", (tout[:_DEBUT_BALISE.search(tout).start()]
+                                                if _DEBUT_BALISE.search(tout) else tout))).strip() or derniere_reponse
     preparer_ecoute(recognizer)
     return interrompu
 
@@ -1520,6 +1655,8 @@ def main():
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
     jarvis_extras.surveiller_anniversaires(lambda texte: point_pret.put((texte, "rappel")))
+    jarvis_foyer.surveiller_calendrier(lambda texte: point_pret.put((texte, "rappel")))   # calendrier familial
+    jarvis_enfant.annoncer = lambda texte: point_pret.put((texte, False))     # Jarvis parle de lui-même (YouTube Kids)
     threading.Thread(target=charger_whisper, daemon=True).start()
     threading.Thread(target=suivre_musique, daemon=True).start()
     threading.Thread(target=preparer, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
@@ -1532,6 +1669,9 @@ def main():
     bilan = jarvis_maj.bilan_au_demarrage()       # après une mise à jour lancée par Jarvis : a-t-elle réussi ?
     if bilan:
         point_pret.put((bilan, None))
+    reprise = jarvis_sante.phrase_reprise()      # relancé après un plantage ou une perte du micro ?
+    if reprise:
+        point_pret.put((reprise, None))
     jarvis_maj.verifier_en_arriere_plan()        # une version plus récente est-elle publiée sur GitHub ?
 
     heure = time.localtime().tm_hour

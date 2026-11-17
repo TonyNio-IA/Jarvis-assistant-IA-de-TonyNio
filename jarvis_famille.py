@@ -89,7 +89,13 @@ def _annee_scolaire():
 
 def classe():
     """La classe du profil en cours cette année (elle avance d'une classe à chaque rentrée), ou None."""
-    nom, annee = _reglage("classe"), _reglage("annee_scolaire")
+    return _classe_de(jarvis_profils.actif())
+
+
+def _classe_de(ident):
+    """La classe de ce profil (None = profil principal) cette année, ou None."""
+    reglages = _principal() if not ident else jarvis_profils._lire().get(ident, {})
+    nom, annee = reglages.get("classe"), reglages.get("annee_scolaire")
     if not nom or nom not in CLASSES:
         return None
     try:
@@ -190,8 +196,16 @@ def note_dodo():
     prenom = jarvis_profils.prenom_actif() or ""
     return ("(Heure du coucher de " + prenom + " : raconte une courte histoire du soir, très calme et douce, "
             "d'environ 300 mots (deux minutes à voix haute), sans aventure qui excite ni rien qui fasse peur, "
-            "avec des phrases lentes et apaisantes. Termine par « Bonne nuit " + prenom + ", fais de beaux "
+            "avec des phrases lentes et apaisantes. " + _deux_voix() + "Termine par « Bonne nuit " + prenom + ", fais de beaux "
             "rêves. » N'écris aucune ligne HISTOIRE: cette fois.)\n")
+
+
+def _deux_voix():
+    try:
+        import jarvis_enfant
+        return jarvis_enfant.consigne_deux_voix()
+    except Exception:
+        return ""
 
 
 def entrer_dodo():
@@ -300,6 +314,66 @@ def commande_musique_profil(t):
         return None
     _regler(jarvis_profils.actif(), musique=quoi)
     return f"C'est noté : quand tu me diras bonjour, je te mettrai {quoi}."
+
+
+_VIDE_TITRE = re.compile(r"\s*[\(\[][^\)\]]*\b(?:official|officiel(?:le)?|clip|audio|vid[ée]o|lyrics?|paroles|hd|4k|"
+                         r"remaster\w*|visuali[sz]er)\b[^\)\]]*[\)\]]", re.I)
+_PETITS_MOTS = {"de", "du", "des", "le", "la", "les", "the", "and", "et", "feat", "ft", "un", "une", "a"}
+
+
+def _mots(texte):
+    import unicodedata
+    texte = "".join(c for c in unicodedata.normalize("NFD", texte.lower()) if unicodedata.category(c) != "Mn")
+    return [m for m in re.split(r"[^a-z0-9]+", texte) if len(m) >= 2 and m not in _PETITS_MOTS]
+
+
+def _accord(entendu, titre):
+    """Part des mots entendus qu'on retrouve (même à peu près) dans le titre de la vidéo."""
+    import difflib
+    demandes, trouves = _mots(entendu), _mots(titre)
+    if not demandes or not trouves:
+        return 0.0
+    bons = sum(1 for m in demandes if max(difflib.SequenceMatcher(None, m, x).ratio() for x in trouves) >= 0.75)
+    return bons / len(demandes)
+
+
+def musique_parmi(textes):
+    """« Ma musique du matin, c'est … » : les titres anglais sont souvent mal retranscrits (« Guette-Lucy de
+    Daffte-Pinck »). Chaque retranscription est cherchée sur YouTube, et Jarvis garde le vrai titre de la vidéo qui
+    correspond le mieux, plutôt que le texte mal entendu. Sans réseau ou sans résultat sûr : None (commande habituelle)."""
+    import jarvis_commandes
+    entendus = []
+    for brut in textes:
+        if not brut:
+            continue
+        m = _MUSIQUE.search(jarvis_commandes._propre(brut).replace("’", "'"))
+        if m:
+            quoi = m.group("quoi").strip(" .!?")
+            if quoi and len(quoi.split()) <= 10 and quoi not in entendus:
+                entendus.append(quoi)
+    if not entendus:
+        return None
+    resultats = {}
+
+    def chercher(quoi):
+        try:
+            trouve = jarvis_commandes._youtube(quoi)
+            if trouve:
+                resultats[quoi] = trouve[1]
+        except Exception as erreur:
+            print("Musique du matin (recherche) :", erreur)
+    fils = [threading.Thread(target=chercher, args=(q,), daemon=True) for q in entendus]
+    for f in fils:
+        f.start()
+    for f in fils:
+        f.join(10)
+    choix = sorted(((_accord(q, titre), titre) for q, titre in resultats.items()), reverse=True)
+    if not choix or choix[0][0] < 0.5:
+        return None
+    titre = " ".join(_VIDE_TITRE.sub("", choix[0][1]).split(" | ")[0].split())
+    _regler(jarvis_profils.actif(), musique=titre)
+    return (f"C'est noté : quand tu me diras bonjour, je te mettrai {titre}. "
+            "Si ce n'est pas le bon morceau, redis-le autrement.")
 
 
 def musique_du_profil():

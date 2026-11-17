@@ -1,5 +1,5 @@
 """
-JARVIS - petites commandes du quotidien (version 1.23).
+JARVIS - petites commandes du quotidien (version 1.24).
 
   « quelle heure est-il à Tokyo ? »                  l'heure dans une autre ville du monde
   « ouvre le dernier téléchargement »                le fichier le plus récent du dossier Téléchargements
@@ -281,11 +281,11 @@ def commande_etape(t):
     if re.search(r"\bcombien\b", t):
         return f"La recette a {total} étapes. Tu es à l'étape {position + 1}."
     m = re.search(r"\b[ée]tape (?:num[ée]ro )?(\d+|\w+)\b", t)
-    if re.search(r"\b(suivante|d'apr[eè]s|prochaine|ensuite|apr[eè]s)\b", t):
+    if re.search(r"\b(suivantes?|d'apr[eè]s|prochaines?|ensuite|apr[eè]s)\b", t):
         if position + 1 >= total:
             return "C'était la dernière étape. Bon appétit !"
         position += 1
-    elif re.search(r"\b(pr[ée]c[ée]dente|d'avant|retour)\b", t):
+    elif re.search(r"\b(pr[ée]c[ée]dentes?|d'avant|retour)\b", t):
         position = max(0, position - 1)
     elif m and (m.group(1).isdigit() or m.group(1) in _NOMBRES):
         n = int(m.group(1)) if m.group(1).isdigit() else _NOMBRES[m.group(1)]
@@ -305,10 +305,24 @@ def commande_etape(t):
 # ---------- Anniversaires des proches (retenus dans la mémoire de Jarvis) ----------
 
 FICHIER_ANNONCES = jarvis_config.chemin("anniversaires.date")
-_ANNIV_FAIT = re.compile(r"\banniversaire (?:de |d')(?P<nom>[\w\-' ]+?) (?:est |c'est |tombe )?(?:le )?(?P<jour>\d{1,2}|premier|1er) "
+# le jour peut être écrit en lettres (« le trois mars ») : Whisper le fait souvent
+_JOURS_MOTS = {m: i + 1 for i, m in enumerate(
+    "un deux trois quatre cinq six sept huit neuf dix onze douze treize quatorze quinze seize dix-sept dix-huit "
+    "dix-neuf vingt vingt-et-un vingt-deux vingt-trois vingt-quatre vingt-cinq vingt-six vingt-sept vingt-huit "
+    "vingt-neuf trente trente-et-un".split())}
+_JOURS_MOTS.update({"vingt et un": 21, "trente et un": 31})
+_JOUR_RE = r"(?P<jour>\d{1,2}|premier|1er|" + "|".join(sorted((re.escape(m) for m in _JOURS_MOTS), key=len, reverse=True)) + ")"
+_ANNIV_FAIT = re.compile(r"\banniversaire (?:de |d')(?P<nom>[\w\-' ]+?) (?:est |et |c'est |tombe )?(?:le )?" + _JOUR_RE + " "
                          + _MOIS_RE, re.I)
-_NE_FAIT = re.compile(r"^(?P<nom>[\w\-' ]+?) (?:est |sont )?n[ée]e?s? le (?P<jour>\d{1,2}|premier|1er) "
+_NE_FAIT = re.compile(r"^(?P<nom>[\w\-' ]+?) (?:est |sont )?n[ée]e?s? le " + _JOUR_RE + " "
                       + _MOIS_RE, re.I)
+
+
+def _jour(texte):
+    texte = texte.lower()
+    if texte in ("premier", "1er"):
+        return 1
+    return _JOURS_MOTS.get(texte) or int(texte)
 
 
 def _mois(nom):
@@ -329,8 +343,8 @@ def anniversaires():
                      m.group("nom").strip())
         if re.match(r"(?i)^(je|j'|moi|mon anniversaire|l'utilisateur|tonynio)\b", nom) or re.search(r"(?i)\b(je suis|mon)$", nom):
             continue
-        jour = 1 if m.group("jour").lower() in ("premier", "1er") else int(m.group("jour"))
         try:
+            jour = _jour(m.group("jour"))
             trouves[nom.lower()] = (nom, jour, _mois(m.group(m.lastindex)))
         except ValueError:
             pass
@@ -363,7 +377,7 @@ def commande_anniversaire(t, brut):
         if re.match(r"^(mon|ma|je)\b", nom):
             return None
         nom_propre = " ".join(w.capitalize() if not w.startswith(("de", "d'")) else w for w in nom.split())
-        jour = 1 if m.group("jour") in ("premier", "1er") else int(m.group("jour"))
+        jour = _jour(m.group("jour"))
         jarvis_memoire.retenir(f"L'anniversaire de {nom_propre} est le {_date_parlee(jour, _mois(m.group(m.lastindex)))}")
         return f"C'est retenu : je te le rappellerai la veille et le jour même."
     if not re.search(r"\banniversaires?\b", t) or re.search(r"\bmon anniversaire\b", t):
@@ -510,8 +524,11 @@ PALETTES = {
     "rouge": ("#ff3b3b", "#ff7a2e", "#ff2e97"),
     "violet": ("#9d4dff", "#d04dff", "#5b6cff"),
     "orange": ("#ff8c42", "#ffc142", "#ff5e3a"),
+    "iron man": ("#ff3b2f", "#ffb52e", "#ffd75e"),
+    "océan": ("#00b4d8", "#0077ff", "#48e5c2"),
+    "forêt": ("#3ddc84", "#a3e635", "#14b8a6"),
 }
-_COULEUR = re.compile(r"\b(vice city|bleu|bleue|vert|verte|rouge|violet|violette|orange)\b")
+_COULEUR = re.compile(r"\b(vice city|iron man|oc[ée]an|for[êe]t|bleu|bleue|vert|verte|rouge|violet|violette|orange)\b")
 
 
 def _reacteur():
@@ -544,7 +561,7 @@ def choisir_couleur(texte):
     if not m:
         return None
     nom = m.group(1).rstrip("e") if m.group(1) in ("bleue", "verte") else m.group(1)
-    nom = {"violette": "violet"}.get(nom, nom)
+    nom = {"violette": "violet", "ocean": "océan", "foret": "forêt"}.get(nom, nom)
     appliquer_couleur(nom)
     try:
         with open(FICHIER_APPARENCE, "w", encoding="utf-8") as f:

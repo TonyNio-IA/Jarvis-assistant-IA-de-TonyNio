@@ -46,8 +46,12 @@ def commande_mode_nuit(t):
     if not re.search(r"\bmode (?:nuit|silencieux|silence|jour)\b|\bparle normalement\b|\btu peux (?:re)?parler\b|"
                      r"\bne parle plus\b|\bchuchote\b", t):
         return None
-    if re.search(r"\b(?:est-ce que|es-tu|tu es|t'es|c'est)\b.*\bmode nuit\b|\bmode nuit\b.*\b(?:activé|actif)\s*$", t) \
-            and not re.search(r"\b(active|désactive|desactive|passe|mets|enlève|enleve|coupe|arrête|arrete)\b", t):
+    # une question (« est-ce que le mode nuit est activé ? », écrit parfois « … est active ») ne change jamais rien
+    if (re.search(r"\b(?:est-ce que|est-ce qu'|es-tu|tu es|t'es|c'est)\b.*\bmode nuit\b|\bmode nuit\b.*\b(?:activé|actif)\s*$", t)
+            and not re.search(r"\b(active|désactive|desactive|passe|mets|enlève|enleve|coupe|arrête|arrete)\b", t)
+                 and not re.search(r"\b(?:peux|pourrais|veux|voudrais)\b", t)) \
+            or (re.search(r"\bmode nuit (?:est|il est)\s+(?:activ[ée]e?|actif|allumé|en marche|mis)\b", t)
+                and not re.search(r"\b(?:peux|pourrais|veux|voudrais|faut)\b", t)):
         return "Le mode nuit est activé : je réponds par écrit." if jarvis_voix.mode_nuit() else \
             "Le mode nuit n'est pas activé."
     arreter = re.search(r"\b(désactive|desactive|enlève|enleve|retire|arrête|arrete|coupe|quitte|sors du|stop|fin du|"

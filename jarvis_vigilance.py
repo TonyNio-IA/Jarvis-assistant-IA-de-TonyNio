@@ -36,6 +36,7 @@ AGE_MAX = 30 * 3600                                    # une carte plus vieille 
 URL_DEPARTEMENT = "https://geo.api.gouv.fr/communes?lat={lat}&lon={lon}&fields=codeDepartement&format=json"
 FICHIER = jarvis_config.chemin("vigilance.json")      # département retrouvé, alertes déjà annoncées
 INTERVALLE = 30 * 60                                   # secondes entre deux vérifications
+ACTIVE = True                                          # annonces automatiques des alertes
 NIVEAU_MIN = 2                                         # 2 = jaune, 3 = orange, 4 = rouge
 
 PHENOMENES = {"1": "vent violent", "2": "pluie-inondation", "3": "orages", "4": "crues",
@@ -227,7 +228,7 @@ def surveiller(annoncer):
         time.sleep(60)                                   # laisser Jarvis démarrer tranquillement
         while True:
             try:
-                if True:
+                if ACTIVE:
                     alertes = lire()
                     with _verrou:
                         donnees = _lire_fichier()

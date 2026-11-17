@@ -182,15 +182,18 @@ _ECRAN = (r"\b(à l'écran|sur l'écran|sur mon écran|mon écran|l'écran|cet �
           r"ce qui est affiché|ce qu'il y a d'affiché|que vois-tu|tu vois quoi|regarde ça|regarde ceci|"
           r"cette (erreur|fenêtre|page|image|photo)|ce (message|tableau|graphique|texte) (à l'écran|affiché))\b")
 _TOUT_ECRAN = r"\b(tout l'écran|écran entier|l'écran en entier|tout mon écran|le bureau)\b"
-_COPIE = (r"\b(copiée?s?|presse[- ]papiers?|sélectionnée?s?|sélection|surlignée?s?)\b")
+# « le texte copier » : Whisper écrit souvent « copier » pour « copié »
+_COPIE = (r"\b(copiée?s?|presse[- ]papiers?|sélectionnée?s?|sélection|surlignée?s?)\b|\b(?:texte|j'ai) copier\b")
 _SELECTION = r"\b(sélectionnée?s?|sélection|surlignée?s?)\b"
-_LIRE_COPIE = r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|dis-moi)\b.*\b(copiée?s?|presse[- ]papiers?)\b"
+_LIRE_COPIE = r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|dis-moi)\b.*\b(copiée?s?|copier|presse[- ]papiers?)\b"
 _BALISE = re.compile(r"\[\[COPIE\]\](.*?)\[\[/COPIE\]\]", re.S)
 CONSIGNE = ("Quand une note t'indique une capture d'écran, lis l'image avec l'outil Read avant de répondre, "
             "puis réponds à la voix, brièvement. Quand une note te donne un texte copié et que " + jarvis_config.NOM + " veut "
             "le corriger, le traduire ou le réécrire, mets le nouveau texte, et lui seul, entre [[COPIE]] et "
             "[[/COPIE]] (Jarvis le placera dans le presse-papiers), suivi d'une courte phrase à dire ; "
-            "s'il veut un résumé ou une explication, réponds simplement à la voix. ")
+            "s'il veut un résumé ou une explication, réponds simplement à la voix. "
+            "S'il parle d'un texte copié ou d'un écran et qu'aucune note ne te le donne, dis-lui que tu ne le vois pas "
+            "et demande-lui de redire la demande : n'invente jamais son contenu. ")
 
 
 _LIRE_SELECTION = (r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|lit|lit-moi)(?:-moi| moi)?\s+"

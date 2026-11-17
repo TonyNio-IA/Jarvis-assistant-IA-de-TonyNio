@@ -42,6 +42,8 @@ import threading
 import time
 
 import jarvis_config
+import jarvis_corrections
+import jarvis_sante
 import jarvis_ecran
 import jarvis_enfant
 import jarvis_mails
@@ -51,6 +53,8 @@ import jarvis_accueil
 import jarvis_profils
 import jarvis_locuteur
 import jarvis_famille
+import jarvis_foyer
+import jarvis_reglages_ui
 import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
@@ -382,6 +386,12 @@ def _touche(code):
 
 def _commande_lecture(t):
     media = r"(musique|chanson|morceau|piste|titre|vidéo|video|lecture)"
+    if re.fullmatch(r"\W*(?:jarvis\W+)?suivant\W*", t):          # un mot seul, pendant une musique ou une vidéo
+        _touche(0xB0)
+        return "Suivant."
+    if re.fullmatch(r"\W*(?:jarvis\W+)?précédent\W*", t):
+        _touche(0xB1)
+        return "Précédent."
     if re.search(rf"\b(suivante?|prochaine?)\b", t) and re.search(rf"\b{media}\b", t):
         _touche(0xB0)
         return "Suivant."
@@ -390,7 +400,7 @@ def _commande_lecture(t):
         return "Précédent."
     if re.search(rf"\b(pause|reprends|relance|remets|arrête|stoppe)\b.*\b{media}\b", t) \
             or re.search(rf"\b{media}\b.*\b(en pause|sur pause)\b", t) \
-            or re.search(r"^(mets (en )?pause|pause|lecture)$", t):
+            or re.search(r"^(mets (en |sur )?pause|pause|lecture|reprends)$", t):
         _touche(0xB3)
         return "C'est fait."
     return None
@@ -535,6 +545,8 @@ def _commande_minuteur(t, annoncer):
     # « un rappel à 13 h 56 » donne une heure, pas une durée : ce n'est pas un minuteur
     if re.search(r"\b(à|a)\s+(\d|\S+\s+heures?\b)", t) and not re.search(r"\bdans\b|\bminuteur\b|compte à rebours", t):
         return None
+    if re.search(r"\bavant\b", t) and not re.search(r"\bdans\b|\bminuteur\b|compte à rebours", t):
+        return None                              # « avant deux heures » n'est pas « dans deux heures »
     duree = _duree(t)
     if duree is None or duree > 24 * 3600:
         return None
@@ -584,17 +596,48 @@ def _commande_minuteurs_nommes(t):
         return None                             # « minuteur pâtes 10 minutes » : c'en est un nouveau
     with _verrou_rappels:
         rappels = [r for r in _lire_rappels() if r.get("nom") and r["quand"] > time.time()]
+        sans_nom = [r for r in _lire_rappels() if not r.get("nom") and r["quand"] > time.time()
+                    and str(r.get("message", "")).startswith("Le minuteur")]
     if not rappels:
+        # « où en sont les minuteurs ? » sans minuteur nommé : on répond quand même, sans passer par Claude
+        if re.search(r"\b(o[uù] en sont|combien|quels|il reste|reste-t-il)\b", t) and \
+                not re.search(r"\b(annule|arrête|arrete|supprime|stoppe|enlève)\b", t):
+            if not sans_nom:
+                return "Aucun minuteur ne tourne en ce moment."
+            return "Minuteurs en cours : " + " ; ".join(
+                f"encore {_duree_parlee(max(1, int(r['quand'] - time.time())))}" for r in sorted(sans_nom, key=lambda x: x["quand"])) + "."
         return None
     def trouve():
         for r in rappels:
             if re.search(r"\b" + re.escape(r["nom"]) + r"\b", t):
                 return r
-        return None
+        # nom un peu mal entendu (« pâte » pour « pâtes ») : le plus ressemblant, s'il ressemble vraiment
+        import difflib
+        meilleur, note = None, 0.0
+        ordinaires = {"pour", "les", "des", "du", "de", "le", "la", "temps", "combien", "reste", "il", "minuteur",
+                      "minuteurs", "annule", "arrête", "supprime", "stoppe", "enlève", "où", "en", "est", "sont"}
+        for r in rappels:
+            for mot in re.findall(r"[^\W\d_]+", t):
+                if mot in ordinaires or len(mot) < 3:
+                    continue                      # « pour » ressemble à « four » : jamais comparé
+                x = difflib.SequenceMatcher(None, mot, r["nom"]).ratio()
+                if x > note:
+                    meilleur, note = r, x
+        return meilleur if note >= 0.8 else None
     r = trouve()
+    # « le minuteur du four » : un nom est donné (ce n'est pas une durée)
+    nomme = re.search(r"\bminuteur (?:du |de la |des |de l'|de |d'|pour le |pour la |pour les )?(?P<nom>[^\W\d_]{3,})", t)
+    nom_dit = nomme.group("nom") if nomme and not re.match(r"(?:en|qui|que|est|sont|cours|de|des|du|pour)$|minute|seconde|heure",
+                                                             nomme.group("nom")) else None
     if re.search(r"\b(annule|arrête|arrete|supprime|stoppe|enlève)\b", t):
         if r is None:
-            return None                         # « annule les minuteurs » : tous, plus loin
+            if nom_dit:                         # un nom inconnu : on ne supprime surtout pas tout
+                en_cours = ", ".join(x["nom"] for x in sorted(rappels, key=lambda x: x["quand"]))
+                return f"Je n'ai pas de minuteur {nom_dit}. Les minuteurs en cours sont : {en_cours}."
+            if len(rappels) == 1 and re.search(r"\ble minuteur\b", t):
+                r = rappels[0]                  # « annule le minuteur » : le seul qui tourne
+            else:
+                return None                     # « annule les minuteurs » : tous les minuteurs, plus loin
         with _verrou_rappels:
             _ecrire_rappels([x for x in _lire_rappels() if not (x.get("nom") == r["nom"] and x["quand"] == r["quand"])])
         return f"J'annule le minuteur {r['nom']}."
@@ -648,12 +691,20 @@ def _commande_rappel(t):
     if not re.search(r"\b(rappelle|rappels?|préviens|réveille|reveille|réveil|alarmes?|minuteurs?)\b", t):
         return None
     if re.search(r"\b(annule|supprime|efface|enlève)\b.*\b(rappels?|minuteurs?|alarmes?|réveil)\b", t):
+        # « annule les minuteurs » ne touche qu'aux minuteurs, jamais aux rappels
+        minuteurs = bool(re.search(r"\bminuteurs?\b", t)) and not re.search(r"\b(rappels?|alarmes?|réveil)\b", t)
         with _verrou_rappels:
-            nombre = len(_lire_rappels())
-            _ecrire_rappels([])
+            rappels = _lire_rappels()
+            garde = [r for r in rappels if not str(r.get("message", "")).startswith("Le minuteur")] if minuteurs else []
+            nombre = len(rappels) - len(garde)
+            _ecrire_rappels(garde)
+        if minuteurs:
+            return (f"J'ai annulé {nombre} minuteur{'s' if nombre > 1 else ''}." if nombre
+                    else "Aucun minuteur ne tournait.")
         return (f"J'ai annulé {nombre} rappel{'s' if nombre > 1 else ''}." if nombre
                 else "Tu n'avais aucun rappel.")
-    if re.search(r"\b(quels|quelles|liste|lis|dis-moi|ai-je|j'ai)\b.*\b(rappels?|minuteurs?|alarmes?)\b", t):
+    if re.search(r"\b(quels?|quelles?|liste|lis|dis-moi|ai-je|j'ai)\b.*\b(rappels?|rappelle|minuteurs?|alarmes?)\b", t) \
+            and not re.search(r"\brappelle[- ]moi\b", t):
         rappels = sorted(_lire_rappels(), key=lambda r: r["quand"])
         if not rappels:
             return "Tu n'as aucun rappel."
@@ -919,7 +970,7 @@ def _commande_alimentation(t):
     # (« éteins » est parfois entendu « et tel » ou « estelle » : la confirmation évite toute erreur)
     if re.search(r"(\b(éteins|éteindre|éteint|éteigne|eteins|eteindre|estelle)\b|^\W*et tel\b)" + machine, t):
         action, question = "eteindre", "éteindre l'ordinateur"
-    elif re.search(r"\b(redémarre|redémarrer|redemarre|relance)\b" + machine, t):
+    elif re.search(r"\b(redémar\w*|redemar\w*|relance\w*)\b" + machine, t):
         action, question = "redemarrer", "redémarrer l'ordinateur"
     elif re.search(r"\b(mets|mettre|passe|passer)\b" + machine + r".*\ben veille\b", t) \
             or re.search(r"\ben veille\b" + machine, t):
@@ -967,9 +1018,15 @@ def _commande_chercher_fichier(t):
 
 
 def _commande_verrouiller(t):
+    # Toujours après un « oui » : un mot mal entendu ne doit pas fermer la session de quelqu'un
     if re.search(r"\bverrouille\w*\b.*\b(pc|ordinateur|ordi|session|écran)\b", t):
-        ctypes.windll.user32.LockWorkStation()
-        return "Je verrouille l'ordinateur."
+        def verrouiller():
+            minuteur = threading.Timer(3, ctypes.windll.user32.LockWorkStation)
+            minuteur.daemon = True
+            minuteur.start()
+            return "Je verrouille l'ordinateur."
+        demander_confirmation(verrouiller)
+        return "Tu veux vraiment verrouiller l'ordinateur ? Dis oui pour confirmer."
     return None
 
 
@@ -1004,6 +1061,12 @@ def _commande_routine(t):
                            + " ".join(details))
         else:
             phrases.append("Tu n'as aucun rappel aujourd'hui.")
+        try:
+            evenements = jarvis_foyer.evenements_du_jour()
+            if evenements:
+                phrases.append("Au programme aujourd'hui : " + " ; ".join(evenements) + ".")
+        except Exception as erreur:
+            print("Calendrier :", erreur)
         try:
             import jarvis_systeme
             m = jarvis_systeme.mesures
@@ -1081,7 +1144,9 @@ def _commande_dictee(t, brut):
         _touche(0x0D)
         return "C'est fait."
     # « tap » : c'est ainsi que « tape » est parfois entendu
-    m = re.match(r"\W*(?:dicte|dictée|dicter|saisis|tape|tapes|tap|écris ceci|ecris ceci|écris le texte)\b[\s:,]*(.+)",
+    # « dicte » est parfois entendu « dites » (mais « dites-moi » est une question, pas une dictée)
+    m = re.match(r"\W*(?:dicte|dictes|dictée|dicter|dites(?![- ]?(?:moi|nous)\b)|saisis|tape|tapes|tap|écris ceci|ecris ceci|"
+                 r"écris le texte)\b[\s:,]*(.+)",
                  brut.strip(), re.I | re.S)
     if not m:
         return None
@@ -1120,10 +1185,32 @@ _MOTS_MUSIQUE = r"\b(musiques?|chansons?|morceaux?|titre|clip|vidéos?|video|you
 _PAS_UN_TITRE = (r"\b(applications?|applis?|fenêtres?|écran|ecran|ordinateur|ordi|pc|programmes?|logiciels?|dossiers?|"
                  r"fichiers?|onglets?|page|site|navigateur|chrome|bureau|souris|clavier|micro|mode|plein|grande?s?|"
                  r"petite?s?|taille|premier plan|côté|gauche|droite|jour|heure|réveil|rappel|alarme|minuteur|"
-                 r"mémoire|note|notes|veille|pause|son|volume|luminosité|wifi|bluetooth)\b")
+                 r"mémoire|note|notes|veille|pause|son|volume|luminosité|wifi|bluetooth|réacteur|reacteur)\b")
 
 
 def _commande_musique(t):
+    # Mode enfant : jamais le YouTube ordinaire. Une vidéo ou une musique passe par YouTube Kids.
+    if jarvis_enfant.actif() and re.match(r"\W*(mets|mets-moi|met|mettre|mais|mes|joue|joue-moi|jouer|lance|passe|"
+                                          r"passe-moi)\b", t):
+        reponse = jarvis_enfant.commande_web(t)
+        if reponse:
+            return reponse
+        if re.search(r"\b(premi[eè]re?|deuxi[eè]me|troisi[eè]me|quatri[eè]me|cinqui[eè]me|\d+(?:e|ème|eme|ère|ere)|derni[eè]re)\s+"
+                     r"(vidéo|video)\b", t):
+            return "Je ne vois pas la liste des vidéos. Mets la page de YouTube Kids devant, puis redis-moi quelle vidéo."
+        if re.search(r"\b(vidéo|video|musique|chanson|youtube|dessin animé|clip)\b", t):
+            return "Dis-moi quelle vidéo tu veux, par exemple : mets une vidéo de dinosaures."
+        # « mets la Reine des neiges » : un titre, cherché sur YouTube Kids
+        if re.match(r"\W*(mets|mets-moi|joue|joue-moi)\s+(?!à |a |en |au |aux |sur |dans |ça |le pc|l'ordi)\S+\s+\S+", t) \
+                and not re.search(_PAS_UN_TITRE, t):
+            titre = re.sub(r"^\W*(mets-moi|mets|joue-moi|joue)\s+", "", t)
+            titre = re.sub(r"^(?:la |le |les |l'|un |une |des )", "", titre).strip(" .!?")
+            return jarvis_enfant.commande_web("mets une vidéo de " + titre)
+        return None
+    return _commande_musique_adulte(t)
+
+
+def _commande_musique_adulte(t):
     # « mets » est souvent entendu « mais », « mes » ou « les » : on le rétablit quand la
     # phrase parle clairement de musique (« mais de la musique », « mais 50 Cent sur YouTube »).
     if re.match(r"\W*(mais|mes|mai|m'est|les)\b", t) and re.search(_MOTS_MUSIQUE, t) \
@@ -1155,10 +1242,10 @@ def _commande_musique(t):
         print("YouTube :", erreur)
         video = None
     if video is None:
-        os.startfile("https://www.youtube.com/results?search_query="
+        jarvis_web.ouvrir_devant("https://www.youtube.com/results?search_query="
                      + urllib.parse.quote(recherche or MUSIQUE_PAR_DEFAUT))
         return "Je n'ai pas pu lancer la lecture directement, je t'ouvre la recherche sur YouTube."
-    os.startfile("https://www.youtube.com/watch?v=" + video[0])
+    jarvis_web.ouvrir_devant("https://www.youtube.com/watch?v=" + video[0])
     return f"Je lance {video[1]}." if precise else "Je lance de la musique."
 
 
@@ -1217,8 +1304,9 @@ def _propre(brut):
     t = re.sub(r"\b(?:des|dés|d'est) ?actives? (?=(?:le|la|les|l'|mon|ma|mes)\b)", "désactive ", t)
     # « mets » est presque toujours entendu « mais » en début de demande (« mais la fenêtre en plein
     # écran », « mais un rappel à 14 h ») : on le rétablit, sauf devant « oui », « non »...
-    return re.sub(r"^(\W*(?:jarvis\W+)?)(?:mais|m'est)\s+(?!oui\b|non\b|si\b|pourquoi\b|comment\b|qu|je\b|tu\b|il\b|c')",
-                  r"\1mets ", t)
+    t = re.sub(r"^(\W*(?:jarvis\W+)?)(?:mais|m'est)\s+(?!oui\b|non\b|si\b|pourquoi\b|comment\b|qu|je\b|tu\b|il\b|c')",
+               r"\1mets ", t)
+    return jarvis_corrections.corriger(t)         # erreurs habituelles de la reconnaissance vocale
 
 
 _ACTIONS = (r"(?:ouvre|ouvres|ferme|fermes|lance|quitte|mets|cherche|recherche|trouve|monte|baisse|coupe|"
@@ -1239,12 +1327,15 @@ def deux_demandes(t):
 # alors que la première écoute (Vosk) les reconnaît bien. On garde donc sa version.
 MOTS_COURTS = {"oui", "ouais", "non", "si", "ok", "d'accord", "quoi", "comment", "pardon", "vas-y", "oui vas-y",
                "exactement", "voilà", "bien sûr", "pas du tout", "c'est ça", "annule", "continue", "peut-être",
-               "oui merci", "non merci", "oui s'il te plaît", "non c'est bon", "oui c'est ça", "non pas du tout"}
+               "oui merci", "non merci", "oui s'il te plaît", "non c'est bon", "oui c'est ça", "non pas du tout",
+               "pause", "lecture", "reprends", "suivant", "précédent"}
 
 
 def mot_court(texte):
     """Vrai pour une demande d'un seul mot qui est pourtant un vrai ordre (« oui », « copie », « remonte »...)."""
     t = _propre(texte).strip(" ,;:")
+    if len(t.split()) >= 2 and t != texte.lower().strip(" ,;:.!?"):
+        return True                               # « Lisa » corrigé en « lis ça » : une vraie commande
     return t in MOTS_COURTS or jarvis_pratique.rapide(t) or jarvis_web.rapide(t)
 
 
@@ -1313,7 +1404,7 @@ def commande_instantanee(textes, annoncer=None):
     if not confirmation_en_attente() and any(deux_demandes(_propre(b)) for b in textes if b):
         return None
     if not confirmation_en_attente():
-        reponse = (_ville_parmi(textes) or jarvis_pratique.liste_parmi(textes)
+        reponse = (_ville_parmi(textes) or jarvis_famille.musique_parmi(textes) or jarvis_pratique.liste_parmi(textes)
                    or (jarvis_web.clic_parmi(textes) if any(jarvis_web._CLIC.match(_propre(x)) or jarvis_web._ORDINAL_SANS_CLIC.match(_propre(x))
                                                      for x in textes if x)
                        else None))
@@ -1334,6 +1425,9 @@ def commande_instantanee(textes, annoncer=None):
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
             for commande in (lambda: jarvis_famille.commande_reveil(t),
+                             lambda: jarvis_reglages_ui.commande(t),
+                             lambda: jarvis_corrections.commande(t),
+                             lambda: jarvis_sante.commande(t),
                              lambda: jarvis_accueil.reponse(t, brut, _commande_ville),
                              lambda: jarvis_pratique.commande_aide(t),
                              lambda: jarvis_enfant.commande(t),
@@ -1343,6 +1437,9 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_famille.commande_fin_devoirs(t),
                              lambda: jarvis_famille.commande_classe(t),
                              lambda: jarvis_famille.commande_musique_profil(t),
+                             lambda: jarvis_foyer.commande_message(t),
+                             lambda: jarvis_foyer.commande_etoiles(t),
+                             lambda: jarvis_foyer.commande_quiz(t),
                              lambda: jarvis_profils.refus(t),
                              lambda: jarvis_extras.commande_invite(t),
                              lambda: jarvis_extras.refus_invite(t),
@@ -1374,6 +1471,9 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: _commande_minuteurs_nommes(t),
                              lambda: _commande_rappel(t),
                              lambda: _commande_minuteur(t, annoncer),
+                             lambda: jarvis_foyer.commande_ajout(t, _heure_fixe),
+                             lambda: jarvis_foyer.commande_consulter(t),
+                             lambda: jarvis_foyer.commande_annuler(t),
                              lambda: jarvis_pratique.commande_conversion(t),
                              lambda: jarvis_pratique.commande_calcul(t),
                              lambda: _commande_meteo(t, brut),

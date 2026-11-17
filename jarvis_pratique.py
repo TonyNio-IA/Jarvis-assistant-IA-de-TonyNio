@@ -577,6 +577,8 @@ def commande_aide(t):
             "Je te donne l'heure dans une autre ville, les alertes météo, une recette étape par étape, "
             "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. "
             "Il y a aussi le mode cinéma et le mode invité. "
+            "Pour la famille : les profils, le calendrier, les messages, le quiz, les devoirs et le défi du jour. "
+            "Et dis « ouvre les réglages » pour tout régler, avec l'aide complète. "
             "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")
 
 

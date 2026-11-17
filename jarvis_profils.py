@@ -28,6 +28,8 @@ FICHIER = jarvis_config.chemin("profils.json")
 DOSSIER = jarvis_config.chemin("profils")
 PRINCIPAL = {"prenom": jarvis_config.PRENOM, "nom": jarvis_config.NOM, "salut": jarvis_config.SALUT}
 
+_choix_manuel = 0.0       # moment où quelqu'un a dit lui-même qui il est (« Jarvis, c'est Marie »)
+DUREE_CHOIX_MANUEL = 15 * 60
 _actif = None                    # identifiant du profil en cours (None = profil principal)
 _enfant_avant = None             # état du mode enfant avant d'entrer dans un profil enfant
 _origine = {}                    # chemins des fichiers du profil principal
@@ -84,8 +86,21 @@ def consigne():
             f"de son foyer : adresse-toi à {prenom}, et la mémoire ci-dessous est la sienne.")
 
 
+def _son(texte):
+    """Écriture approchée de la prononciation : « Mat et eau », « ma théo » et « Mathéo » se ressemblent."""
+    t = _simple(texte).replace("-", "")
+    for a, b in (("eau", "o"), ("au", "o"), ("ou", "u"), ("ph", "f"), ("qu", "k"), ("ch", "x"), ("ck", "k"),
+                 ("y", "i"), ("h", ""), ("z", "s"), ("un", "an"), ("en", "an"), ("om", "on"), ("am", "an")):
+        t = t.replace(a, b)
+    t = re.sub(r"c(?=[ei])", "s", t).replace("c", "k")
+    t = re.sub(r"(?<=\w\w)(?:es|e|s|t|x|d)$", "", t)     # finales muettes : « pôles » sonne comme « Paul »
+    return re.sub(r"(.)\1+", r"\1", t)
+
+
 def _trouver(nom):
-    """Identifiant du profil dont le prénom ressemble à ce nom ("" = profil principal, None = aucun)."""
+    """Identifiant du profil dont le prénom ressemble à ce nom ("" = profil principal, None = aucun).
+    Tolère les prénoms mal entendus (« Mat et eau », « ma théo » pour « Mathéo »)."""
+    nom = re.sub(r"(?i)^([ld])'(?=\w)", r"\1", nom.strip())   # « c'est l'éo » : « Léo »
     cherche = _simple(nom)
     if not cherche:
         return None
@@ -95,11 +110,13 @@ def _trouver(nom):
     if cherche in candidats.values():
         return next(i for i, n in candidats.items() if n == cherche)
     meilleur, note = None, 0.0
+    son = _son(nom)
     for ident, n in candidats.items():
-        r = difflib.SequenceMatcher(None, cherche, n).ratio()
+        r = max(difflib.SequenceMatcher(None, cherche, n).ratio(),
+                difflib.SequenceMatcher(None, son, _son(n)).ratio())
         if r > note:
             meilleur, note = ident, r
-    return meilleur if note >= 0.8 else None
+    return meilleur if note >= 0.78 else None
 
 
 def activer(ident):
@@ -180,15 +197,18 @@ def _supprimer(ident):
 
 def _prenom_propre(nom):
     nom = re.sub(r"\b(s'il te pla[iî]t|stp|merci|jarvis)\b", "", nom).strip(" .!?,;:«»\"'")
+    nom = re.sub(r"(?i)^([ld])'(?=\w)", r"\1", nom)     # « l'éo » : c'est « Léo » mal découpé
     return " ".join(m.capitalize() for m in nom.split())
 
 
 _CREER = re.compile(r"\b(?:cr[ée]e|cr[ée]er|cr[ée]es|ajoute|ajouter|fais|nouveau)\b.*?\bprofil\b(?P<enfant> enfant)?"
-                    r"\s+(?:pour |de |d'|au nom de |nomm[ée] |qui s'appelle |appel[ée] )+(?P<nom>[\w\- ]+)")
-_CHANGER = re.compile(r"\b(?:passe|passer|mets|va|bascule|change|prends|utilise|active)\b.*?\bprofil\b"
+                    r"\s+(?:pour |de |d'|au nom de |nomm[ée] |qui s'appelle |appel[ée] )+(?P<nom>[\w\-' ]+)")
+_CHANGER = re.compile(r"\b(?:passe|passer|repasse|repasser|repas|reviens|retourne|mets|va|bascule|change|prends|utilise|"
+                      r"active)\b.*?\bprofil\b"
                       r"(?:\s+(?:de |d'|pour |à |a ))?\s*(?P<nom>[\w\- ]*)")
-_CEST = re.compile(r"^\W*(?:jarvis\W+)?(?:c'est|ici|je suis|moi c'est|c'est moi)\s+(?P<nom>[\w\-]+(?: [\w\-]+)?)\W*$")
-_SUPPRIMER = re.compile(r"\b(?:supprime|supprimer|efface|effacer|enl[eè]ve|retire)\b.*?\bprofil\b"
+_CEST = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:bonjour|salut|coucou|bonsoir)\W+(?:jarvis\W+)?)?"
+                   r"(?:c'est moi|moi c'est|c'est|c'é|cet|ces|ses|je suis|ici)\s*(?P<nom>[\w\-']+(?: [\w\-]+){0,2})\W*$")
+_SUPPRIMER = re.compile(r"\b(?:su+p+rime[rs]?|efface|effacer|enl[eè]ve|retire)\b.*?\bprofil\b"
                         r"\s+(?:de |d'|pour )?(?P<nom>[\w\- ]+)")
 
 
@@ -215,7 +235,7 @@ def commande(t, demander_confirmation):
         m = _CREER.search(t)
         if m:
             prenom = _prenom_propre(m.group("nom"))
-            if not prenom or len(prenom.split()) > 3:
+            if not prenom or len(prenom.split()) > 3 or len(prenom.replace(" ", "")) < 2:
                 return "Dis-moi le prénom : par exemple, crée un profil pour Marie."
             deja = _trouver(prenom)
             if deja is not None:
@@ -254,7 +274,7 @@ def commande(t, demander_confirmation):
     if m:                                            # « c'est Marie » : seulement pour un prénom connu
         ident = _trouver(m.group("nom"))
         if ident is not None:
-            return _passer(ident)
+            return _passer(ident, voix_confirmee=True)
     return None
 
 
@@ -265,14 +285,26 @@ def _qui():
     return f"Je parle avec {prenom}." if _actif is not None else f"Je parle avec {prenom}, sur le profil principal."
 
 
-def _passer(ident):
+def choix_recent():
+    """Vrai pendant 15 minutes après « Jarvis, c'est … » : la voix ne fait alors pas changer de profil."""
+    return time.time() - _choix_manuel < DUREE_CHOIX_MANUEL
+
+
+def _passer(ident, voix_confirmee=False):
+    """voix_confirmee : seulement pour « c'est Marie » (la personne dit qui ELLE est). « Passe sur le profil
+    de Marie » peut être dit par quelqu'un d'autre : sa voix ne doit jamais aller dans l'empreinte de Marie."""
+    global _choix_manuel
+    _choix_manuel = time.time()
     if (ident or None) == _actif:
         prenom = prenom_actif()
         return f"Je suis déjà sur le profil de {prenom}." if prenom else "Je suis déjà sur le profil principal."
     prenom = activer(ident)
     try:                                             # sa voix vient d'être entendue : l'empreinte s'affine
         import jarvis_locuteur
-        jarvis_locuteur.confirmer(ident)
+        if voix_confirmee:
+            jarvis_locuteur.confirmer(ident)
+        else:
+            jarvis_locuteur.oublier_confirmable()
     except Exception as erreur:
         print("Empreinte de voix :", erreur)
     enfant = ident and _lire().get(ident, {}).get("enfant")

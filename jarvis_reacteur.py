@@ -671,6 +671,11 @@ def boucle_jarvis():
         jarvis_claude.main()
     except Exception as erreur:
         print("Erreur Jarvis :", erreur)
+        try:
+            import jarvis_sante
+            jarvis_sante.noter_cause(erreur)       # au redémarrage, Jarvis dira ce qui s'est passé
+        except Exception:
+            pass
     changer_etat("erreur")
     if os.environ.get("JARVIS_GARDIEN"):       # le gardien relance Jarvis (plantage, micro débranché...)
         time.sleep(2)
@@ -678,6 +683,11 @@ def boucle_jarvis():
 
 
 if __name__ == "__main__":
+    try:                                       # réglages choisis dans la fenêtre de réglages (taille comprise)
+        import jarvis_reglages_ui
+        jarvis_reglages_ui.charger()
+    except Exception as erreur:
+        print("Réglages :", erreur)
     jarvis_claude.afficher_etat = changer_etat
     jarvis_claude.afficher_texte = changer_texte
     reacteur = None

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.23**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.24**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -11,6 +11,24 @@
 Un réacteur animé, toujours visible dans un coin de l'écran, montre ce qu'il fait : il écoute, il réfléchit, il répond.
 
 > **In English.** The full presentation in English is in [README.en.md](README.en.md). Jarvis itself speaks and understands French only.
+
+## La fenêtre de réglages
+
+Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « Réglages… », ou « **Jarvis, ouvre les réglages** ». Chaque changement s'applique en direct, avec un aperçu du réacteur.
+
+<p align="center">
+<img src="docs/reglages_apparence.png" alt="Réglages : thèmes, couleurs et reflets du réacteur" width="49%">
+<img src="docs/reglages_son.png" alt="Réglages : bips, voix, vitesse et sensibilité du micro" width="49%">
+<img src="docs/reglages_profils.png" alt="Réglages : un profil par personne du foyer" width="49%">
+<img src="docs/reglages_aide.png" alt="Réglages : toutes les commandes, avec recherche" width="49%">
+</p>
+
+- **Apparence** : thèmes prêts à l'emploi (Vice City, Iron Man, Océan, Forêt...), reflets, suivi de la souris, danse sur la musique, mode discret, jauges, position et taille.
+- **Son** : bips, voix d'homme ou de femme, vitesse, sensibilité du micro et du mot de réveil, vidéos des enfants en français seulement.
+- **Alertes, Profils, Historique** : alertes météo, les personnes du foyer, les dernières demandes et réponses.
+- **Aide** : toutes les commandes rangées par thème, avec une recherche.
+- **Santé** : un diagnostic en un clic (micro, haut-parleur, reconnaissance vocale, Claude, connexion, disque).
+- **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 
 ## Ce qu'il te faut
 
@@ -122,6 +140,16 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Devoirs (profil enfant ou mode enfant) : « on fait les devoirs », « aide-moi à réviser les tables », « on fait une dictée ». Une question à la fois, au niveau de sa classe (« Léo est en CE1 » : la classe avance seule à chaque rentrée), un indice plutôt que la réponse, les points comptés. « On arrête les devoirs » pour finir.
 - Coucher (profil enfant seulement) : « c'est l'heure du dodo » : une courte histoire calme, puis le réacteur se fait très doux et Jarvis répond par écrit. Il se réveille dès qu'on repasse sur un autre profil, ou avec « bonjour Jarvis ».
 - « Qu'est-ce qu'on a fait aujourd'hui ? » : le résumé de la journée, avec les rappels qui ont sonné et ceux de demain.
+- Calendrier familial : « Léo a piscine mercredi à 14 h », « j'ai dentiste jeudi à 10 h 30 » ; Jarvis le rappelle à la personne concernée la veille au soir et une heure avant. « Qu'est-ce qu'on a demain ? », « quel est le programme de Léo ? », « annule la piscine de Léo ».
+- Messages entre profils : « dis à Marie que je rentre tard » ; Jarvis le lui dit dès qu'elle lui parle.
+- Quiz en famille : « on fait un quiz en famille ». Chacun son tour, une question à son niveau (plus simple pour un enfant), la voix dit qui répond, Jarvis compte les points. « On arrête le quiz ».
+- Défi du jour (profil enfant) : « donne-moi mon défi » ; une étoile par défi réussi, Jarvis le propose aussi une fois par jour au plus, et fait le bilan des étoiles le dimanche. « Combien j'ai d'étoiles ? »
+- Histoires à deux voix : les personnages féminins parlent avec la voix de Denise.
+- En mode enfant, le réacteur devient trois fois plus grand : l'enfant voit de loin si Jarvis écoute, réfléchit ou répond.
+- Fenêtre de réglages aux couleurs de Jarvis (clic droit sur le réacteur, « Réglages… », ou « Jarvis, ouvre les réglages ») : thèmes (Vice City, Iron Man, Océan, Forêt...), reflets, suivi de la souris, danse, nuit, mode discret, jauges, position, taille, bips, voix, sensibilité du micro et du mot de réveil, alertes météo, profils, aide avec recherche, historique, démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix). Tout s'applique en direct, avec un aperçu.
+- Corrections d'écoute : Jarvis corrige tout seul ses erreurs d'écoute habituelles, et tu peux lui en apprendre : « quand tu entends mes mots, c'est mets-moi », « quelles corrections connais-tu ? », « oublie la correction mes mots ».
+- Diagnostic : « Jarvis, fais un diagnostic » vérifie le micro, le haut-parleur, la reconnaissance vocale, Claude, la connexion et le disque (aussi dans l'onglet Santé des réglages). Après un plantage, il dit au redémarrage ce qui s'est passé.
+- Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Son.
 - Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
 - Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
 
@@ -164,6 +192,10 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_profils.py` | Un profil par personne du foyer (mémoire et notes séparées) |
 | `jarvis_locuteur.py` | La reconnaissance de la voix de chaque profil (facultative) |
 | `jarvis_famille.py` | Devoirs, coucher, résumé de la journée, musique du matin de chaque profil |
+| `jarvis_foyer.py` | Calendrier familial, messages entre profils, défi du jour et étoiles, quiz en famille |
+| `jarvis_reglages_ui.py` | La fenêtre de réglages (apparence, son, alertes, profils, aide, historique, santé, sauvegarde) |
+| `jarvis_corrections.py` | Les corrections d'écoute (intégrées et apprises à la voix) |
+| `jarvis_sante.py` | Le diagnostic et le compte rendu après un plantage |
 | `jarvis_accueil.py` | Les premiers pas d'un nouvel utilisateur (une question à la fois) |
 | `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
@@ -205,6 +237,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.24 | Fenêtre de réglages aux couleurs de Jarvis (thèmes, son, profils, aide avec recherche, historique, santé, sauvegarde, paramètres par défaut) ; calendrier familial, messages entre profils, quiz en famille (« avec Léo », « Marie ne joue pas »), défi du jour et étoiles, histoires à deux voix, réacteur trois fois plus grand en mode enfant ; vidéos des enfants en français seulement ; compréhension : corrections d'écoute intégrées et apprises à la voix, minuteurs « pâtes » et « four » mieux compris, commandes d'un mot (« pause », « suivant ») ; fiabilité : diagnostic, compte rendu après un plantage, volume des applications toujours rétabli ; sécurité, après un essai complet à la voix : « annule le minuteur » n'efface plus les rappels, une question sur le mode nuit ou le mode enfant ne l'active plus, « verrouille l'ordinateur » demande confirmation, la voix d'une personne ne peut plus se mélanger à l'empreinte d'une autre, Claude ne crée plus de tâche Windows et ne prétend plus avoir modifié tes données ; lecture de page sans le bruit du début ; la musique du matin garde le vrai titre même mal entendu |
 | 1.23 | Alertes de la Vigilance Météo-France pour ton département, avec animation du réacteur à la couleur de l'alerte ; heure dans une autre ville ; dernier téléchargement ; « où j'en étais ? » (onglets de Chrome) ; « ferme tout » avec confirmation ; recette pas à pas ; anniversaires des proches rappelés la veille et le jour même ; anecdotes ; résumé d'une vidéo YouTube ; lecture du texte sélectionné ; modes cinéma et invité ; couleurs du réacteur au choix ; un profil par personne du foyer, reconnu à sa voix ; minuteurs nommés ; devoirs et coucher pour les enfants ; résumé de la journée ; premiers pas guidés pour les nouveaux utilisateurs ; « avance de… / recule de… » mieux compris et plus précis ; « mets la première vidéo sur lecture » |
 | 1.22 | Mode enfant (YouTube Kids, recherches filtrées, quiz, devinettes, longues histoires lues au fur et à mesure avec la suite) ; lecture des mails à la demande, sans rien modifier ; point du jour plus fiable (titres de franceinfo et du Monde, site suivi lu directement depuis le PC) ; « Jarvis » coupe la parole et enchaîne sur une nouvelle demande ; écoute mieux réglée (commandes mal entendues, « des actives » ne rallume plus le mode nuit) ; réponses plus naturelles et variées, salutation du jour, remerciements avec humour, petit son à la fin des longues tâches ; affichage : couleurs Vice City en veille, mode discret avec les jauges, icônes des jauges, reflet lumineux, réacteur qui danse avec la musique, regarde la souris et se fait doux la nuit, animations de minuit et d'anniversaire ; bip plus fort |
 | 1.21 | Mises à jour automatiques : au démarrage, Jarvis vérifie s'il existe une nouvelle version sur GitHub, te l'annonce à ta demande suivante et l'installe seulement si tu dis « oui » (« Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ») ; le mode nuit ne s'active plus à heures fixes mais seulement quand tu le demandes, et reste actif après un redémarrage jusqu'à « désactive le mode nuit » |

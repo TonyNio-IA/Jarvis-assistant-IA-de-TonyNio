@@ -40,6 +40,24 @@ def _norme(t):
     return " ".join(re.findall(r"[a-z0-9]+", t))
 
 
+def ouvrir_devant(adresse):
+    """Ouvre une adresse dans le navigateur, puis le met devant : sans ça, l'onglet peut s'ouvrir derrière la
+    fenêtre active, et « clique sur… », « fais défiler » ou « résume cette page » viseraient la mauvaise fenêtre."""
+    os.startfile(adresse)
+
+    def devant():
+        import jarvis_fenetres
+        for _ in range(16):                           # 8 secondes au plus
+            time.sleep(0.5)
+            if _programme_actif() in NAVIGATEURS:
+                return
+            for hwnd, titre, programme in jarvis_fenetres.fenetres():   # de la plus en avant à la plus en arrière
+                if (programme or "").lower().removesuffix(".exe") in NAVIGATEURS and titre:
+                    jarvis_fenetres.premier_plan(hwnd)
+                    break
+    threading.Thread(target=devant, daemon=True).start()
+
+
 def _programme_actif():
     """Nom du programme de la fenêtre au premier plan (« chrome »), ou ""."""
     try:
@@ -83,7 +101,7 @@ def commande_recherche(t):
             quoi = re.sub(r"^(?:des |de la |du |de l'|les |le |la |l'|un |une )", "", m.group("quoi").strip())
             if not quoi or re.fullmatch(r"(?:le |un )?fichiers?|documents?", quoi):
                 return None
-            os.startfile(adresse.format(urllib.parse.quote(quoi)))
+            ouvrir_devant(adresse.format(urllib.parse.quote(quoi)))
             return f"Je cherche {quoi} sur {nom}."
     return None
 
@@ -291,7 +309,8 @@ def _activer(e):
 _ORDINAUX = {"premier": 1, "première": 1, "premiere": 1, "1er": 1, "1re": 1, "deuxième": 2, "deuxieme": 2,
              "second": 2, "seconde": 2, "2e": 2, "troisième": 3, "troisieme": 3, "3e": 3, "quatrième": 4,
              "quatrieme": 4, "4e": 4, "cinquième": 5, "cinquieme": 5, "5e": 5, "dernier": -1, "dernière": -1,
-             "derniere": -1}
+             "derniere": -1, "1ère": 1, "1ere": 1, "2ème": 2, "2eme": 2, "3ème": 3, "3eme": 3, "4ème": 4,
+             "4eme": 4, "5ème": 5, "5eme": 5, "sixième": 6, "6e": 6, "6ème": 6}
 _CLIC = re.compile(r"^\W*(?:jarvis\W+)?(?:clique|cliques|clic|clik|cliquer|appuie|appuies|appuyer|sélectionne|selectionne|"
                    r"choisis|ouvre)\s+(?:sur |dans )?(?P<cible>.+?)\W*$")
 
@@ -346,6 +365,7 @@ def commande_clic(t):
             videos = [e for e in dans_page if e.genre == 50005 and _DUREE.search(e.nom)]
             if videos:                                        # YouTube : les titres finissent par la durée
                 dans_page = videos
+                long_titre = False                            # (YouTube Kids : des titres parfois très courts)
         elif quoi in ("résultat", "resultat", "lien", "article"):
             sites = [e for e in dans_page if e.genre == 50005 and re.search(r"https?://|www\.|›", e.nom)]
             if sites:                                         # Google, Bing... : le titre d'un résultat contient son adresse
@@ -408,10 +428,22 @@ def texte_de_la_page():
     return texte
 
 
+_BRUIT = re.compile(r"\d+\s*°\s*\d+\s*[′']|articles? homonymes?|\(homonymie\)|\bmodifier le code\b|modifier\s*-\s*modifier|"
+                    r"^\s*cet article (est une ébauche|ne cite pas)|^\s*(sommaire|navigation|menu principal)\b", re.I)
+_RENVOI = re.compile(r"\[(?:\d+|[a-z]|réf\.? nécessaire|modifier|note \d+)\]", re.I)
+
+
 def texte_principal(texte):
-    """Garde les vraies phrases (au moins 8 mots) : les menus, boutons et liens courts sont laissés de côté."""
-    lignes = [" ".join(l.split()) for l in texte.splitlines()]
-    return "\n".join(l for l in lignes if len(l.split()) >= 8)
+    """Garde les vraies phrases (au moins 8 mots) : les menus, boutons et liens courts sont laissés de côté,
+    ainsi que le bruit du haut des pages (coordonnées, « articles homonymes », fiches de chiffres, « modifier »)."""
+    lignes = [" ".join(_RENVOI.sub("", l).split()) for l in texte.splitlines()]
+    longues = [l for l in lignes if len(l.split()) >= 8]
+
+    def phrase(l):
+        chiffres = sum(c.isdigit() for c in l)
+        return (not _BRUIT.search(l) and l[-1:] in ".!?…»\":" and chiffres <= len(l) * 0.15)
+    propres = [l for l in longues if phrase(l)]
+    return "\n".join(propres or longues)
 
 
 _LIRE_PAGE = re.compile(r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lit|lire|relis)(?:-moi| moi)?\s+(?:cette |la |l'|cet )"

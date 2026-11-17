@@ -131,12 +131,37 @@ _cache = {}         # phrase -> son déjà prêt
 VARIATION_VOIX = True    # chaque phrase prend un ton et un rythme très légèrement différents : plus naturel
 
 
-async def _generer(texte, fichier, varier=False):
+async def _generer(texte, fichier, varier=False, voix=None):
     vitesse, hauteur = VITESSE, "+0Hz"
     if varier and VARIATION_VOIX:
         vitesse = f"{int(VITESSE.rstrip('%')) + random.choice((-3, 0, 0, 3)):+d}%"
         hauteur = random.choice(("-2Hz", "+0Hz", "+0Hz", "+2Hz"))
-    await edge_tts.Communicate(texte, VOIX, rate=vitesse, pitch=hauteur).save(fichier)
+    await edge_tts.Communicate(texte, voix or VOIX, rate=vitesse, pitch=hauteur).save(fichier)
+
+
+# ----- Histoires à deux voix : les répliques écrites entre ⟨ et ⟩ sont dites avec l'autre voix -----
+OUVRE_AUTRE_VOIX, FERME_AUTRE_VOIX = "⟨", "⟩"
+
+
+def autre_voix():
+    """La voix de l'autre personnage : Denise si Jarvis parle avec Henri, Henri sinon."""
+    return VOIXS["denise"] if VOIX == VOIXS["henri"] else VOIXS["henri"]
+
+
+def sans_balises_voix(texte):
+    return texte.replace(OUVRE_AUTRE_VOIX, "").replace(FERME_AUTRE_VOIX, "")
+
+
+def _morceaux_et_voix(texte):
+    """[(morceau, voix)] : le texte découpé en phrases, avec la voix de chaque passage."""
+    if OUVRE_AUTRE_VOIX not in texte:
+        return [(m, None) for m in (_decouper(texte) or [texte])]
+    resultat = []
+    for i, passage in enumerate(re.split(r"[⟨⟩]", texte)):
+        if passage.strip():
+            voix = autre_voix() if i % 2 == 1 else None
+            resultat += [(m, voix) for m in (_decouper(passage) or [passage.strip()])]
+    return resultat
 
 
 def _decoder(fichier):
@@ -188,12 +213,12 @@ def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
         spectre = None
 
 
-def _son_pour(texte, varier=False):
+def _son_pour(texte, varier=False, voix=None):
     """Prépare le son d'un texte (génération en ligne + décodage)."""
     nom = hashlib.md5(texte.encode("utf-8")).hexdigest()[:12]
     fichier = os.path.join(tempfile.gettempdir(), f"jarvis_{nom}_{threading.get_ident()}.mp3")
     try:
-        asyncio.run(_generer(texte, fichier, varier))
+        asyncio.run(_generer(texte, fichier, varier, voix))
         return _decoder(fichier)
     finally:
         try:
@@ -224,7 +249,7 @@ def preparer(phrases):
 NOTES_BIP = ((880, 0.09), (1320, 0.13))    # les deux notes du bip : (fréquence, durée)
 
 
-VOLUME_BIP = 0.75     # 0 à 1 (0,25 avant le 17/11/2026 : trop faible ; 0,6 encore un peu faible)
+VOLUME_BIP = 0.4     # 0 à 1 (0,25 avant le 17/11/2026 : trop faible ; 0,6 encore un peu faible)
 
 
 def bip(attendre=True, toujours=False):
@@ -247,6 +272,27 @@ def bip(attendre=True, toujours=False):
         print("Bip impossible :", erreur)
 
 
+NOTES_FIN_ECOUTE = ((988, 0.05), (659, 0.09))   # « j'ai entendu » : deux notes douces qui descendent
+VOLUME_FIN_ECOUTE = 0.56                          # en proportion de VOLUME_BIP : bien plus discret que le bip
+
+
+def bip_fin_ecoute():
+    """Petit son léger quand Jarvis arrête d'écouter (ta demande est entendue), différent du bip de réveil.
+    Sans attendre : la retranscription commence pendant qu'il sonne. Pas en mode nuit."""
+    if sd is None or mode_nuit() or not VOLUME_FIN_ECOUTE:
+        return
+    try:
+        freq = 44100
+        notes = []
+        for hz, duree in NOTES_FIN_ECOUTE:
+            t = np.linspace(0, duree, int(freq * duree), endpoint=False)
+            enveloppe = np.minimum(1, t / 0.005) * np.exp(-t * 22)        # attaque douce, s'éteint vite
+            notes.append(VOLUME_FIN_ECOUTE * VOLUME_BIP * np.sin(2 * np.pi * hz * t) * enveloppe)
+        sd.play(np.concatenate(notes).astype(np.float32), freq)
+    except Exception as erreur:
+        print("Son de fin d'écoute impossible :", erreur)
+
+
 NOTES_FIN = ((1568, 0.07), (1319, 0.07), (1047, 0.16))   # petit carillon descendant : « c'est prêt »
 
 
@@ -260,7 +306,7 @@ def son_fini():
         for hz, duree in NOTES_FIN:
             t = np.linspace(0, duree, int(freq * duree), endpoint=False)
             enveloppe = np.minimum(1, t / 0.006) * np.exp(-t * 9)
-            notes.append(0.5 * VOLUME_BIP * np.sin(2 * np.pi * hz * t) * enveloppe)
+            notes.append(0.25 * np.sin(2 * np.pi * hz * t) * enveloppe)
         sd.play(np.concatenate(notes).astype(np.float32), freq)
         sd.wait()
     except Exception as erreur:
@@ -288,6 +334,9 @@ def speak(texte, interruption=None, toujours=False):
     En mode nuit, le texte est seulement affiché sous le réacteur, sauf pour un rappel (toujours=True)."""
     if not texte:
         return False
+    a_deux_voix = OUVRE_AUTRE_VOIX in texte
+    if a_deux_voix and (mode_nuit() and not toujours or av is None or sd is None):
+        texte = sans_balises_voix(texte)
     if mode_nuit() and not toujours:
         print("JARVIS (mode nuit, sans voix) :", texte)
         if afficher:
@@ -297,7 +346,7 @@ def speak(texte, interruption=None, toujours=False):
                 pass
         time.sleep(min(5.0, 1.0 + len(texte) / 40))       # le temps de lire le début
         return False
-    print("JARVIS :", texte)
+    print("JARVIS :", sans_balises_voix(texte))
     if av is None or sd is None:
         voix_windows(texte)
         return False
@@ -307,16 +356,17 @@ def speak(texte, interruption=None, toujours=False):
         except Exception as erreur:
             print("Lecture directe impossible :", erreur)
 
-    morceaux = _decouper(texte) or [texte]
+    avec_voix = _morceaux_et_voix(texte)
+    morceaux = [m for m, _ in avec_voix]
     sons = queue.Queue()
     arret = threading.Event()
 
     def fabriquer():
-        for morceau in morceaux:
+        for morceau, voix in avec_voix:
             if arret.is_set():
                 return
             try:
-                sons.put(_son_pour(morceau, varier=True))
+                sons.put(_son_pour(morceau, varier=True, voix=voix))
             except Exception as erreur:
                 sons.put(erreur)
                 return
