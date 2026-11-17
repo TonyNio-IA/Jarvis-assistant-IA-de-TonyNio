@@ -40,8 +40,19 @@ try:
         _r = json.load(_f)
     VOIX = VOIXS.get(_r.get("voix"), VOIX)
     VITESSE = f"{int(_r.get('vitesse', VITESSE_NORMALE)):+d}%"
+    _nuit_lue = _r.get("nuit")
 except (OSError, ValueError, TypeError, AttributeError):
-    pass
+    _nuit_lue = None
+
+
+def _enregistrer_reglages():
+    """Garde la voix, la vitesse et le mode nuit pour la prochaine fois (fichier qui reste sur ce PC)."""
+    try:
+        nom = next(n for n, v in VOIXS.items() if v == VOIX)
+        with open(FICHIER_REGLAGES, "w", encoding="utf-8") as f:
+            json.dump({"voix": nom, "vitesse": int(VITESSE.rstrip("%")), "nuit": _nuit_forcee}, f)
+    except OSError as erreur:
+        print("Réglages de la voix non enregistrés :", erreur)
 
 
 def regler_voix(voix=None, vitesse=None):
@@ -52,18 +63,16 @@ def regler_voix(voix=None, vitesse=None):
     if vitesse is not None:
         VITESSE = f"{max(-30, min(50, int(vitesse))):+d}%"
     _cache.clear()                      # les phrases déjà prêtes avaient l'ancienne voix
-    try:
-        nom = next(n for n, v in VOIXS.items() if v == VOIX)
-        with open(FICHIER_REGLAGES, "w", encoding="utf-8") as f:
-            json.dump({"voix": nom, "vitesse": int(VITESSE.rstrip("%"))}, f)
-    except OSError as erreur:
-        print("Réglages de la voix non enregistrés :", erreur)
+    _enregistrer_reglages()
 
 
 # ----- Mode nuit : Jarvis répond par écrit sous le réacteur, sans parler ni biper (sauf rappels) -----
+# Par défaut, il ne s'active QUE quand on le demande (« active le mode nuit ») et reste actif, même après
+# un redémarrage, jusqu'à « désactive le mode nuit ». Des horaires automatiques restent possibles
+# si on les met dans config.json ("mode_nuit": {"debut": 22, "fin": 7}).
 import jarvis_config
 afficher = None          # fonction qui affiche un texte sous le réacteur (donnée par jarvis_claude)
-_nuit_forcee = None      # True / False : choix dit à la voix, jusqu'au prochain changement d'horaire
+_nuit_forcee = _nuit_lue if isinstance(_nuit_lue, bool) else None   # choix dit à la voix (gardé dans reglages_voix.json)
 
 
 def _nuit_horaire():
@@ -78,15 +87,24 @@ def _nuit_horaire():
 def mode_nuit():
     """Vrai si Jarvis doit rester silencieux en ce moment."""
     global _nuit_forcee
+    if not jarvis_config.HEURES_NUIT:
+        return bool(_nuit_forcee)       # sans horaires : seulement sur demande
     horaire = _nuit_horaire()
     if _nuit_forcee is not None and _nuit_forcee == horaire:
         _nuit_forcee = None             # l'horaire a rejoint le choix dit à la voix : on revient à l'horaire
+        _enregistrer_reglages()
     return horaire if _nuit_forcee is None else _nuit_forcee
 
 
 def forcer_nuit(actif):
     global _nuit_forcee
-    _nuit_forcee = None if actif == _nuit_horaire() else bool(actif)
+    if not jarvis_config.HEURES_NUIT:
+        _nuit_forcee = bool(actif)
+    else:
+        _nuit_forcee = None if actif == _nuit_horaire() else bool(actif)
+    _enregistrer_reglages()
+
+
 FREQ = 24000        # fréquence du son fourni par edge-tts
 DOSSIER_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_voix")
 TAILLE_MORCEAU = 220   # longueur (en caractères) des morceaux d'une longue réponse

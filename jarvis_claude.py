@@ -56,9 +56,10 @@ import jarvis_commandes
 import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
+import jarvis_maj
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.20"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.21"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1110,6 +1111,11 @@ def conversation(demande, recognizer):
         essais_courts = 0
         if traiter(demande, recognizer):
             break                      # interrompu : retour en veille
+        # Une nouvelle version trouvée sur GitHub au démarrage : annoncée une fois, après une réponse
+        if not jarvis_commandes.confirmation_en_attente() and jarvis_maj.a_annoncer():
+            jarvis_commandes.demander_confirmation("maj")
+            if parler(jarvis_maj.annonce()):
+                break
         # Après une question de confirmation (éteindre le PC...), Jarvis attend plus longtemps
         delai = DELAI_ECOUTE_DEMANDE if jarvis_commandes.confirmation_en_attente() else DELAI_SUITE
         # Si le PC joue du son (vidéo, musique), Jarvis ne guette pas de suite : il prendrait ce son
@@ -1180,6 +1186,10 @@ def main():
               "Avec plaisir.", "C'est fait.", "C'est retenu.", "C'est noté.",
               "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."],), daemon=True).start()
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
+    bilan = jarvis_maj.bilan_au_demarrage()       # après une mise à jour lancée par Jarvis : a-t-elle réussi ?
+    if bilan:
+        point_pret.put((bilan, None))
+    jarvis_maj.verifier_en_arriere_plan()        # une version plus récente est-elle publiée sur GitHub ?
 
     heure = time.localtime().tm_hour
     if (POINT_DU_JOUR_AUTO and POINT_DU_JOUR_HEURES[0] <= heure < POINT_DU_JOUR_HEURES[1]

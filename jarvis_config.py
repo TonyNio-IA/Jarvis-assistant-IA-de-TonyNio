@@ -10,8 +10,9 @@ Sans config.json, Jarvis fonctionne quand même, avec des réglages neutres.
   sujets         : les rubriques de ton point du jour, après la météo et les actualités
   site           : un site à consulter pour le point du jour (facultatif)
   vocabulaire    : les noms propres que tu prononces souvent, pour qu'ils soient mieux compris
-  mode_nuit      : les heures du mode nuit, où Jarvis répond par écrit sans parler (les rappels sonnent
-                   quand même) : {"debut": 22, "fin": 7} par défaut ; false pour ne jamais l'activer
+  mode_nuit      : facultatif. Sans ce réglage, le mode nuit (Jarvis répond par écrit sans parler, les
+                   rappels sonnent quand même) ne s'active que quand on le demande à la voix.
+                   Pour l'activer aussi à heures fixes : {"debut": 22, "fin": 7}
 """
 
 import json
@@ -40,8 +41,8 @@ SUJETS = [str(s).strip() for s in (_lu.get("sujets") or []) if str(s).strip()]
 SITE = _lu.get("site") if isinstance(_lu.get("site"), dict) and _lu["site"].get("adresse") else None
 VOCABULAIRE = [str(s).strip() for s in (_lu.get("vocabulaire") or []) if str(s).strip()]
 
-_nuit = _lu.get("mode_nuit", {"debut": 22, "fin": 7})
+_nuit = _lu.get("mode_nuit")          # pas d'horaires par défaut : mode nuit seulement sur demande
 try:
-    HEURES_NUIT = None if _nuit is False else (int(_nuit.get("debut", 22)) % 24, int(_nuit.get("fin", 7)) % 24)
-except (AttributeError, TypeError, ValueError):
-    HEURES_NUIT = (22, 7)
+    HEURES_NUIT = (int(_nuit["debut"]) % 24, int(_nuit["fin"]) % 24) if isinstance(_nuit, dict) else None
+except (KeyError, TypeError, ValueError):
+    HEURES_NUIT = None

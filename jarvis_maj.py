@@ -1,0 +1,188 @@
+"""
+JARVIS - mises à jour depuis GitHub.
+
+  - à chaque démarrage, Jarvis regarde sur la page GitHub du projet si une version plus récente est publiée ;
+  - s'il en trouve une, il le dit après avoir répondu à ta prochaine demande, et demande s'il doit l'installer ;
+    il n'installe rien sans ton « oui » ;
+  - la mise à jour est faite par l'installateur officiel (Installer-Jarvis.exe de la dernière version publiée),
+    exactement comme si tu le relançais toi-même et choisissais « 1. Mettre à jour » : tes réglages, ta mémoire,
+    tes rappels et tes listes sont gardés. Jarvis s'arrête pendant quelques minutes, puis redémarre tout seul
+    et dit si la mise à jour a réussi ;
+  - à la voix : « Jarvis, cherche les mises à jour », « Jarvis, mets-toi à jour », « quelle est ta version ? ».
+"""
+
+import json
+import os
+import re
+import subprocess
+import tempfile
+import threading
+import time
+import urllib.request
+
+import jarvis_config
+
+DEPOT = "TonyNio-IA/Jarvis-assistant-IA-de-TonyNio"
+API_DERNIERE = f"https://api.github.com/repos/{DEPOT}/releases/latest"
+INSTALLATEUR = f"https://github.com/{DEPOT}/releases/latest/download/Installer-Jarvis.exe"
+FICHIER_SUIVI = jarvis_config.chemin("mise_a_jour.json")     # reste sur ce PC
+ATTENTE_AVANT_INSTALLATION = 8          # secondes : le temps que Jarvis finisse sa phrase
+
+disponible = None        # (« 1.21 », « titre de la version ») si une version plus récente existe
+_annoncee = False
+_verrou = threading.Lock()
+
+
+def version_actuelle():
+    """Le numéro VERSION écrit dans jarvis_claude.py (lu dans le fichier : pas de double chargement de Jarvis)."""
+    try:
+        with open(jarvis_config.chemin("jarvis_claude.py"), encoding="utf-8") as f:
+            m = re.search(r'^VERSION\s*=\s*"([^"]+)"', f.read(), re.M)
+        return m.group(1) if m else "?"
+    except OSError:
+        return "?"
+
+
+def _nombres(version):
+    """« v1.21 » -> (1, 21) ; une version illisible -> ()."""
+    return tuple(int(n) for n in re.findall(r"\d+", version or ""))
+
+
+def verifier():
+    """Interroge GitHub. Renvoie (version, titre) si une version plus récente est publiée, sinon None."""
+    global disponible
+    requete = urllib.request.Request(API_DERNIERE, headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(requete, timeout=10) as r:
+        derniere = json.load(r)
+    if derniere.get("draft") or derniere.get("prerelease"):
+        return None
+    version = str(derniere.get("tag_name", "")).lstrip("vV")
+    with _verrou:
+        if _nombres(version) > _nombres(version_actuelle()):
+            titre = str(derniere.get("name") or "").split(":", 1)[-1].strip()
+            disponible = (version, titre)
+        else:
+            disponible = None
+        return disponible
+
+
+def verifier_en_arriere_plan():
+    def tache():
+        try:
+            trouve = verifier()
+            print("Mise à jour :", f"version {trouve[0]} disponible." if trouve else "Jarvis est à jour.")
+        except Exception as erreur:
+            print("Vérification des mises à jour impossible :", erreur)
+    threading.Thread(target=tache, daemon=True).start()
+
+
+def a_annoncer():
+    """Vrai une seule fois par démarrage, quand une nouvelle version attend d'être annoncée."""
+    global _annoncee
+    if disponible and not _annoncee:
+        _annoncee = True
+        return True
+    return False
+
+
+def annonce():
+    version, titre = disponible
+    return (f"Au fait, une nouvelle version de Jarvis est disponible : la {version}"
+            + (f", {titre}" if titre else "") + ". Tu veux que je l'installe maintenant ?")
+
+
+# ---------- Installation ----------
+
+def installer():
+    """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
+    Renvoie la phrase à dire."""
+    cible = disponible[0] if disponible else "la plus récente"
+    dossier = os.path.join(tempfile.gettempdir(), "Jarvis-mise-a-jour")
+    os.makedirs(dossier, exist_ok=True)
+    programme = os.path.join(dossier, "Installer-Jarvis.exe")
+    try:
+        requete = urllib.request.Request(INSTALLATEUR, headers={"User-Agent": "Jarvis"})
+        with urllib.request.urlopen(requete, timeout=60) as r, open(programme, "wb") as f:
+            f.write(r.read())
+        with open(programme, "rb") as f:
+            if f.read(2) != b"MZ" or os.path.getsize(programme) < 50_000:
+                raise ValueError("le fichier téléchargé n'est pas l'installateur")
+    except Exception as erreur:
+        print("Téléchargement de la mise à jour impossible :", erreur)
+        return "Je n'arrive pas à télécharger la mise à jour. Vérifie la connexion Internet, puis redemande-le-moi."
+    try:
+        with open(FICHIER_SUIVI, "w", encoding="utf-8") as f:
+            json.dump({"depuis": version_actuelle(), "vers": cible, "quand": time.strftime("%d/%m/%Y %H:%M")}, f)
+    except OSError:
+        pass
+    source_essai = os.environ.get("JARVIS_MAJ_SOURCE")     # essais : fichiers pris dans un dossier local
+    environnement = {k: v for k, v in os.environ.items() if not k.startswith("JARVIS_")}
+    environnement.update(JARVIS_AUTO="1", JARVIS_ACTION="1", JARVIS_OK="o", JARVIS_SANS_VOIX="1")
+    if source_essai:
+        environnement["JARVIS_SOURCE"] = source_essai
+
+    def lancer():
+        # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance
+        subprocess.Popen([programme], cwd=dossier, env=environnement,
+                         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10))
+    minuteur = threading.Timer(ATTENTE_AVANT_INSTALLATION, lancer)
+    minuteur.daemon = True
+    minuteur.start()
+    version = f"la version {cible}" if disponible else "la dernière version"
+    return (f"Je lance la mise à jour vers {version}. Je vais m'arrêter quelques minutes, "
+            "puis je redémarrerai tout seul.")
+
+
+def bilan_au_demarrage():
+    """Après une mise à jour lancée par Jarvis : la phrase qui dit si elle a réussi, ou None."""
+    try:
+        with open(FICHIER_SUIVI, encoding="utf-8") as f:
+            suivi = json.load(f)
+        os.remove(FICHIER_SUIVI)
+    except (OSError, ValueError):
+        return None
+    actuelle = version_actuelle()
+    if _nombres(actuelle) > _nombres(suivi.get("depuis")):
+        return f"Mise à jour terminée : je suis maintenant en version {actuelle}."
+    return (f"La mise à jour n'a pas abouti : je suis toujours en version {actuelle}. "
+            "Le détail est dans le fichier installation.log, dans mon dossier.")
+
+
+# ---------- À la voix ----------
+
+_METS_A_JOUR = re.compile(r"\b(?:mets-toi|mets toi|met-toi|mettre) à jour\b|\b(?:installe|lance|fais|fait)\b.*\bmise à jour\b"
+                          r"|\bmets à jour jarvis\b|\bmets-toi à jour\b")
+_CHERCHE = re.compile(r"\b(?:cherche|recherche|vérifie|verifie|regarde)\b.*\bmises? à jour\b|"
+                      r"\b(?:y a-t-il|il y a|est-ce qu'il y a|y a|existe-t-il)\b.*\b(?:mises? à jour|nouvelle version)\b|"
+                      r"\bes-tu à jour\b|\b(?:tu es|t'es) à jour\b")
+_VERSION = re.compile(r"\b(?:quelle|c'est quoi|tu es en quelle|t'es en quelle)\b.*\bversion\b")
+
+
+def commande(t, demander_confirmation):
+    """Renvoie la phrase à dire, ou None. demander_confirmation(action) prépare l'attente d'un « oui »."""
+    t = t.replace("’", "'")
+    if _METS_A_JOUR.search(t):
+        try:
+            trouve = verifier()
+        except Exception:
+            return "Je n'arrive pas à joindre GitHub pour le moment. Réessaie plus tard."
+        if not trouve:
+            return f"Je suis déjà à jour : version {version_actuelle()}."
+        return installer()
+    if _CHERCHE.search(t):
+        try:
+            trouve = verifier()
+        except Exception:
+            return "Je n'arrive pas à joindre GitHub pour le moment. Réessaie plus tard."
+        if not trouve:
+            return f"Je suis à jour : version {version_actuelle()}."
+        global _annoncee
+        _annoncee = True
+        demander_confirmation("maj")
+        return annonce()
+    if _VERSION.search(t) and not re.search(r"\b(windows|python|chrome|navigateur|pc|ordinateur)\b", t):
+        reponse = f"Je suis Jarvis, version {version_actuelle()}."
+        if disponible:
+            reponse += f" La version {disponible[0]} est disponible : dis, mets-toi à jour, pour l'installer."
+        return reponse
+    return None

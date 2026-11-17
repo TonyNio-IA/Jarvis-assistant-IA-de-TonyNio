@@ -45,6 +45,7 @@ import jarvis_config
 import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
+import jarvis_maj
 import jarvis_pratique
 import jarvis_reglages
 import jarvis_web
@@ -771,7 +772,15 @@ def confirmation_en_attente():
     return _attente is not None and time.time() < _attente[1]
 
 
+def demander_confirmation(action):
+    """Le prochain « oui » (dans les 20 secondes) déclenchera cette action."""
+    global _attente
+    _attente = (action, time.time() + DELAI_CONFIRMATION)
+
+
 def _executer_alimentation(action):
+    if action == "maj":
+        return jarvis_maj.installer()
     if action == "effacer_memoire":
         jarvis_memoire.tout_effacer()
         return "C'est fait, ma mémoire est vide."
@@ -803,7 +812,9 @@ def _commande_alimentation(t):
         _attente = None
         if re.match(r"\W*(oui|ouais|confirme|je confirme|vas-y|d'accord|ok)\b", t):
             return _executer_alimentation(action)
-        if re.match(r"\W*(non|annule|laisse|surtout pas)\b", t):
+        if re.match(r"\W*(non|annule|laisse|surtout pas|pas maintenant|plus tard)\b", t):
+            if action == "maj":
+                return "D'accord. Quand tu voudras, dis-moi : Jarvis, mets-toi à jour."
             return "D'accord, j'annule."
     _attente = None
     if re.search(r"\b(annule|arrête|stoppe)\b.*\b(extinction|arrêt|redémarrage)\b", t):
@@ -1214,6 +1225,7 @@ def commande_instantanee(textes, annoncer=None):
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
             for commande in (lambda: jarvis_pratique.commande_aide(t),
+                             lambda: jarvis_maj.commande(t, demander_confirmation),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
                              lambda: jarvis_reglages.commande_voix(t),
                              lambda: jarvis_reglages.commande_luminosite(t),

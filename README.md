@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.20**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.21**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
 
@@ -55,7 +55,7 @@ Ces fichiers restent sur ton PC, dans le dossier de Jarvis. Ils ne font pas part
 
 | Fichier | Contenu |
 |---|---|
-| `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent, les heures du mode nuit. Modèle : `config.exemple.json`. |
+| `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent, et si tu le veux des heures fixes pour le mode nuit. Modèle : `config.exemple.json`. |
 | `ville.txt` | Ta ville pour la météo. Le plus simple : dis « Jarvis, ma ville est … », il crée ce fichier. Format : `Nom;latitude;longitude` (exemple : `Paris;48.8566;2.3522`). Sans ce fichier, Jarvis donne la météo de Paris. |
 
 Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, notes, listes, réglages de la voix, liste d'applications, journal). Eux non plus ne quittent pas ton PC.
@@ -98,9 +98,10 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Le son d'une seule application : « baisse le son de Chrome », « mets le son de Spotify à 30 », « coupe le son de Discord ».
 - Navigateur : « cherche des recettes de crêpes sur YouTube » (aussi Amazon, Google, Wikipédia, Leboncoin, Google Maps...), « clique sur Connexion », « clique sur la deuxième vidéo », « clique sur le premier résultat », « fais défiler », « remonte », « tout en haut », « reviens en arrière », « page suivante », « lis-moi cette page », « résume cette page » (Claude reçoit le texte de la page).
 - Windows : « active le mode sombre », « passe en mode clair », « active le Bluetooth », « coupe le Bluetooth », « monte la luminosité », « luminosité à 60 » (écrans qui l'acceptent depuis Windows).
-- Mode nuit : de 22 h à 7 h (réglable dans `config.json`), Jarvis répond par écrit sous le réacteur, sans voix ni bip ; les rappels et le réveil sonnent quand même. « Active le mode nuit », « désactive le mode nuit ».
+- Mode nuit, seulement quand tu le demandes : « Active le mode nuit ». Jarvis répond alors par écrit sous le réacteur, sans voix ni bip (les rappels et le réveil sonnent quand même), et le reste même après un redémarrage, jusqu'à « désactive le mode nuit ». Des heures fixes sont possibles dans `config.json` : `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voix : « prends une voix de femme », « reprends la voix d'Henri », « parle plus vite », « parle plus lentement », « parle à vitesse normale ».
 - « Jarvis, qu'est-ce que tu sais faire ? » : il résume ses commandes.
+- Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
 
 ## Fichiers
 
@@ -117,6 +118,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 | `jarvis_pratique.py` | Calculs, conversions, chronomètre, listes, raccourcis clavier, son d'une application, mode sombre |
 | `jarvis_web.py` | Le navigateur à la voix (clic sur un bouton ou un lien, défilement, lecture d'une page, recherche sur un site) |
 | `jarvis_reglages.py` | Mode nuit, voix et vitesse, luminosité, Bluetooth |
+| `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
 | `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
@@ -156,6 +158,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.21 | Mises à jour automatiques : au démarrage, Jarvis vérifie s'il existe une nouvelle version sur GitHub, te l'annonce à ta demande suivante et l'installe seulement si tu dis « oui » (« Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ») ; le mode nuit ne s'active plus à heures fixes mais seulement quand tu le demandes, et reste actif après un redémarrage jusqu'à « désactive le mode nuit » |
 | 1.20 | Nouvelles commandes, sans Claude : calculs et conversions (y compris monnaies), chronomètre, listes de courses et de tâches, raccourcis clavier (copier, coller, annuler...), avance et recul dans une vidéo, son d'une seule application, mode sombre ou clair, Bluetooth, luminosité ; navigateur à la voix (« clique sur… », « la deuxième vidéo », « le premier résultat », défilement, retour, lecture et résumé d'une page, recherche sur YouTube, Amazon, Google...) ; mode nuit (réponses écrites, sans voix) ; voix de femme et vitesse de parole ; « qu'est-ce que tu sais faire ? » ; corrections : la dictée n'abîme plus les longs textes, sans micro Jarvis attend au lieu de redémarrer en boucle, mots mal entendus mieux compris (« ma ville et Toulouse », « des oufs ») |
 | 1.19 | Installateur automatique (`Installer-Jarvis.exe`) : installation, mise à jour, ajout de Claude et désinstallation en un double-clic ; Jarvis fonctionne aussi sans Claude (commandes immédiates) ; ville de la météo réglable à la voix (« Jarvis, ma ville est … ») ; plus rapide et plus léger ; sans micro, il attend qu'on en branche un au lieu de redémarrer en boucle ; calculatrice absente détectée ; mise au premier plan des fenêtres plus fiable |
 | 1.18 | Jarvis devient utilisable par d'autres : prénom, sujets du point du jour et vocabulaire réglés dans `config.json`, installation dans le dossier de son choix ; licence PolyForm Strict ; présentation refaite |

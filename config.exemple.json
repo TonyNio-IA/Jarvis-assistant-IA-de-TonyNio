@@ -6,6 +6,5 @@
   "adresse": "lemonde.fr",
   "sujet": "la technologie"
  },
- "vocabulaire": ["PlayStation", "Netflix"],
- "mode_nuit": {"debut": 22, "fin": 7}
+ "vocabulaire": ["PlayStation", "Netflix"]
 }
