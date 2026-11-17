@@ -215,6 +215,18 @@ def complement(t):
                      + " : " + " ; ".join(chemins) + ".) ")
         except Exception as erreur:
             print("Capture de l'écran impossible :", erreur)
+    # « résume cette page » : le texte de la page ouverte dans le navigateur est joint à la demande
+    try:
+        import jarvis_web
+        if jarvis_web.PAGE_POUR_CLAUDE.search(t) and jarvis_web.navigateur_actif():
+            page = jarvis_web.texte_principal(jarvis_web.texte_de_la_page()).strip()
+            if page:
+                if len(page) > TEXTE_MAX:
+                    page = page[:TEXTE_MAX] + " […]"
+                note += ("(Texte de la page ouverte dans le navigateur de " + jarvis_config.NOM
+                         + ", entre les trois guillemets : \"\"\"" + page + "\"\"\") ")
+    except Exception as erreur:
+        print("Texte de la page impossible :", erreur)
     if re.search(_COPIE, t):
         if re.search(_SELECTION, t):
             copier_selection()

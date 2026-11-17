@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.19**
+**Français : [README.md](README.md)** · **Current version: 1.20**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, thinking, answering, reminder" width="320"></p>
 
@@ -55,10 +55,10 @@ These files stay on your PC, in the Jarvis folder. They are not part of the publ
 
 | File | Content |
 |---|---|
-| `config.json` | Your first name, the topics of your daily briefing, a website to check, and proper nouns you say often. Template: `config.exemple.json`. |
+| `config.json` | Your first name, the topics of your daily briefing, a website to check, proper nouns you say often, and the night mode hours. Template: `config.exemple.json`. |
 | `ville.txt` | Your town for the weather. The easiest way: say "Jarvis, ma ville est …" and it creates this file. Format: `Name;latitude;longitude` (example: `Paris;48.8566;2.3522`). Without this file, Jarvis gives the weather for Paris. |
 
-Jarvis also creates its own files as you use it (memory, reminders, notes, app list, log). They never leave your PC either.
+Jarvis also creates its own files as you use it (memory, reminders, notes, lists, voice settings, app list, log). They never leave your PC either.
 
 ## What it can do
 
@@ -89,6 +89,16 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Copied text: « résume le texte copié », « traduis le texte sélectionné en anglais », « corrige le texte copié ». The result goes back to the clipboard, ready to paste.
 - Daily briefing: « fais-moi le point du jour » gives the weather, the news, then your own topics.
 
+**New in 1.20 (also instant, without Claude)**
+- Maths and conversions: « combien font 15 % de 80 », « 3 miles en kilomètres », « 50 dollars en euros » (European Central Bank rates).
+- Stopwatch: « lance un chrono », « arrête le chrono ». Lists: « ajoute du pain à la liste », « lis-moi la liste ».
+- Keyboard shortcuts in the active window: « copie », « colle », « annule ça », « sélectionne tout », « enregistre ».
+- Videos: « avance de 30 secondes ». One app's volume: « baisse le son de Chrome ».
+- Browser by voice: « cherche des recettes sur YouTube », « clique sur Connexion », « clique sur la deuxième vidéo », « clique sur le premier résultat », « fais défiler », « reviens en arrière », « lis-moi cette page », « résume cette page ».
+- Windows: dark or light mode, Bluetooth on or off, screen brightness (on screens that allow it from Windows).
+- Night mode, from 10 pm to 7 am by default (set in `config.json`): answers are written under the reactor, with no voice or beep; reminders still ring.
+- Voice: a female voice (« prends une voix de femme »), faster or slower speech. « Qu'est-ce que tu sais faire ? » lists the commands.
+
 **The reactor**
 - A ring of marks draws the live sound spectrum: your voice when it listens, its own when it answers.
 - The panel shows the time, the words understood as you speak, and live gauges for processor, memory, graphics, network and temperature.
@@ -118,6 +128,9 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_ecran.py` | Screen capture and clipboard |
 | `jarvis_memoire.py` | Long-term memory |
 | `jarvis_voix.py` | The natural voice (edge-tts) |
+| `jarvis_pratique.py` | Maths, conversions, stopwatch, lists, keyboard shortcuts, per-app volume, dark mode |
+| `jarvis_web.py` | The browser by voice (click a button or link, scroll, read a page, search a site) |
+| `jarvis_reglages.py` | Night mode, voice and speed, brightness, Bluetooth |
 | `jarvis_affichage.py` | Fast drawing of the reactor and the panel (pygame) |
 | `jarvis_systeme.py` | PC monitoring (processor, memory, graphics, network) |
 | `jarvis_tts.py` | The fallback Windows voice |

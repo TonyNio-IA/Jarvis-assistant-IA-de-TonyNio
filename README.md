@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.19**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.20**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réflexion, réponse, rappel" width="320"></p>
 
@@ -55,10 +55,10 @@ Ces fichiers restent sur ton PC, dans le dossier de Jarvis. Ils ne font pas part
 
 | Fichier | Contenu |
 |---|---|
-| `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent. Modèle : `config.exemple.json`. |
+| `config.json` | Ton prénom, les rubriques de ton point du jour, un site à consulter, les noms propres que tu prononces souvent, les heures du mode nuit. Modèle : `config.exemple.json`. |
 | `ville.txt` | Ta ville pour la météo. Le plus simple : dis « Jarvis, ma ville est … », il crée ce fichier. Format : `Nom;latitude;longitude` (exemple : `Paris;48.8566;2.3522`). Sans ce fichier, Jarvis donne la météo de Paris. |
 
-Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, notes, liste d'applications, journal). Eux non plus ne quittent pas ton PC.
+Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, notes, listes, réglages de la voix, liste d'applications, journal). Eux non plus ne quittent pas ton PC.
 
 ## Ce qu'il sait faire
 
@@ -90,6 +90,17 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - « Stop », « Jarvis, stop » ou « Tais-toi » pendant qu'il parle : il se tait.
 - Se mettre en pause tout seul quand l'application Claude lit un message à voix haute (touche F9).
 - Démarrer avec Windows, sans fenêtre.
+- Calculs et conversions, sans Claude : « combien font 15 % de 80 », « racine carrée de 144 », « 3 miles en kilomètres », « 20 degrés en Fahrenheit », « 50 dollars en euros » (taux de la Banque centrale européenne).
+- Chronomètre : « lance un chrono », « où en est le chrono », « arrête le chrono ».
+- Listes : « ajoute du pain et du lait à la liste », « enlève le lait de la liste », « lis-moi la liste », « ajoute appeler le garage à la liste des tâches » (fichier `liste.json`, gardé sur le PC).
+- Raccourcis dans la fenêtre active : « copie », « colle », « coupe », « annule ça », « sélectionne tout », « enregistre », « nouvel onglet », « ferme l'onglet », « actualise ».
+- Vidéos : « avance de 30 secondes », « recule de 10 secondes ».
+- Le son d'une seule application : « baisse le son de Chrome », « mets le son de Spotify à 30 », « coupe le son de Discord ».
+- Navigateur : « cherche des recettes de crêpes sur YouTube » (aussi Amazon, Google, Wikipédia, Leboncoin, Google Maps...), « clique sur Connexion », « clique sur la deuxième vidéo », « clique sur le premier résultat », « fais défiler », « remonte », « tout en haut », « reviens en arrière », « page suivante », « lis-moi cette page », « résume cette page » (Claude reçoit le texte de la page).
+- Windows : « active le mode sombre », « passe en mode clair », « active le Bluetooth », « coupe le Bluetooth », « monte la luminosité », « luminosité à 60 » (écrans qui l'acceptent depuis Windows).
+- Mode nuit : de 22 h à 7 h (réglable dans `config.json`), Jarvis répond par écrit sous le réacteur, sans voix ni bip ; les rappels et le réveil sonnent quand même. « Active le mode nuit », « désactive le mode nuit ».
+- Voix : « prends une voix de femme », « reprends la voix d'Henri », « parle plus vite », « parle plus lentement », « parle à vitesse normale ».
+- « Jarvis, qu'est-ce que tu sais faire ? » : il résume ses commandes.
 
 ## Fichiers
 
@@ -103,6 +114,9 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 | `jarvis_commandes.py` | Les commandes instantanées (heure, date, volume, applications) |
 | `jarvis_memoire.py` | La mémoire durable (faits retenus, derniers échanges) |
 | `jarvis_fenetres.py` | La gestion des fenêtres à la voix (agrandir, réduire, placer, fermer) |
+| `jarvis_pratique.py` | Calculs, conversions, chronomètre, listes, raccourcis clavier, son d'une application, mode sombre |
+| `jarvis_web.py` | Le navigateur à la voix (clic sur un bouton ou un lien, défilement, lecture d'une page, recherche sur un site) |
+| `jarvis_reglages.py` | Mode nuit, voix et vitesse, luminosité, Bluetooth |
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
 | `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
@@ -142,6 +156,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.20 | Nouvelles commandes, sans Claude : calculs et conversions (y compris monnaies), chronomètre, listes de courses et de tâches, raccourcis clavier (copier, coller, annuler...), avance et recul dans une vidéo, son d'une seule application, mode sombre ou clair, Bluetooth, luminosité ; navigateur à la voix (« clique sur… », « la deuxième vidéo », « le premier résultat », défilement, retour, lecture et résumé d'une page, recherche sur YouTube, Amazon, Google...) ; mode nuit (réponses écrites, sans voix) ; voix de femme et vitesse de parole ; « qu'est-ce que tu sais faire ? » ; corrections : la dictée n'abîme plus les longs textes, sans micro Jarvis attend au lieu de redémarrer en boucle, mots mal entendus mieux compris (« ma ville et Toulouse », « des oufs ») |
 | 1.19 | Installateur automatique (`Installer-Jarvis.exe`) : installation, mise à jour, ajout de Claude et désinstallation en un double-clic ; Jarvis fonctionne aussi sans Claude (commandes immédiates) ; ville de la météo réglable à la voix (« Jarvis, ma ville est … ») ; plus rapide et plus léger ; sans micro, il attend qu'on en branche un au lieu de redémarrer en boucle ; calculatrice absente détectée ; mise au premier plan des fenêtres plus fiable |
 | 1.18 | Jarvis devient utilisable par d'autres : prénom, sujets du point du jour et vocabulaire réglés dans `config.json`, installation dans le dossier de son choix ; licence PolyForm Strict ; présentation refaite |
 | 1.17 | Affichage : mode discret en veille (le réacteur rétrécit, le panneau disparaît, il revient au survol de la souris), minuteurs et rappels visibles sur la couronne et dans le panneau, alerte visuelle de 5 secondes quand un rappel sonne, animations de lancement et d'arrêt ; correction d'un plantage au déplacement du réacteur ; « redémarre-toi » reconnu même mal entendu |

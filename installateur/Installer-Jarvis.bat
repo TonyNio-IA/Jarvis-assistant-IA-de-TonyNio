@@ -36,7 +36,7 @@ $CLE        = 'HKCU:\Software\Jarvis-TonyNio'
 $AUTO       = [bool]$env:JARVIS_AUTO          # mode sans question (essais automatiques)
 $JOURNAL    = Join-Path $env:TEMP 'Jarvis-installation.log'
 $TEMP       = Join-Path $env:TEMP 'Jarvis-installation'
-$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json'
+$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json','liste.json','reglages_voix.json'
 $UTF8       = New-Object Text.UTF8Encoding $false
 
 function Journal($texte) {

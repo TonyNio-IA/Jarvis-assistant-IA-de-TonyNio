@@ -10,6 +10,8 @@ Sans config.json, Jarvis fonctionne quand même, avec des réglages neutres.
   sujets         : les rubriques de ton point du jour, après la météo et les actualités
   site           : un site à consulter pour le point du jour (facultatif)
   vocabulaire    : les noms propres que tu prononces souvent, pour qu'ils soient mieux compris
+  mode_nuit      : les heures du mode nuit, où Jarvis répond par écrit sans parler (les rappels sonnent
+                   quand même) : {"debut": 22, "fin": 7} par défaut ; false pour ne jamais l'activer
 """
 
 import json
@@ -37,3 +39,9 @@ SALUT = (" " + PRENOM) if PRENOM else ""           # « Bonjour Alex. » ou « B
 SUJETS = [str(s).strip() for s in (_lu.get("sujets") or []) if str(s).strip()]
 SITE = _lu.get("site") if isinstance(_lu.get("site"), dict) and _lu["site"].get("adresse") else None
 VOCABULAIRE = [str(s).strip() for s in (_lu.get("vocabulaire") or []) if str(s).strip()]
+
+_nuit = _lu.get("mode_nuit", {"debut": 22, "fin": 7})
+try:
+    HEURES_NUIT = None if _nuit is False else (int(_nuit.get("debut", 22)) % 24, int(_nuit.get("fin", 7)) % 24)
+except (AttributeError, TypeError, ValueError):
+    HEURES_NUIT = (22, 7)

@@ -58,7 +58,7 @@ import jarvis_fenetres
 import jarvis_memoire
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.19"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.20"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -949,12 +949,13 @@ def interruption():
                 return True
 
 
-def parler(texte):
-    """Parle en restant à l'écoute du mot « stop ». Renvoie True si interrompu."""
+def parler(texte, toujours=False):
+    """Parle en restant à l'écoute du mot « stop ». Renvoie True si interrompu.
+    toujours=True : même en mode nuit (rappels et réveil)."""
     if rec_stop is not None:
         rec_stop.Reset()
     vider_audio()
-    return bool(speak(texte, interruption=interruption))
+    return bool(speak(texte, interruption=interruption, toujours=toujours))
 
 
 # ---------- Déroulement ----------
@@ -1162,6 +1163,7 @@ def main():
             pass
 
     reparer_volumes()
+    jarvis_voix.afficher = sous_titre          # en mode nuit, les réponses s'affichent sous le réacteur
     print("Chargement du modèle français...")
     model = Model(MODEL_PATH)
     recognizer = KaldiRecognizer(model, SAMPLE_RATE)
@@ -1229,8 +1231,8 @@ def main():
                         etat("erreur" if erreur else "reponse")
                     baisser_son()
                     try:
-                        bip()
-                        parler(texte)
+                        bip(toujours=erreur == "rappel")        # un rappel sonne même en mode nuit
+                        parler(texte, toujours=erreur == "rappel")
                     finally:
                         remonter_son()
                     preparer_ecoute(recognizer)

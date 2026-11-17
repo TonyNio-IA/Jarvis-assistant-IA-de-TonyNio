@@ -20,7 +20,12 @@ la réponse est immédiate et ton quota Claude est économisé.
   - la musique et les vidéos sur YouTube (« mets Get Lucky de Daft Punk ») ;
   - la mémoire durable (« retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... ») ;
   - les fenêtres (« mets Imou en plein écran », « réduis la fenêtre », « mets Chrome à gauche »,
-    « ferme la fenêtre », « affiche le bureau »), voir jarvis_fenetres.py.
+    « ferme la fenêtre », « affiche le bureau »), voir jarvis_fenetres.py ;
+  - les calculs, conversions, chronomètre, listes, raccourcis clavier, l'avance dans une vidéo,
+    le volume d'une seule application et le mode sombre, voir jarvis_pratique.py ;
+  - le navigateur (« clique sur … », défilement, retour, lire une page, chercher sur un site),
+    voir jarvis_web.py ;
+  - le mode nuit, la voix et sa vitesse, la luminosité et le Bluetooth, voir jarvis_reglages.py.
 Les applications que tu ouvres souvent sont retenues (applications.json) : Jarvis les reconnaît
 ensuite même quand leur nom est mal entendu (« immo » pour Imou).
 Tout ce qui n'est pas reconnu ici est envoyé à Claude, comme avant.
@@ -40,6 +45,9 @@ import jarvis_config
 import jarvis_ecran
 import jarvis_fenetres
 import jarvis_memoire
+import jarvis_pratique
+import jarvis_reglages
+import jarvis_web
 import urllib.parse
 import urllib.request
 
@@ -930,16 +938,26 @@ class _ENTREE(ctypes.Structure):
     _fields_ = [("type", ctypes.c_ulong), ("u", _UNION)]
 
 
-def taper(texte):
-    """Tape un texte dans la fenêtre active, caractère par caractère (accents compris)."""
+PAUSE_FRAPPE = 0.02     # secondes entre deux caractères tapés (10 ms suffisent au Bloc-notes : marge pour un PC occupé)
+
+
+def taper(texte, pause=None):
+    """Tape un texte dans la fenêtre active, caractère par caractère (accents compris).
+    Une courte pause sépare chaque caractère : envoyés tous d'un coup, le Bloc-notes de Windows 11 n'en
+    gardait que les 7 ou 8 premiers, puis répétait le dernier (« Bonjour Jarvis » devenait « Bonjour ssssss »)."""
+    pause = PAUSE_FRAPPE if pause is None else pause
     code = texte.encode("utf-16-le")
     unites = [int.from_bytes(code[i:i + 2], "little") for i in range(0, len(code), 2)]
-    entrees = (_ENTREE * (2 * len(unites)))()
-    for i, unite in enumerate(unites):
+    envoyes = 0
+    for unite in unites:
+        entrees = (_ENTREE * 2)()
         for j, drapeaux in enumerate((0x0004, 0x0004 | 0x0002)):       # appui, puis relâchement
-            entrees[2 * i + j].type = 1
-            entrees[2 * i + j].u.clavier = _CLAVIER(0, unite, drapeaux, 0, 0)
-    return ctypes.windll.user32.SendInput(len(entrees), entrees, ctypes.sizeof(_ENTREE))
+            entrees[j].type = 1
+            entrees[j].u.clavier = _CLAVIER(0, unite, drapeaux, 0, 0)
+        envoyes += ctypes.windll.user32.SendInput(2, entrees, ctypes.sizeof(_ENTREE))
+        if pause:
+            time.sleep(pause)
+    return envoyes
 
 
 def _commande_dictee(t, brut):
@@ -1106,7 +1124,9 @@ MOTS_COURTS = {"oui", "ouais", "non", "si", "ok", "d'accord", "quoi", "comment",
 
 
 def mot_court(texte):
-    return _propre(texte).strip(" ,;:") in MOTS_COURTS
+    """Vrai pour une demande d'un seul mot qui est pourtant un vrai ordre (« oui », « copie », « remonte »...)."""
+    t = _propre(texte).strip(" ,;:")
+    return t in MOTS_COURTS or jarvis_pratique.rapide(t) or jarvis_web.rapide(t)
 
 
 def sans_whisper(texte_vosk):
@@ -1120,6 +1140,8 @@ def sans_whisper(texte_vosk):
     if deux_demandes(t):
         return False
     if t in MOTS_COURTS:
+        return True
+    if jarvis_pratique.rapide(t) or jarvis_web.rapide(t) or jarvis_reglages.rapide(t):
         return True
     if re.search(r"\b(cherche|recherche|puis)\b", t):
         return False
@@ -1172,7 +1194,9 @@ def commande_instantanee(textes, annoncer=None):
     if not confirmation_en_attente() and any(deux_demandes(_propre(b)) for b in textes if b):
         return None
     if not confirmation_en_attente():
-        reponse = _ville_parmi(textes)
+        reponse = (_ville_parmi(textes) or jarvis_pratique.liste_parmi(textes)
+                   or (jarvis_web.clic_parmi(textes) if any(jarvis_web._CLIC.match(_propre(x)) for x in textes if x)
+                       else None))
         if reponse:
             return reponse
     for brut in textes:
@@ -1189,16 +1213,32 @@ def commande_instantanee(textes, annoncer=None):
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: _commande_memoire(brut),
+            for commande in (lambda: jarvis_pratique.commande_aide(t),
+                             lambda: jarvis_reglages.commande_mode_nuit(t),
+                             lambda: jarvis_reglages.commande_voix(t),
+                             lambda: jarvis_reglages.commande_luminosite(t),
+                             lambda: jarvis_reglages.commande_bluetooth(t),
+                             lambda: jarvis_pratique.commande_liste(t),
+                             lambda: _commande_memoire(brut),
                              lambda: _commande_routine(t),
                              lambda: jarvis_ecran.lecture_directe(t),
                              lambda: _commande_dictee(t, brut),
                              lambda: _commande_alimentation(t),
+                             lambda: jarvis_pratique.commande_raccourci(t),
+                             lambda: jarvis_web.commande_lire_page(t),
+                             lambda: jarvis_web.commande_recherche(t),
+                             lambda: jarvis_pratique.commande_chrono(t),
                              lambda: _commande_rappel(t),
                              lambda: _commande_minuteur(t, annoncer),
+                             lambda: jarvis_pratique.commande_conversion(t),
+                             lambda: jarvis_pratique.commande_calcul(t),
                              lambda: _commande_meteo(t, brut),
+                             lambda: jarvis_pratique.commande_volume_appli(t),
                              lambda: _commande_volume(t),
+                             lambda: jarvis_pratique.commande_avance(t),
+                             lambda: jarvis_pratique.commande_theme(t),
                              lambda: _commande_lecture(t),
+                             lambda: jarvis_web.commande_navigation(t),
                              lambda: _commande_fermer(t),
                              lambda: jarvis_fenetres.commande(t),
                              lambda: _commande_musique(t),

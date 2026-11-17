@@ -11,6 +11,7 @@ voix de Windows (jarvis_tts.speak), pour ne jamais rester muet.
 
 import asyncio
 import hashlib
+import json
 import os
 import queue
 import re
@@ -29,8 +30,63 @@ try:
 except Exception:
     av = sd = None
 
-VOIX = "fr-FR-HenriNeural"
-VITESSE = "+12%"    # "+0%" = normal, "+10%" = un peu plus rapide, "-10%" = plus lent
+VOIXS = {"henri": "fr-FR-HenriNeural", "denise": "fr-FR-DeniseNeural"}   # voix d'homme, voix de femme
+VITESSE_NORMALE = 12   # en pour cent : 0 = vitesse d'origine du service, 10 = un peu plus rapide
+VOIX = VOIXS["henri"]
+VITESSE = f"+{VITESSE_NORMALE}%"
+FICHIER_REGLAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reglages_voix.json")   # reste sur ce PC
+try:
+    with open(FICHIER_REGLAGES, encoding="utf-8-sig") as _f:
+        _r = json.load(_f)
+    VOIX = VOIXS.get(_r.get("voix"), VOIX)
+    VITESSE = f"{int(_r.get('vitesse', VITESSE_NORMALE)):+d}%"
+except (OSError, ValueError, TypeError, AttributeError):
+    pass
+
+
+def regler_voix(voix=None, vitesse=None):
+    """Change la voix (« henri » ou « denise ») et/ou la vitesse (en pour cent), et les garde pour la prochaine fois."""
+    global VOIX, VITESSE
+    if voix:
+        VOIX = VOIXS[voix]
+    if vitesse is not None:
+        VITESSE = f"{max(-30, min(50, int(vitesse))):+d}%"
+    _cache.clear()                      # les phrases déjà prêtes avaient l'ancienne voix
+    try:
+        nom = next(n for n, v in VOIXS.items() if v == VOIX)
+        with open(FICHIER_REGLAGES, "w", encoding="utf-8") as f:
+            json.dump({"voix": nom, "vitesse": int(VITESSE.rstrip("%"))}, f)
+    except OSError as erreur:
+        print("Réglages de la voix non enregistrés :", erreur)
+
+
+# ----- Mode nuit : Jarvis répond par écrit sous le réacteur, sans parler ni biper (sauf rappels) -----
+import jarvis_config
+afficher = None          # fonction qui affiche un texte sous le réacteur (donnée par jarvis_claude)
+_nuit_forcee = None      # True / False : choix dit à la voix, jusqu'au prochain changement d'horaire
+
+
+def _nuit_horaire():
+    heures = jarvis_config.HEURES_NUIT
+    if not heures:
+        return False
+    debut, fin = heures
+    h = time.localtime().tm_hour
+    return (debut <= h or h < fin) if debut > fin else (debut <= h < fin)
+
+
+def mode_nuit():
+    """Vrai si Jarvis doit rester silencieux en ce moment."""
+    global _nuit_forcee
+    horaire = _nuit_horaire()
+    if _nuit_forcee is not None and _nuit_forcee == horaire:
+        _nuit_forcee = None             # l'horaire a rejoint le choix dit à la voix : on revient à l'horaire
+    return horaire if _nuit_forcee is None else _nuit_forcee
+
+
+def forcer_nuit(actif):
+    global _nuit_forcee
+    _nuit_forcee = None if actif == _nuit_horaire() else bool(actif)
 FREQ = 24000        # fréquence du son fourni par edge-tts
 DOSSIER_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_voix")
 TAILLE_MORCEAU = 220   # longueur (en caractères) des morceaux d'une longue réponse
@@ -142,10 +198,11 @@ def preparer(phrases):
 NOTES_BIP = ((880, 0.07), (1320, 0.10))    # les deux notes du bip : (fréquence, durée)
 
 
-def bip(attendre=True):
+def bip(attendre=True, toujours=False):
     """Petit son de réveil (deux notes montantes), presque instantané.
-    attendre=False : le son est lancé et l'on rend la main aussitôt (l'écoute démarre pendant le bip)."""
-    if sd is None:
+    attendre=False : le son est lancé et l'on rend la main aussitôt (l'écoute démarre pendant le bip).
+    En mode nuit, pas de bip, sauf pour un rappel (toujours=True)."""
+    if sd is None or (mode_nuit() and not toujours):
         return
     try:
         freq = 44100
@@ -176,10 +233,20 @@ def _decouper(texte):
     return morceaux
 
 
-def speak(texte, interruption=None):
+def speak(texte, interruption=None, toujours=False):
     """Fait parler Jarvis avec la voix naturelle (ou la voix Windows en secours).
-    Si « interruption » est donnée, la lecture peut être coupée : renvoie alors True."""
+    Si « interruption » est donnée, la lecture peut être coupée : renvoie alors True.
+    En mode nuit, le texte est seulement affiché sous le réacteur, sauf pour un rappel (toujours=True)."""
     if not texte:
+        return False
+    if mode_nuit() and not toujours:
+        print("JARVIS (mode nuit, sans voix) :", texte)
+        if afficher:
+            try:
+                afficher(texte)
+            except Exception:
+                pass
+        time.sleep(min(5.0, 1.0 + len(texte) / 40))       # le temps de lire le début
         return False
     print("JARVIS :", texte)
     if av is None or sd is None:
