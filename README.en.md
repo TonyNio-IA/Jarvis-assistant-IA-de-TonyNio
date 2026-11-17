@@ -1,8 +1,8 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.21**
+**Français : [README.md](README.md)** · **Current version: 1.22**
 
-<p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, thinking, answering, reminder" width="320"></p>
+<p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
 **▶ Video demo (6 min, in French): [watch on YouTube](https://www.youtube.com/watch?v=3Xd91q7618U)**
 
@@ -99,9 +99,24 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Night mode, only when you ask for it (« active le mode nuit »): answers are written under the reactor, with no voice or beep (reminders still ring). It stays on, even after a restart, until « désactive le mode nuit ». Fixed hours are possible in `config.json`: `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voice: a female voice (« prends une voix de femme »), faster or slower speech. « Qu'est-ce que tu sais faire ? » lists the commands.
 
+**New in 1.22**
+- Kids mode, mails on request and a more reliable daily briefing (see below).
+- Say « Jarvis » while it speaks: it stops at once and listens to your new request.
+- More natural, varied answers, a greeting for the day, a small chime after long tasks.
+- Display: Vice City sunset colours when idle, a compact gauges-only strip after 35 s, gauge icons, a light glint running around the panels and the reactor, the reactor dances with music, looks towards the mouse, dims at night, and celebrates midnight and your birthday.
+
 **New in 1.21: updates**
 - At startup, Jarvis checks GitHub for a new version. If there is one, it tells you at your next request and asks whether to install it; nothing happens without your « oui ». Your settings, memory, reminders and lists are kept. By voice too: « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
 - Night mode now turns on only when you ask for it, no longer at fixed hours.
+
+**Mails, only when you ask** (« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails », « lis-moi le premier mail »)
+- Read-only: Jarvis never sends, deletes or moves a mail, mails stay unread, and their content is not sent to Claude.
+- One-time setup in PowerShell: `cmdkey /generic:Jarvis-Mails /user:your.address@icloud.com /pass` (Windows then asks for the password, stored by Windows, never in a file). For iCloud, use an app-specific password from account.apple.com. Other providers: `"mails": {"serveur": "imap.gmail.com"}` in `config.json`.
+
+**Kids mode** (« active le mode enfant »)
+- Videos and music open on YouTube Kids, Google searches use SafeSearch, shopping sites are not opened, and Claude answers in simple words.
+- Quizzes and riddles, one question at a time; long stories of about 10 minutes, read aloud as they are written, with the next chapter the following day (« raconte la suite »).
+- Jarvis only filters what it is asked to do: it is not a parental control.
 
 **The reactor**
 - A ring of marks draws the live sound spectrum: your voice when it listens, its own when it answers.
@@ -135,6 +150,9 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_pratique.py` | Maths, conversions, stopwatch, lists, keyboard shortcuts, per-app volume, dark mode |
 | `jarvis_web.py` | The browser by voice (click a button or link, scroll, read a page, search a site) |
 | `jarvis_reglages.py` | Night mode, voice and speed, brightness, Bluetooth |
+| `jarvis_sources.py` | Today's headlines (franceinfo, Le Monde) and the followed site's home page, read directly from the PC for the daily briefing |
+| `jarvis_mails.py` | Reads mails on request (never changes anything in the mailbox) |
+| `jarvis_enfant.py` | Kids mode: YouTube Kids, filtered searches, quizzes, riddles and long stories with the next chapter |
 | `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
 | `jarvis_affichage.py` | Fast drawing of the reactor and the panel (pygame) |
 | `jarvis_systeme.py` | PC monitoring (processor, memory, graphics, network) |

@@ -43,6 +43,8 @@ import time
 
 import jarvis_config
 import jarvis_ecran
+import jarvis_enfant
+import jarvis_mails
 import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
@@ -1107,6 +1109,9 @@ def _commande_notes(t, brut):
 
 def _propre(brut):
     t = brut.lower().replace("’", "'").strip(" .!?")
+    # « désactive » est souvent entendu « des actives » (« des actives le Bluetooth ») : sans ça, Jarvis
+    # ferait l'inverse de la demande
+    t = re.sub(r"\b(?:des|dés|d'est) ?actives? (?=(?:le|la|les|l'|mon|ma|mes)\b)", "désactive ", t)
     # « mets » est presque toujours entendu « mais » en début de demande (« mais la fenêtre en plein
     # écran », « mais un rappel à 14 h ») : on le rétablit, sauf devant « oui », « non »...
     return re.sub(r"^(\W*(?:jarvis\W+)?)(?:mais|m'est)\s+(?!oui\b|non\b|si\b|pourquoi\b|comment\b|qu|je\b|tu\b|il\b|c')",
@@ -1206,7 +1211,8 @@ def commande_instantanee(textes, annoncer=None):
         return None
     if not confirmation_en_attente():
         reponse = (_ville_parmi(textes) or jarvis_pratique.liste_parmi(textes)
-                   or (jarvis_web.clic_parmi(textes) if any(jarvis_web._CLIC.match(_propre(x)) for x in textes if x)
+                   or (jarvis_web.clic_parmi(textes) if any(jarvis_web._CLIC.match(_propre(x)) or jarvis_web._ORDINAL_SANS_CLIC.match(_propre(x))
+                                                     for x in textes if x)
                        else None))
         if reponse:
             return reponse
@@ -1225,6 +1231,9 @@ def commande_instantanee(textes, annoncer=None):
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
             for commande in (lambda: jarvis_pratique.commande_aide(t),
+                             lambda: jarvis_enfant.commande(t),
+                             lambda: jarvis_enfant.commande_web(t),
+                             lambda: jarvis_mails.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_maj.commande(t, demander_confirmation),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
                              lambda: jarvis_reglages.commande_voix(t),

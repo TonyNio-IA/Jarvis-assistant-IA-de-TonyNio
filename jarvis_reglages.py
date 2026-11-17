@@ -31,8 +31,18 @@ def _sans_jarvis(t):
 
 # ---------- Mode nuit ----------
 
+# Le mode nuit mal entendu (relevé dans les enregistrements) : « des actives le mode nuit »,
+# « le mot de nuit », « le mois de nuit », « le moins nuit », « modnues », « active le mot de mu »...
+_NUIT_MAL_ENTENDU = re.compile(r"\bmo(?:t|is|ins|de)?(?: de)? (?:nuit|nui|nuits|nu|nue|nues|mu)\b|\bmodnu\w*\b")
+_DESACTIVE_MAL_ENTENDU = re.compile(r"\b(?:des|dés|d'est) ?actives?\b|\bdéactive\b")
+
+
 def commande_mode_nuit(t):
     t = _sans_jarvis(t)
+    t = _DESACTIVE_MAL_ENTENDU.sub("désactive", t)
+    t = re.sub(r"\bh[âa]tive\b", "active", t)
+    if re.search(r"\b(?:active|désactive|desactive|mets|passe|enlève|enleve|coupe|arrête|arrete|quitte|sors)\b", t):
+        t = _NUIT_MAL_ENTENDU.sub("mode nuit", t)
     if not re.search(r"\bmode (?:nuit|silencieux|silence|jour)\b|\bparle normalement\b|\btu peux (?:re)?parler\b|"
                      r"\bne parle plus\b|\bchuchote\b", t):
         return None
@@ -46,6 +56,10 @@ def commande_mode_nuit(t):
     if arreter:
         jarvis_voix.forcer_nuit(False)
         return "Mode nuit désactivé : je parle de nouveau."
+    if not re.search(r"\b(?:active|mets|passe|lance|démarre|demarre|chuchote|ne parle plus|silencieux|silence)\b"
+                     r"|\ben mode (?:nuit|silencieux|silence)\b", t):
+        # « le mode nuit » tout seul (souvent un mot mal entendu) : on demande plutôt que deviner
+        return "Tu veux que j'active ou que je désactive le mode nuit ?"
     jarvis_voix.forcer_nuit(True)
     return "Mode nuit activé : je te réponds par écrit, sous le réacteur. Les rappels sonnent quand même."
 
@@ -239,7 +253,7 @@ def bluetooth(etat=None):
 
 def commande_bluetooth(t):
     t = _sans_jarvis(t)
-    if not re.search(r"\b(?:bluetooth|blue tooth|bloutouze|blutooth)\b", t):
+    if not re.search(r"\b(?:bluetooth|blue tooth|bloutouze|blutooth|bleu ?tout)\b", t):
         return None
     if re.search(r"\b(?:éteins|eteins|coupe|désactive|desactive|arrête|arrete|stoppe|enlève|enleve)\b", t):
         etat, voulu = "Off", "coupé"

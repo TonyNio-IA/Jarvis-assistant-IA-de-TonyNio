@@ -23,5 +23,9 @@ rappels.json
 liste.json
 reglages_voix.json
 mise_a_jour.json
+enfant.json
+salutation.date
+images_gif.npz
 enregistrements/
 /Installer-Jarvis.exe
+installateur/corps.ps1

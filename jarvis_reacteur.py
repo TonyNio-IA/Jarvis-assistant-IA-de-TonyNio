@@ -87,7 +87,7 @@ AFFICHAGE_RAPIDE = True # True = affichage pygame (60 images/s) ; False = ancien
 
 ETATS = {
     #  nom          couleur      vitesse  pulsation  texte
-    "veille":     ("#23a596",   0.25,    0.04,      "En veille"),
+    "veille":     ("#ff2e97",   0.25,    0.04,      "En veille"),
     "ecoute":     ("#4ff2dc",   0.8,     0.12,      "Je t'écoute"),
     "traitement": ("#ffa53a",   3.0,     0.06,      "Je réfléchis"),
     "reponse":    ("#4fb4ff",   1.0,     0.0,       "Je réponds"),
@@ -97,6 +97,11 @@ ETATS = {
     "arret":      ("#6c7a89",   2.0,     0.0,       "À bientôt"),
     "rappel":     ("#ffe066",   1.6,     0.0,       "Rappel"),
 }
+# En veille, couleurs façon coucher de soleil de Vice City (GTA 6) : rose néon, orange, violet.
+# Le réacteur passe lentement de l'une à l'autre, et la couronne forme un dégradé des trois.
+# Mettre None pour garder la seule couleur de "veille" ci-dessus.
+COULEURS_VEILLE = ("#ff2e97", "#ff8c42", "#9d4dff")
+CYCLE_VEILLE = 12        # secondes pour passer d'une couleur à la suivante
 # ====================
 
 etat_actuel = "demarrage"

@@ -572,6 +572,8 @@ def commande_aide(t):
             "J'ouvre et je ferme les applications, je place les fenêtres, je règle le son, "
             "je mets de la musique sur YouTube, et je fais les raccourcis comme copier ou coller. "
             "Je peux aussi lire ou résumer un texte que tu as copié, et regarder ton écran. "
+            "Dis « active le mode nuit » pour que je réponde par écrit, ou « active le mode enfant » "
+            "pour les vidéos YouTube Kids, les quiz, les devinettes et les longues histoires. "
             "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")
 
 

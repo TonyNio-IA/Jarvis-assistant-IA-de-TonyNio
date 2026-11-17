@@ -96,7 +96,7 @@ def _touche_plus_tard(*codes, repetitions=1):
 
 _NAVIGATION = [
     # « fait défiler », « c'est défilé », « ces défilés » : façons dont « fais défiler » est souvent entendu
-    (r"(?:fais |fait |faire |c'est |ces |ses )?(?:défiler|défile|defile|defiler|défilé|défilés|défilée)"
+    (r"(?:fais |fait |faire |c'est |ces |ses |sais |s'est )?(?:défiler|défile|defile|defiler|défilé|défilés|défilée)"
      r"(?: la page| encore| un peu)?(?: vers le bas| en bas)?|descends|descend|descends la page|plus bas|"
      r"page vers le bas|(?:fais|fait) descendre(?: la page)?", (0x22,), "C'est fait."),
     # « remont », « re monte », « romande », « romante » : façons dont « remonte » est souvent entendu
@@ -296,7 +296,17 @@ _CLIC = re.compile(r"^\W*(?:jarvis\W+)?(?:clique|cliques|clic|clik|cliquer|appui
                    r"choisis|ouvre)\s+(?:sur |dans )?(?P<cible>.+?)\W*$")
 
 
+# « lance la deuxième vidéo », « mets la troisième vidéo », « la deuxième vidéo » (dans un navigateur) ;
+# « lance » est souvent entendu « Lille » ou « Lila »
+_ORDINAL_SANS_CLIC = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:lance|lances|lancer|mets|met|mais|joue|regarde|montre|"
+                                r"prends|prend|lille|lila|lis|lit)(?:-moi| moi)?\s+)?(?:sur\s+)?"
+                                r"(?P<cible>(?:le |la |l')?\S+ (?:vidéo|video|résultat|resultat|lien))\W*$")
+
+
 def commande_clic(t):
+    o = _ORDINAL_SANS_CLIC.match(t.replace("’", "'").lower())
+    if o and o.group("cible").split()[-2] in _ORDINAUX and navigateur_actif():
+        t = "clique sur " + o.group("cible")
     m = _CLIC.match(t.replace("’", "'"))
     if not m:
         return None
@@ -354,6 +364,7 @@ def commande_clic(t):
         choisi = liste[rang - 1] if rang > 0 else liste[-1]
         _activer(choisi)
         nom = re.split(r"\s+(?:https?://|www\.)", _DUREE.sub("", choisi.nom))[0]     # sans l'adresse du site
+        nom = re.sub(r"^(?:Vidéo|Video)\s+", "", nom)          # YouTube Kids : « Vidéo <titre> »
         return f"J'ouvre « {nom[:80]} »."
     cible = re.sub(r"^(?:le |la |l'|les |un |une )?(?:bouton|lien|onglet|case|menu|option|champ|icône|icone|zone)"
                    r"(?: de| du| des| d'| à| a)?\s+", "", cible)
@@ -404,7 +415,7 @@ def texte_principal(texte):
 
 _LIRE_PAGE = re.compile(r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lit|lire|relis)(?:-moi| moi)?\s+(?:cette |la |l'|cet )"
                         r"(?:page|article|site|texte de la page)\W*$")
-PAGE_POUR_CLAUDE = re.compile(r"\b(?:résume|resume|résumer|explique|traduis|traduire|analyse|que dit|de quoi parle|"
+PAGE_POUR_CLAUDE = re.compile(r"\b(?:résume|resume|résumer|résument|résumé|resumé|explique|traduis|traduire|analyse|que dit|de quoi parle|"
                               r"c'est quoi|qu'est-ce que dit)\b.*\b(?:cette page|la page|cet article|l'article|ce site)\b")
 
 

@@ -11,6 +11,7 @@ voix de Windows (jarvis_tts.speak), pour ne jamais rester muet.
 
 import asyncio
 import hashlib
+import random
 import json
 import os
 import queue
@@ -127,8 +128,15 @@ def bandes_spectre(blocs, freq, nb=NB_BANDES):
 _cache = {}         # phrase -> son déjà prêt
 
 
-async def _generer(texte, fichier):
-    await edge_tts.Communicate(texte, VOIX, rate=VITESSE).save(fichier)
+VARIATION_VOIX = True    # chaque phrase prend un ton et un rythme très légèrement différents : plus naturel
+
+
+async def _generer(texte, fichier, varier=False):
+    vitesse, hauteur = VITESSE, "+0Hz"
+    if varier and VARIATION_VOIX:
+        vitesse = f"{int(VITESSE.rstrip('%')) + random.choice((-3, 0, 0, 3)):+d}%"
+        hauteur = random.choice(("-2Hz", "+0Hz", "+0Hz", "+2Hz"))
+    await edge_tts.Communicate(texte, VOIX, rate=vitesse, pitch=hauteur).save(fichier)
 
 
 def _decoder(fichier):
@@ -180,12 +188,12 @@ def _jouer_echantillons(echantillons, freq=FREQ, interruption=None):
         spectre = None
 
 
-def _son_pour(texte):
+def _son_pour(texte, varier=False):
     """Prépare le son d'un texte (génération en ligne + décodage)."""
     nom = hashlib.md5(texte.encode("utf-8")).hexdigest()[:12]
     fichier = os.path.join(tempfile.gettempdir(), f"jarvis_{nom}_{threading.get_ident()}.mp3")
     try:
-        asyncio.run(_generer(texte, fichier))
+        asyncio.run(_generer(texte, fichier, varier))
         return _decoder(fichier)
     finally:
         try:
@@ -213,7 +221,10 @@ def preparer(phrases):
             print("Phrase non préparée :", texte, erreur)
 
 
-NOTES_BIP = ((880, 0.07), (1320, 0.10))    # les deux notes du bip : (fréquence, durée)
+NOTES_BIP = ((880, 0.09), (1320, 0.13))    # les deux notes du bip : (fréquence, durée)
+
+
+VOLUME_BIP = 0.85     # 0 à 1 (0,25 avant le 17/11/2026 : trop faible ; 0,6 encore un peu faible)
 
 
 def bip(attendre=True, toujours=False):
@@ -228,12 +239,32 @@ def bip(attendre=True, toujours=False):
         for hz, duree in NOTES_BIP:
             t = np.linspace(0, duree, int(freq * duree), endpoint=False)
             enveloppe = np.minimum(1, np.minimum(t / 0.008, (duree - t) / 0.03))
-            notes.append(0.25 * np.sin(2 * np.pi * hz * t) * enveloppe)
+            notes.append(VOLUME_BIP * np.sin(2 * np.pi * hz * t) * enveloppe)
         sd.play(np.concatenate(notes).astype(np.float32), freq)
         if attendre:
             sd.wait()
     except Exception as erreur:
         print("Bip impossible :", erreur)
+
+
+NOTES_FIN = ((1568, 0.07), (1319, 0.07), (1047, 0.16))   # petit carillon descendant : « c'est prêt »
+
+
+def son_fini():
+    """Petit carillon joué quand une longue tâche est terminée, juste avant la réponse (pas en mode nuit)."""
+    if sd is None or mode_nuit():
+        return
+    try:
+        freq = 44100
+        notes = []
+        for hz, duree in NOTES_FIN:
+            t = np.linspace(0, duree, int(freq * duree), endpoint=False)
+            enveloppe = np.minimum(1, t / 0.006) * np.exp(-t * 9)
+            notes.append(0.5 * VOLUME_BIP * np.sin(2 * np.pi * hz * t) * enveloppe)
+        sd.play(np.concatenate(notes).astype(np.float32), freq)
+        sd.wait()
+    except Exception as erreur:
+        print("Son de fin impossible :", erreur)
 
 
 def _decouper(texte):
@@ -285,7 +316,7 @@ def speak(texte, interruption=None, toujours=False):
             if arret.is_set():
                 return
             try:
-                sons.put(_son_pour(morceau))
+                sons.put(_son_pour(morceau, varier=True))
             except Exception as erreur:
                 sons.put(erreur)
                 return
