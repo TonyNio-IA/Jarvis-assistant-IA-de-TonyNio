@@ -25,7 +25,9 @@ la réponse est immédiate et ton quota Claude est économisé.
     le volume d'une seule application et le mode sombre, voir jarvis_pratique.py ;
   - le navigateur (« clique sur … », défilement, retour, lire une page, chercher sur un site),
     voir jarvis_web.py ;
-  - le mode nuit, la voix et sa vitesse, la luminosité et le Bluetooth, voir jarvis_reglages.py.
+  - le mode nuit, la voix et sa vitesse, la luminosité et le Bluetooth, voir jarvis_reglages.py ;
+  - les prix des carburants, les vacances scolaires et jours fériés, l'éphéméride et les jours
+    de ramassage des poubelles, voir jarvis_infos.py.
 Les applications que tu ouvres souvent sont retenues (applications.json) : Jarvis les reconnaît
 ensuite même quand leur nom est mal entendu (« immo » pour Imou).
 Tout ce qui n'est pas reconnu ici est envoyé à Claude, comme avant.
@@ -49,6 +51,13 @@ import jarvis_enfant
 import jarvis_mails
 import jarvis_vigilance
 import jarvis_extras
+import jarvis_infos
+import jarvis_freebox
+import jarvis_agenda
+import jarvis_imprimante
+import jarvis_tele
+import jarvis_appletv
+import jarvis_personnalite
 import jarvis_accueil
 import jarvis_profils
 import jarvis_locuteur
@@ -485,7 +494,7 @@ def _message_pour(r):
     return f"{pour}, " + message[:1].lower() + message[1:]
 
 
-def _ajouter_rappel(quand, message, nom=None):
+def _ajouter_rappel(quand, message, nom=None, repete=None):
     with _verrou_rappels:
         rappels = _lire_rappels()
         rappel = {"quand": quand, "message": message, "debut": time.time()}
@@ -493,6 +502,8 @@ def _ajouter_rappel(quand, message, nom=None):
             rappel["pour"] = _pour_qui()
         if nom:
             rappel["nom"] = nom
+        if repete:                                   # jours de la semaine (0 = lundi) où le rappel revient
+            rappel["repete"] = sorted(set(repete))
         rappels.append(rappel)
         _ecrire_rappels(rappels)
 
@@ -514,6 +525,29 @@ def _heure_parlee(h, m):
     return f"{h} heure{'s' if h > 1 else ''}{f' {m}' if m else ''}"
 
 
+def _prochaine_fois(jours, h, m, apres):
+    """Prochain moment (horodatage) après `apres`, à h:m, un des `jours` de la semaine (0 = lundi)."""
+    base = datetime.datetime.fromtimestamp(apres)
+    for ecart in range(0, 8):
+        jour = base + datetime.timedelta(days=ecart)
+        cible = jour.replace(hour=h, minute=m, second=0, microsecond=0)
+        if cible.weekday() in jours and cible.timestamp() > apres:
+            return cible.timestamp()
+    return apres + 7 * 86400
+
+
+def _repetition_dite(jours):
+    jours = sorted(set(jours))
+    if jours == list(range(7)):
+        return "tous les jours"
+    if jours == list(range(5)):
+        return "du lundi au vendredi"
+    if jours == [5, 6]:
+        return "le week-end"
+    noms = [JOURS[j] + "s" for j in jours]
+    return "tous les " + (noms[0] if len(noms) == 1 else ", ".join(noms[:-1]) + " et " + noms[-1])
+
+
 def demarrer_rappels(annoncer):
     """Surveille les rappels en arrière-plan et les fait dire par « annoncer »."""
     def boucle():
@@ -524,7 +558,12 @@ def demarrer_rappels(annoncer):
                     rappels = _lire_rappels()
                     dus = [r for r in rappels if r["quand"] <= maintenant]
                     if dus:
-                        _ecrire_rappels([r for r in rappels if r["quand"] > maintenant])
+                        garde = [r for r in rappels if r["quand"] > maintenant]
+                        for r in dus:                # un rappel répété est reprogrammé, pas supprimé
+                            if r.get("repete"):
+                                q = time.localtime(r["quand"])
+                                garde.append(dict(r, quand=_prochaine_fois(r["repete"], q.tm_hour, q.tm_min, maintenant)))
+                        _ecrire_rappels(garde)
                 for r in dus:
                     jarvis_famille.noter_rappel_fait(r)
                     if maintenant - r["quand"] > 120:      # le PC était éteint à ce moment-là
@@ -687,6 +726,39 @@ def _heure_fixe(t):
     return h, m
 
 
+_JOUR_RE = r"(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)"
+# Les façons de dire quand un rappel revient (ou le jour où il sonne) : retirées ensuite du texte du rappel
+_QUAND_JOURS = re.compile(
+    r"\b(?:tous les jours|chaque jour|chaque matin|tous les matins|chaque soir|tous les soirs|quotidiennement|"
+    r"en semaine|les jours de semaine|(?:tous )?les jours ouvr[ée]s|du lundi au vendredi|"
+    r"(?:le|les|chaque|tous les) week[- ]?ends?|"
+    r"(?:tous les|chaque|les|le|ce)\s+" + _JOUR_RE + r"s?(?:\s+prochain)?(?:\s*(?:,|et)\s*(?:les?\s+)?" + _JOUR_RE + r"s?)*|"
+    + _JOUR_RE + r"s?(?:\s+prochain)?(?:\s*(?:,|et)\s*(?:les?\s+)?" + _JOUR_RE + r"s?)*)\b")
+
+
+def _jours_du_rappel(t):
+    """(jours de la semaine, répété ?) d'après la demande, ou (None, False) si aucun jour n'est dit.
+    « tous les lundis » ou « les lundis » : répété ; « lundi » ou « lundi prochain » : une seule fois."""
+    if re.search(r"\b(tous les jours|chaque jour|chaque matin|tous les matins|chaque soir|tous les soirs|quotidiennement)\b", t):
+        return list(range(7)), True
+    if re.search(r"\b(en semaine|les jours de semaine|jours ouvr[ée]s|du lundi au vendredi)\b", t):
+        return list(range(5)), True
+    # « le week-end », « le lundi » : une habitude ; « ce week-end », « lundi », « lundi prochain » : une seule fois
+    if re.search(r"\b(?:le|les|chaque|tous les) week[- ]?ends?\b", t):
+        return [5, 6], True
+    if re.search(r"\bce week[- ]?end\b", t):
+        return [5], False
+    m = _QUAND_JOURS.search(t)
+    if not m:
+        return None, False
+    morceau = m.group(0)
+    jours = [JOURS.index(j) for j in re.findall(_JOUR_RE, morceau)]
+    habitude = morceau.startswith("le ") and not re.search(r"\bprochain\b", morceau) \
+        and not re.match(r"\s*\d", t[m.end():])      # « le lundi 23 » : une date, une seule fois
+    repete = bool(re.search(r"\b(tous les|chaque)\b", morceau) or re.search(_JOUR_RE + r"s\b", morceau) or habitude)
+    return sorted(set(jours)), repete
+
+
 def _commande_rappel(t):
     if not re.search(r"\b(rappelle|rappels?|préviens|réveille|reveille|réveil|alarmes?|minuteurs?)\b", t):
         return None
@@ -713,6 +785,8 @@ def _commande_rappel(t):
             q = time.localtime(r["quand"])
             jour = "" if q.tm_yday == time.localtime().tm_yday else "demain " \
                 if q.tm_yday == time.localtime(time.time() + 86400).tm_yday else f"le {q.tm_mday} "
+            if r.get("repete"):
+                jour = _repetition_dite(r["repete"]) + " "
             phrases.append(f"{jour}à {_heure_parlee(q.tm_hour, q.tm_min)} : {r['message']}")
         return f"Tu as {len(rappels)} rappel{'s' if len(rappels) > 1 else ''}. " + " ".join(phrases)
     if not re.search(r"\b(rappelle|préviens|réveille|reveille|alarme|réveil|rappel)\b", t):
@@ -725,19 +799,28 @@ def _commande_rappel(t):
     if heure is None:
         return None
     h, m = heure
+    jours, repete = _jours_du_rappel(t)
     decalage = 2 if re.search(r"après[- ]demain", t) else 1 if "demain" in t else 0
     maintenant = datetime.datetime.now()
     cible = maintenant.replace(hour=h, minute=m, second=0, microsecond=0) + datetime.timedelta(days=decalage)
     if cible <= maintenant:
         cible += datetime.timedelta(days=1)
         decalage = 1
+    if jours:                                    # un jour de la semaine est dit : le prochain de ces jours
+        apres = maintenant + datetime.timedelta(days=7) if re.search(r"\bprochain\b", t) and not repete \
+            and maintenant.weekday() in jours else maintenant
+        cible = datetime.datetime.fromtimestamp(_prochaine_fois(jours, h, m, apres.timestamp()))
+        decalage = (cible.date() - maintenant.date()).days
+    t = _QUAND_JOURS.sub(" ", t) if jours else t     # « tous les lundis » ne fait pas partie du texte du rappel
+    t = re.sub(r"\s+", " ", t).strip()
     texte = None
     trouve = re.search(r"(?:rappelle|préviens)[- ]moi (?:de |d')(.+?)\s+(?:à|a|demain|après[- ]demain|ce soir)\b", t)
     if trouve:
         texte = trouve.group(1)
     else:
         # Le texte du rappel est ce qui suit « de » ou « d' », après l'heure
-        heure_dite = re.search(r"\d{1,2}\s?h|\bheures?\b|\bmidi\b|\bminuit\b", t)
+        # « 14 heures » en entier (sinon « 14 h » était reconnu au milieu et le rappel devenait « eures… »)
+        heure_dite = re.search(r"\d{1,2}\s?(?:heures?|h)\b|\bheures?\b|\bmidi\b|\bminuit\b", t)
         if heure_dite:
             # ce qui suit l'heure, une fois retirés les minutes et « du matin », « de », « pour »...
             suite = t[heure_dite.end():].replace("-", " ").split()
@@ -753,8 +836,13 @@ def _commande_rappel(t):
         message = f"Il est {_heure_parlee(h, m)}, c'est l'heure de te réveiller."
     else:
         message = f"Il est {_heure_parlee(h, m)}, c'est l'heure de ton rappel."
-    _ajouter_rappel(cible.timestamp(), message)
-    jour = ("demain " if decalage == 1 else "après-demain " if decalage == 2 else "")
+    _ajouter_rappel(cible.timestamp(), message, repete=jours if repete else None)
+    if repete:
+        return f"C'est noté, je te préviendrai {_repetition_dite(jours)} à {_heure_parlee(h, m)}."
+    if jours and decalage > 2:
+        jour = f"{JOURS[cible.weekday()]} {cible.day} "
+    else:
+        jour = ("demain " if decalage == 1 else "après-demain " if decalage == 2 else "")
     return f"C'est noté, je te préviendrai {jour}à {_heure_parlee(h, m)}."
 
 
@@ -1201,8 +1289,11 @@ def _commande_musique(t):
         if re.search(r"\b(vidéo|video|musique|chanson|youtube|dessin animé|clip)\b", t):
             return "Dis-moi quelle vidéo tu veux, par exemple : mets une vidéo de dinosaures."
         # « mets la Reine des neiges » : un titre, cherché sur YouTube Kids
+        # (une phrase mal entendue, « mets menpoie là-t-il que je restais », n'est pas un titre : trop longue,
+        #  ou avec des mots de phrase comme « je », « que », « hein »)
         if re.match(r"\W*(mets|mets-moi|joue|joue-moi)\s+(?!à |a |en |au |aux |sur |dans |ça |le pc|l'ordi)\S+\s+\S+", t) \
-                and not re.search(_PAS_UN_TITRE, t):
+                and not re.search(_PAS_UN_TITRE, t) and len(t.split()) <= 7 \
+                and not re.search(r"\b(?:je|j'|tu|il|elle|on|que|qu'|hein|est-ce|pourquoi|comment|quoi|là-t-il)\b|,", t):
             titre = re.sub(r"^\W*(mets-moi|mets|joue-moi|joue)\s+", "", t)
             titre = re.sub(r"^(?:la |le |les |l'|un |une |des )", "", titre).strip(" .!?")
             return jarvis_enfant.commande_web("mets une vidéo de " + titre)
@@ -1404,6 +1495,12 @@ def commande_instantanee(textes, annoncer=None):
     if not confirmation_en_attente() and any(deux_demandes(_propre(b)) for b in textes if b):
         return None
     if not confirmation_en_attente():
+        # Apple TV d'abord : « mets YouTube sur l'Apple TV » ne doit pas partir en musique ou en recherche YouTube
+        for brut in textes:
+            if brut and jarvis_appletv._APPLE_TV.search(_propre(brut)):
+                reponse = jarvis_appletv.commande(_propre(brut), enfant=jarvis_enfant.actif())
+                if reponse:
+                    return reponse
         reponse = (_ville_parmi(textes) or jarvis_famille.musique_parmi(textes) or jarvis_pratique.liste_parmi(textes)
                    or (jarvis_web.clic_parmi(textes) if any(jarvis_web._CLIC.match(_propre(x)) or jarvis_web._ORDINAL_SANS_CLIC.match(_propre(x))
                                                      for x in textes if x)
@@ -1443,7 +1540,12 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_profils.refus(t),
                              lambda: jarvis_extras.commande_invite(t),
                              lambda: jarvis_extras.refus_invite(t),
+                             lambda: jarvis_mails.commande_envoi(t, brut, demander_confirmation,
+                                                                 enfant=jarvis_enfant.actif(),
+                                                                 invite=jarvis_extras.invite()),
                              lambda: jarvis_mails.commande(t, enfant=jarvis_enfant.actif()),
+                             lambda: jarvis_appletv.commande(t, enfant=jarvis_enfant.actif()),
+                             lambda: jarvis_tele.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_vigilance.commande(t),
                              lambda: jarvis_maj.commande(t, demander_confirmation),
                              lambda: jarvis_extras.commande_cinema(t),
@@ -1453,11 +1555,16 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_extras.commande_dernier_telechargement(t),
                              lambda: jarvis_extras.commande_ou_jen_etais(t),
                              lambda: jarvis_extras.commande_etape(t),
+                             lambda: jarvis_personnalite.commande(t),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
                              lambda: jarvis_reglages.commande_voix(t),
                              lambda: jarvis_reglages.commande_luminosite(t),
                              lambda: jarvis_reglages.commande_bluetooth(t),
                              lambda: jarvis_pratique.commande_liste(t),
+                             lambda: jarvis_infos.commande(t, enfant=jarvis_enfant.actif()),
+                             lambda: jarvis_freebox.commande(t),
+                             lambda: jarvis_imprimante.commande(t),
+                             lambda: jarvis_agenda.commande(t),
                              lambda: _commande_memoire(brut),
                              lambda: jarvis_extras.commande_anniversaire(t, brut),
                              lambda: _commande_routine(t),

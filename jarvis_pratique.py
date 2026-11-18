@@ -520,7 +520,7 @@ def _commande_liste(t):
     # Enlever
     m = re.match(r"^\W*(?:jarvis\W+)?(?:enlève|enleve|enlever|retire|retirer|supprime|supprimer|raye|rayer|efface|"
                  r"effacer|barre|barrer)\s+(?P<quoi>.+?)\s+(?:de|d'|du|sur)\s*" + _NOM_LISTE + r"\W*$", t)
-    if m and not re.fullmatch(r"(?:la |ma )?liste|tout|tous", m.group("quoi")):
+    if m and not re.fullmatch(r"(?:la |ma )?liste|tout(?: ce qu'il y a)?|tous|tout le reste", m.group("quoi")):
         nom = _quelle_liste(m.group("quelle"))
         cherche = _sans_article(m.group("quoi"))
         with _verrou_liste:
@@ -534,8 +534,9 @@ def _commande_liste(t):
             _ecrire_listes(listes)
         return f"J'enlève {retire} de ta liste de {nom}."
     # Vider
-    m = re.match(r"^\W*(?:jarvis\W+)?(?:vide|vider|efface|effacer|supprime|supprimer|remets à zéro)\s+(?:tout\s+)?"
-                 + _NOM_LISTE + r"\W*$", t)
+    # « vide la liste », « supprime tout de la liste des courses », « efface tout ce qu'il y a sur ma liste »
+    m = re.match(r"^\W*(?:jarvis\W+)?(?:vide|vider|efface|effacer|supprime|supprimer|enlève|enleve|retire|remets à zéro)\s+"
+                 r"(?:tout\s+(?:ce qu'il y a\s+)?(?:(?:de|du|sur|dans)\s+)?)?" + _NOM_LISTE + r"\W*$", t)
     if m:
         nom = _quelle_liste(m.group("quelle"))
         with _verrou_liste:
@@ -568,7 +569,8 @@ def commande_aide(t):
     if not _AIDE.search(t.replace("’", "'")):
         return None
     return ("Je réponds tout de suite à l'heure, la météo, les calculs et les conversions. "
-            "Je gère les minuteurs, les rappels, le réveil, le chronomètre et ta liste de courses. "
+            "Je gère les minuteurs, les rappels, même répétés comme « tous les lundis à 20 heures », "
+            "le réveil, le chronomètre et ta liste de courses. "
             "J'ouvre et je ferme les applications, je place les fenêtres, je règle le son, "
             "je mets de la musique sur YouTube, et je fais les raccourcis comme copier ou coller. "
             "Je peux aussi lire ou résumer un texte que tu as copié, et regarder ton écran. "
@@ -578,6 +580,12 @@ def commande_aide(t):
             "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. "
             "Il y a aussi le mode cinéma et le mode invité. "
             "Pour la famille : les profils, le calendrier, les messages, le quiz, les devoirs et le défi du jour. "
+            "Je connais aussi le prix des carburants près de chez toi, les vacances scolaires, les jours fériés, "
+            "l'éphéméride du jour, et je te rappelle quelle poubelle sortir. "
+            "Avec la Freebox : qui t'a appelé, l'état d'Internet, les appareils connectés et un Wi-Fi invité avec "
+            "son QR code. Je pilote aussi la télé et l'Apple TV, je regarde l'encre de l'imprimante, je lis ton "
+            "agenda iCloud, et j'envoie un mail après ton accord. "
+            "Tu peux aussi régler ma façon de te parler : plus bref, plus détaillé, plus ou moins d'humour. "
             "Et dis « ouvre les réglages » pour tout régler, avec l'aide complète. "
             "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")
 

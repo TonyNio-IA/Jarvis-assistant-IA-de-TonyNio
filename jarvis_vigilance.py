@@ -93,11 +93,17 @@ def _carte_donnees_ouvertes():
         if erreur.code == 304:                          # rien de nouveau depuis la dernière fois
             return _carte_ouverte["carte"]
         raise
-    annee = max(arbre)
-    mois = max(arbre[annee])
-    jour = max(arbre[annee][mois])
-    heures = sorted(h for h, fichiers in arbre[annee][mois][jour].items() if "CDP_CARTE_EXTERNE.json" in fichiers)
-    carte = _telecharger(f"{OUVERT}metropole/{annee}/{mois}/{jour}/{heures[-1]}/CDP_CARTE_EXTERNE.json", delai=20)
+    # La carte la plus récente, tous jours confondus : juste après minuit, le dossier du nouveau jour
+    # existe déjà mais ne contient pas encore de carte (il faut alors prendre celle de la veille).
+    publiees = [(annee, mois, jour, heure)
+                for annee, les_mois in arbre.items() if isinstance(les_mois, dict)
+                for mois, les_jours in les_mois.items() if isinstance(les_jours, dict)
+                for jour, les_heures in les_jours.items() if isinstance(les_heures, dict)
+                for heure, fichiers in les_heures.items() if "CDP_CARTE_EXTERNE.json" in (fichiers or [])]
+    if not publiees:
+        raise ValueError("aucune carte de vigilance publiée")
+    annee, mois, jour, heure = max(publiees)
+    carte = _telecharger(f"{OUVERT}metropole/{annee}/{mois}/{jour}/{heure}/CDP_CARTE_EXTERNE.json", delai=20)
     _carte_ouverte.update(modifie=modifie, carte=carte)
     return carte
 

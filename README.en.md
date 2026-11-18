@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.24**
+**Français : [README.md](README.md)** · **Current version: 1.25**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -29,6 +29,18 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Aide** (help): every command by theme, with search.
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
+
+## New in 1.25: the home, the calendar and mails
+
+<p align="center"><img src="docs/wifi_invite_qr.png" alt="The guest Wi-Fi QR code: guests scan it with their phone camera" width="360"></p>
+
+- **TV and Apple TV**: « allume la télé », « mets France 2 », « monte le son de la télé », « lance Netflix sur l'Apple TV », « qu'est-ce qui passe sur l'Apple TV ? ». See [The home](#the-home).
+- **Freebox** (French internet box): missed calls, internet status, connected devices, and a **guest Wi-Fi** created by voice, with a **QR code** on screen for guests to scan (the password is never spoken aloud).
+- **Printer**: « il reste combien d'encre ? » (ink levels).
+- **iCloud calendar**: « c'est quand le dentiste ? », « qu'est-ce que j'ai cette semaine ? », and a reminder the evening before. See [iCloud calendar](#icloud-calendar).
+- **Sending mails**: « envoie un mail à Marie pour lui dire que je serai en retard ». Jarvis reads it out and shows it, and sends it only after your « oui ».
+- **Everyday info**: cheapest fuel nearby, school holidays and bank holidays, "on this day", bin collection days with a reminder the evening before.
+- **Repeating reminders** (« tous les lundis à 8 h »), a **speaking style** per profile (shorter, more humour, formal "vous"), and **background tasks** handed to Claude (« prends ton temps et compare les forfaits mobiles »).
 
 ## What you need
 
@@ -144,8 +156,22 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Night mode now turns on only when you ask for it, no longer at fixed hours.
 
 **Mails, only when you ask** (« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails », « lis-moi le premier mail »)
-- Read-only: Jarvis never sends, deletes or moves a mail, mails stay unread, and their content is not sent to Claude.
+- Jarvis never deletes or moves a mail, mails stay unread, and their content is not sent to Claude.
 - One-time setup in PowerShell: `cmdkey /generic:Jarvis-Mails /user:your.address@icloud.com /pass` (Windows then asks for the password, stored by Windows, never in a file). For iCloud, use an app-specific password from account.apple.com. Other providers: `"mails": {"serveur": "imap.gmail.com"}` in `config.json`.
+- Sending (new in 1.25, same password): « envoie un mail à Marie pour lui dire que je serai en retard », « envoie-moi un mail pour me rappeler d'appeler le garage ». Jarvis reads the mail out and shows it with the address, then waits for your « oui »: nothing is sent without it. The recipient is looked up in your iCloud contacts that have an email address and among people you already wrote to; a copy is kept in your Sent folder. Refused in kids and guest modes.
+
+<a id="icloud-calendar"></a>**iCloud calendar** (new in 1.25)
+- On the iPhone: Calendar app, « Calendars », the **i** next to the calendar, turn on « Public Calendar », then « Share Link ». Store the link once in Windows: `cmdkey /generic:Jarvis-Agenda /user:agenda /pass`, and paste the link when Windows asks for the password. It is never written to a file.
+- Then: « c'est quand le dentiste ? », « c'est quand mon prochain rendez-vous ? », « qu'est-ce que j'ai cette semaine ? ». At 7 pm, Jarvis reminds you of the next day's appointments. A new appointment is seen within about a minute.
+
+<a id="the-home"></a>**The home** (new in 1.25; everything stays on your local network, each device is paired once)
+- **Freebox**: say « connecte-toi à la Freebox » and confirm on the box's screen; then tick the "Jarvis" app's rights in Freebox OS (access management) for settings and calls. « Est-ce que j'ai eu des appels ? », « est-ce qu'Internet marche ? », « combien d'appareils sont connectés ? », « crée un Wi-Fi invité pour 2 heures » (a QR code opens on screen), « montre le QR code du Wi-Fi invité », « ferme le Wi-Fi invité ».
+- **TV (Freebox Player POP or another Android TV)**: say « associe la télé » and type the code shown on the TV. Then « allume la télé », « mets France 2 », « mets la chaîne 27 », « monte le son de la télé de 5 », « mets la télé en pause », « lance Netflix sur la télé ».
+- **Apple TV**: say « associe l'Apple TV » and type the two 4-digit codes. Then « allume l'Apple TV », « mets l'Apple TV en pause », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (any installed app).
+- **Network printer** (HP, Canon, Epson, Brother...): « il reste combien d'encre ? », « l'imprimante est allumée ? ». Read-only.
+- **Imou / Dahua cameras** (in progress): « ajoute les caméras » opens a window to type each camera's security code, stored by Windows. Showing the picture by voice will come in a later version.
+
+**Also new in 1.25**: fuel prices (« combien coûte le gazole ? »), school holidays and bank holidays, "on this day" (« qu'est-ce qui s'est passé un jour comme aujourd'hui ? »), bin days (« la poubelle jaune passe le mercredi des semaines paires », reminder at 6 pm the day before), repeating reminders (« tous les lundis à 8 h »), speaking style per profile (« réponds-moi plus brièvement », « mets plus d'humour », « vouvoie-moi »), background tasks (« en tâche de fond, compare… », « où en est ma recherche ? »), and safer listening: a « stop » misheard in background noise no longer cuts Jarvis off mid-answer.
 
 **Kids mode** (« active le mode enfant »)
 - Videos and music open on YouTube Kids, Google searches use SafeSearch, shopping sites are not opened, and Claude answers in simple words.
@@ -198,6 +224,17 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_sante.py` | Self-check and crash report |
 | `jarvis_accueil.py` | Guided first run for new users |
 | `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
+| `jarvis_infos.py` | Fuel prices, school holidays, bank holidays, "on this day", bin days |
+| `jarvis_agenda.py` | The iCloud calendar (public link) and the evening-before reminder |
+| `jarvis_freebox.py` | The Freebox: calls, internet status, connected devices, guest Wi-Fi |
+| `jarvis_fenetre_qr.py` | The guest Wi-Fi QR code window (drawn on screen, never saved) |
+| `jarvis_tele.py` | The TV through the Freebox Player or another Android TV |
+| `jarvis_appletv.py` | The Apple TV |
+| `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |
+| `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Pairing windows (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
+| `jarvis_personnalite.py` | Each profile's speaking style (length, humour, "vous") |
+| `jarvis_taches.py` | Background tasks handed to Claude Code |
+| `jarvis_motappel.py` | An optional "Jarvis" wake-word detector (openWakeWord computation, Apache 2.0). It only works with a separately trained model, not provided; without it, it stays off and Jarvis listens as usual |
 | `jarvis_affichage.py` | Fast drawing of the reactor and the panel (pygame) |
 | `jarvis_systeme.py` | PC monitoring (processor, memory, graphics, network) |
 | `jarvis_tts.py` | The fallback Windows voice |
@@ -216,6 +253,8 @@ Jarvis is published under the **PolyForm Strict 1.0.0** license (file `LICENSE.m
 - you may download it and use it at home, for personal and noncommercial use;
 - you may not modify it, or publish a copy or your own version of it;
 - new features arrive with the versions published here.
+
+Jarvis relies on free modules installed with it, among them Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, TV), pyatv (MIT, Apple TV) and segno (BSD, QR code). Some 1.25 ideas (everyday info, speaking style, background tasks, wake word) come from the [Cornelius](https://github.com/lfpoulain/Cornelius) project by Les Frères Poulain (MIT license), rewritten for Jarvis.
 
 An idea, a bug, a missing command? Open a request in the **Issues** tab, in French or in English: that is the way to move the project forward.
 

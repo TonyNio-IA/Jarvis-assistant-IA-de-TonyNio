@@ -132,6 +132,8 @@ def _ecrire(liste):
     try:
         with open(FICHIER, "w", encoding="utf-8") as f:
             json.dump([list(x) for x in liste], f, ensure_ascii=False, indent=1)
+        # mémoire à jour tout de suite : deux écritures rapprochées peuvent garder la même date de fichier
+        _cache.update(date=os.path.getmtime(FICHIER), liste=[(_norm(a), _norm(b)) for a, b in liste])
         return True
     except OSError as erreur:
         print("Corrections :", erreur)

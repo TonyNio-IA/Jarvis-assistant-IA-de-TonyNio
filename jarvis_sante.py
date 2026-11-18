@@ -51,6 +51,8 @@ def phrase_reprise():
         return None
     if infos.get("cause") == "micro":
         return "Le micro ne répondait plus, je me suis relancé. Tout est reparti."
+    if infos.get("cause") == "mise_a_jour":       # relancé depuis le PC après des améliorations (tests/redemarrer_jarvis.py)
+        return "Je me suis relancé avec les dernières améliorations. Je t'écoute."
     return "J'ai rencontré un souci et je me suis relancé tout seul. Tout est reparti."
 
 

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.24**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.25**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -29,6 +29,18 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Aide** : toutes les commandes rangées par thème, avec une recherche.
 - **Santé** : un diagnostic en un clic (micro, haut-parleur, reconnaissance vocale, Claude, connexion, disque).
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
+
+## Nouveau en 1.25 : la maison, l'agenda et les mails
+
+<p align="center"><img src="docs/wifi_invite_qr.png" alt="Le QR code du Wi-Fi invité : les invités le scannent avec l'appareil photo du téléphone" width="360"></p>
+
+- **Télé et Apple TV** : « allume la télé », « mets France 2 », « monte le son de la télé », « lance Netflix sur l'Apple TV », « qu'est-ce qui passe sur l'Apple TV ? ». Voir [La maison](#la-maison).
+- **Freebox** : appels manqués, état d'Internet, appareils connectés, et un **Wi-Fi invité** créé à la voix, avec un **QR code** à l'écran que les invités scannent (le mot de passe n'est jamais dit à voix haute).
+- **Imprimante** : « il reste combien d'encre ? ».
+- **Agenda iCloud** : « c'est quand le dentiste ? », « qu'est-ce que j'ai cette semaine ? », et un rappel la veille au soir. Voir [Agenda iCloud](#agenda-icloud).
+- **Envoi de mails** : « envoie un mail à Marie pour lui dire que je serai en retard ». Jarvis le lit et l'affiche, et ne l'envoie qu'après ton « oui ».
+- **Infos pratiques** : prix des carburants autour de chez toi, vacances scolaires et jours fériés, éphéméride, jours des poubelles avec un rappel la veille.
+- **Rappels qui se répètent** (« tous les lundis à 8 h »), **façon de parler** de chaque profil (plus court, plus d'humour, vouvoiement), et **tâches de fond** confiées à Claude (« prends ton temps et compare les forfaits mobiles »).
 
 ## Ce qu'il te faut
 
@@ -152,6 +164,16 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Son.
 - Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
 - Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
+- Carburants : « combien coûte le gazole ? », « le prix du sans-plomb 98 » : la station la moins chère près de ta ville (prix officiels). « Mon carburant, c'est le gazole » pour ne plus le préciser.
+- Vacances et jours fériés : « c'est quand les prochaines vacances ? », « c'est quand la rentrée ? », « est-ce que demain est férié ? » (la zone scolaire est retrouvée à partir de ta ville).
+- Éphéméride : « qu'est-ce qui s'est passé un jour comme aujourd'hui ? ».
+- Poubelles : « la poubelle jaune passe le mercredi des semaines paires », « le verre, c'est le premier vendredi du mois » ; Jarvis le rappelle la veille à 18 h. « Quelle poubelle je sors ce soir ? », « arrête les rappels de poubelles ».
+- Rappels qui se répètent : « rappelle-moi tous les lundis à 8 h de sortir les bacs », « en semaine à 7 h 30 », « tous les jours à 21 h ».
+- Façon de parler, pour chaque personne du foyer : « réponds-moi plus brièvement », « donne-moi des réponses plus détaillées », « mets plus d'humour », « vouvoie-moi », « parle-moi normalement ».
+- Tâches de fond, confiées à Claude pendant que Jarvis reste disponible : « en tâche de fond, compare les trois meilleurs aspirateurs robots », « prends ton temps et trouve des idées de sorties ce week-end », puis « où en est ma recherche ? ». Une à la fois, seulement sur demande (cela consomme du quota Claude).
+- Agenda iCloud : « c'est quand le dentiste ? », « c'est quand mon prochain rendez-vous ? », « qu'est-ce que j'ai cette semaine ? » ; rappel la veille à 19 h. Voir [Agenda iCloud](#agenda-icloud).
+- La maison : télé (Freebox Player), Apple TV, Freebox (appels, Internet, appareils, Wi-Fi invité avec QR code), imprimante. Voir [La maison](#la-maison).
+- Écoute plus sûre : un « stop » cru entendu dans le bruit ne coupe plus Jarvis en pleine réponse ; « Jarvis, redémarre » tout court suffit ; « non, c'est moi Marie » change bien de profil.
 
 ## Mails
 
@@ -162,6 +184,26 @@ cmdkey /generic:Jarvis-Mails /user:ton.adresse@icloud.com /pass
 ```
 
 Windows demande alors le mot de passe (il ne s'affiche pas pendant la frappe). Avec iCloud, ce n'est pas ton mot de passe Apple mais un **mot de passe pour app**, à créer sur account.apple.com, rubrique « Connexion et sécurité », puis « Mots de passe pour app ». Jarvis utilise iCloud par défaut ; pour une autre messagerie, ajoute dans `config.json` par exemple `"mails": {"serveur": "imap.gmail.com"}`. Pour retirer l'accès : `cmdkey /delete:Jarvis-Mails`.
+
+**Envoyer un mail** (même mot de passe, rien à ajouter) : « envoie un mail à Marie pour lui dire que je serai en retard », « écris un mail à Marie : on mange à 20 heures », « envoie-moi un mail pour me rappeler d'appeler le garage ». Jarvis lit le mail et l'affiche avec l'adresse, puis attend ton « **oui** » : sans lui, rien ne part. Le destinataire est cherché dans tes contacts iCloud qui ont une adresse mail, et parmi les personnes à qui tu as déjà écrit ; s'il y a deux Marie, Jarvis demande le nom de famille. Une copie est gardée dans tes « Envoyés ». Refusé en mode enfant et en mode invité.
+
+## Agenda iCloud
+
+Jarvis lit ton agenda iCloud grâce à son lien public, sans compte ni mot de passe. Sur l'iPhone : app Calendrier, touche « Calendriers », le **i** à côté de l'agenda, active « Calendrier public », puis « Partager le lien ». Range ce lien une fois dans Windows (il n'est écrit dans aucun fichier) : dans PowerShell, `cmdkey /generic:Jarvis-Agenda /user:agenda /pass`, puis colle le lien quand Windows demande le mot de passe.
+
+Ensuite : « c'est quand le dentiste ? », « c'est quand mon prochain rendez-vous ? », « qu'est-ce que j'ai cette semaine ? », « qu'est-ce qu'on a demain ? » (avec le calendrier familial de Jarvis). La veille à 19 h, Jarvis rappelle les rendez-vous du lendemain. Un rendez-vous ajouté sur l'iPhone est vu au bout d'une minute environ. Pour retirer l'accès : `cmdkey /delete:Jarvis-Agenda`.
+
+## La maison
+
+Tout se passe sur ton réseau, sans compte ni service en ligne. Chaque appareil s'associe une seule fois.
+
+- **Freebox** : dis « **connecte-toi à la Freebox** », puis valide sur l'écran de la box. Ensuite : « est-ce que j'ai eu des appels ? », « est-ce qu'Internet marche ? », « combien d'appareils sont connectés ? ». Pour le Wi-Fi invité et le journal des appels, coche ensuite les droits de l'application « Jarvis » dans Freebox OS (Paramètres de la Freebox, Gestion des accès, onglet Applications), notamment la modification des réglages de la Freebox et l'accès aux appels. Puis « **crée un Wi-Fi invité pour 2 heures** » : Jarvis ouvre un **QR code** à l'écran, que tes invités scannent avec l'appareil photo de leur téléphone. Le mot de passe n'est jamais dit à voix haute. « Montre le QR code du Wi-Fi invité », « ferme le Wi-Fi invité ».
+- **Télé (Freebox Player POP ou autre Android TV)** : dis « **associe la télé** » et tape le code qui s'affiche sur l'écran. Ensuite : « allume la télé », « éteins la télé », « mets France 2 », « mets la chaîne 27 », « chaîne suivante », « monte le son de la télé de 5 », « coupe le son de la télé », « mets la télé en pause », « lance Netflix sur la télé ».
+- **Apple TV** : dis « **associe l'Apple TV** » et tape les deux codes à 4 chiffres qui s'affichent. Ensuite : « allume l'Apple TV », « mets l'Apple TV en pause », « reprends l'Apple TV », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (n'importe quelle app installée).
+- **Imprimante réseau** (HP, Canon, Epson, Brother...) : rien à régler. « Il reste combien d'encre ? », « l'imprimante est allumée ? » : niveaux d'encre, papier manquant, bourrage. Lecture seule.
+- **Caméras Imou / Dahua** (en préparation) : « ajoute les caméras » ouvre une fenêtre où tu tapes le code de sécurité de chaque caméra, rangé dans Windows. L'affichage des images à la voix arrivera dans une prochaine version.
+
+Les certificats et clés d'association restent sur ton PC (dossier `tele` et Gestionnaire d'identification de Windows), jamais publiés. En mode enfant, Jarvis n'allume ni la télé ni l'Apple TV et ne touche pas aux réglages.
 
 ## Alertes météo
 
@@ -198,6 +240,17 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_sante.py` | Le diagnostic et le compte rendu après un plantage |
 | `jarvis_accueil.py` | Les premiers pas d'un nouvel utilisateur (une question à la fois) |
 | `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
+| `jarvis_infos.py` | Carburants, vacances scolaires, jours fériés, éphéméride, jours des poubelles |
+| `jarvis_agenda.py` | L'agenda iCloud (lien public) et le rappel de la veille |
+| `jarvis_freebox.py` | La Freebox : appels, état d'Internet, appareils connectés, Wi-Fi invité |
+| `jarvis_fenetre_qr.py` | La fenêtre du QR code du Wi-Fi invité (dessiné à l'écran, jamais enregistré) |
+| `jarvis_tele.py` | La télé par le Freebox Player ou une autre Android TV |
+| `jarvis_appletv.py` | L'Apple TV |
+| `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
+| `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Les fenêtres d'association (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
+| `jarvis_personnalite.py` | La façon de parler de chaque profil (longueur, humour, vouvoiement) |
+| `jarvis_taches.py` | Les tâches de fond confiées à Claude Code |
+| `jarvis_motappel.py` | Un détecteur facultatif du mot « Jarvis » (calcul d'openWakeWord, Apache 2.0). Il ne sert qu'avec un modèle entraîné à part, non fourni ; sans lui, il reste inactif et Jarvis écoute comme d'habitude |
 | `jarvis_affichage.py` | L'affichage rapide du réacteur et du panneau (pygame, 60 images/s) |
 | `jarvis_systeme.py` | La surveillance du PC (processeur, mémoire, carte graphique, réseau) |
 | `jarvis_tts.py` | La voix Windows de secours |
@@ -231,12 +284,15 @@ Jarvis est publié sous licence **PolyForm Strict 1.0.0** (fichier `LICENSE.md`)
 - tu ne peux pas le modifier, ni en publier une copie ou une version à toi ;
 - les nouveautés arrivent avec les versions publiées ici.
 
+Jarvis s'appuie sur des modules libres, installés avec lui : Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, pour la télé), pyatv (MIT, pour l'Apple TV), segno (BSD, pour le QR code), entre autres. Certaines idées de la 1.25 (infos pratiques, façon de parler, tâches de fond, mot d'appel) sont reprises du projet [Cornelius](https://github.com/lfpoulain/Cornelius) des Frères Poulain (licence MIT) et réécrites pour Jarvis.
+
 Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **Issues**, en français ou en anglais : c'est la bonne façon de faire avancer le projet.
 
 ## Versions
 
 | Version | Contenu |
 |---|---|
+| 1.25 | La maison : télé (Freebox Player ou Android TV) et Apple TV pilotées à la voix, Freebox (appels, état d'Internet, appareils connectés, Wi-Fi invité avec QR code à scanner), encre et état de l'imprimante ; agenda iCloud (« c'est quand… », rappel la veille) ; envoi de mails relus et confirmés par « oui » ; carburants, vacances, jours fériés, éphéméride, poubelles ; rappels qui se répètent ; façon de parler de chaque profil ; tâches de fond confiées à Claude ; écoute : un « stop » cru entendu dans le bruit ne coupe plus Jarvis, « redémarre » tout court, « non, c'est moi… » change de profil, phrases mal entendues mieux comprises (« c'est Khan, le rendez-vous », « la polle TV ») ; en mode enfant, une phrase incompréhensible ne lance plus de vidéo au hasard, et « retourne à l'accueil » sur YouTube Kids |
 | 1.24 | Fenêtre de réglages aux couleurs de Jarvis (thèmes, son, profils, aide avec recherche, historique, santé, sauvegarde, paramètres par défaut) ; calendrier familial, messages entre profils, quiz en famille (« avec Léo », « Marie ne joue pas »), défi du jour et étoiles, histoires à deux voix, réacteur trois fois plus grand en mode enfant ; vidéos des enfants en français seulement ; compréhension : corrections d'écoute intégrées et apprises à la voix, minuteurs « pâtes » et « four » mieux compris, commandes d'un mot (« pause », « suivant ») ; fiabilité : diagnostic, compte rendu après un plantage, volume des applications toujours rétabli ; sécurité, après un essai complet à la voix : « annule le minuteur » n'efface plus les rappels, une question sur le mode nuit ou le mode enfant ne l'active plus, « verrouille l'ordinateur » demande confirmation, la voix d'une personne ne peut plus se mélanger à l'empreinte d'une autre, Claude ne crée plus de tâche Windows et ne prétend plus avoir modifié tes données ; lecture de page sans le bruit du début ; la musique du matin garde le vrai titre même mal entendu |
 | 1.23 | Alertes de la Vigilance Météo-France pour ton département, avec animation du réacteur à la couleur de l'alerte ; heure dans une autre ville ; dernier téléchargement ; « où j'en étais ? » (onglets de Chrome) ; « ferme tout » avec confirmation ; recette pas à pas ; anniversaires des proches rappelés la veille et le jour même ; anecdotes ; résumé d'une vidéo YouTube ; lecture du texte sélectionné ; modes cinéma et invité ; couleurs du réacteur au choix ; un profil par personne du foyer, reconnu à sa voix ; minuteurs nommés ; devoirs et coucher pour les enfants ; résumé de la journée ; premiers pas guidés pour les nouveaux utilisateurs ; « avance de… / recule de… » mieux compris et plus précis ; « mets la première vidéo sur lecture » |
 | 1.22 | Mode enfant (YouTube Kids, recherches filtrées, quiz, devinettes, longues histoires lues au fur et à mesure avec la suite) ; lecture des mails à la demande, sans rien modifier ; point du jour plus fiable (titres de franceinfo et du Monde, site suivi lu directement depuis le PC) ; « Jarvis » coupe la parole et enchaîne sur une nouvelle demande ; écoute mieux réglée (commandes mal entendues, « des actives » ne rallume plus le mode nuit) ; réponses plus naturelles et variées, salutation du jour, remerciements avec humour, petit son à la fin des longues tâches ; affichage : couleurs Vice City en veille, mode discret avec les jauges, icônes des jauges, reflet lumineux, réacteur qui danse avec la musique, regarde la souris et se fait doux la nuit, animations de minuit et d'anniversaire ; bip plus fort |

@@ -217,14 +217,29 @@ def commande_consulter(t):
             if ident is None:
                 return f"Je ne connais personne qui s'appelle {m.group(1)}."
     evenements = _evenements(debut, fin, ident)
+    # Agenda iCloud du foyer (jarvis_agenda.py), sauf quand on demande le programme d'une autre personne
+    if ident in (None, jarvis_profils.actif() or ""):
+        try:
+            import jarvis_agenda
+            for e in jarvis_agenda.evenements(datetime.datetime.fromtimestamp(debut),
+                                              datetime.datetime.fromtimestamp(fin)) or []:
+                evenements.append({"quand": e["debut"].timestamp(), "quoi": e["titre"], "icloud": True,
+                                   "journee": e["journee"]})
+            evenements.sort(key=lambda e: e["quand"])
+        except Exception as erreur:
+            print("Agenda iCloud :", erreur)
     if not evenements:
         return f"Rien de prévu {periode}" + (f" pour {_prenom(ident)}" if ident not in (None, jarvis_profils.actif() or "") else "") + "."
     moi = jarvis_profils.actif() or ""
     phrases = []
     for e in evenements[:6]:
         t_e = time.localtime(e["quand"])
-        qui = "tu as" if e.get("pour") == moi else f"{_prenom(e.get('pour'))} a"
         jour = "" if periode in ("demain", "aujourd'hui", "après-demain") else _jour_parle(e["quand"]) + " "
+        if e.get("icloud"):
+            quand = "toute la journée" if e.get("journee") else f"à {_heure_parlee(t_e.tm_hour, t_e.tm_min)}"
+            phrases.append(f"{jour}{quand}, {e['quoi']}")
+            continue
+        qui = "tu as" if e.get("pour") == moi else f"{_prenom(e.get('pour'))} a"
         phrases.append(f"{jour}à {_heure_parlee(t_e.tm_hour, t_e.tm_min)}, {qui} {e['quoi']}")
     debut_phrase = (periode[0].upper() + periode[1:]) if periode in ("demain", "aujourd'hui", "après-demain") else "Au programme"
     return debut_phrase + " : " + " ; ".join(phrases) + "."

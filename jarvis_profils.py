@@ -206,7 +206,8 @@ _CREER = re.compile(r"\b(?:cr[ée]e|cr[ée]er|cr[ée]es|ajoute|ajouter|fais|nouv
 _CHANGER = re.compile(r"\b(?:passe|passer|repasse|repasser|repas|reviens|retourne|mets|va|bascule|change|prends|utilise|"
                       r"active)\b.*?\bprofil\b"
                       r"(?:\s+(?:de |d'|pour |à |a ))?\s*(?P<nom>[\w\- ]*)")
-_CEST = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:bonjour|salut|coucou|bonsoir)\W+(?:jarvis\W+)?)?"
+_CEST = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:non|mais non|ah|euh|eh|oui|attends)\W+(?:jarvis\W+)?)?"
+                   r"(?:(?:bonjour|salut|coucou|bonsoir)\W+(?:jarvis\W+)?)?"
                    r"(?:c'est moi|moi c'est|c'est|c'é|cet|ces|ses|je suis|ici)\s*(?P<nom>[\w\-']+(?: [\w\-]+){0,2})\W*$")
 _SUPPRIMER = re.compile(r"\b(?:su+p+rime[rs]?|efface|effacer|enl[eè]ve|retire)\b.*?\bprofil\b"
                         r"\s+(?:de |d'|pour )?(?P<nom>[\w\- ]+)")

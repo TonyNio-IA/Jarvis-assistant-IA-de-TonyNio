@@ -209,6 +209,10 @@ def commande_web(t):
     t = " ".join(t.split())
     if re.search(r"\b(?:" + SITES_INTERDITS + r")\b", t):
         return "En mode enfant, je n'ouvre pas les sites d'achat."
+    # « retourne à l'accueil » (souvent entendu « à la cueille ») : la page d'accueil de YouTube Kids
+    if re.search(r"\b(?:retourne|reviens|revenir|retourner|va|remets)\b.{0,12}\b(?:accueil|cueille|l'accueil|début)\b", t):
+        _ouvrir(YOUTUBE_KIDS)
+        return "Je retourne à l'accueil de YouTube Kids."
     # « ouvre YouTube »
     if re.fullmatch(r"(?:ouvre|lance|va sur|mets)(?:-moi)? (?:le site )?youtube(?: kids)?", t):
         _ouvrir(YOUTUBE_KIDS)

@@ -38,6 +38,11 @@ messages.json
 preferences.json
 corrections.json
 reprise.json
+infos.json
+personnalite.json
+agenda_veille.date
+cameras.json
+mot_appel/
 Jarvis-demarrage-desactive.lnk
 images_gif.npz
 enregistrements/
@@ -45,3 +50,6 @@ enregistrements/
 installateur/corps.ps1
 publication/
 tests/
+tele/
+docs/entrainer_mot_appel.md
+docs/colab_generate_samples_shim.py

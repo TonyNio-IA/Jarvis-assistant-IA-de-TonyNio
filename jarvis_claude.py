@@ -67,10 +67,15 @@ import jarvis_profils
 import jarvis_locuteur
 import jarvis_famille
 import jarvis_foyer
+import jarvis_infos
+import jarvis_personnalite
+import jarvis_taches
+import jarvis_motappel
+import jarvis_agenda
 import jarvis_sources
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.24"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.25"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -694,7 +699,15 @@ def chercher_reveil(resultat, audio):
         pause_voulue = PAUSE_AVANT_JARVIS if i <= MOTS_AVANT_JARVIS else PAUSE_LONGUE_AVANT_JARVIS
         if mots[i]["word"] == "jarvis" and mots[i]["start"] - mots[i - 1]["end"] >= pause_voulue:
             return " ".join(x["word"] for x in mots[i + 1:])
-    if whisper is not None and phrase.startswith(PRESQUE_JARVIS):
+    # Début qui ressemble à « Jarvis » mal compris, ou détecteur du mot d'appel (entraîné exprès, voir
+    # jarvis_motappel.py) qui l'a entendu : Whisper confirme avant de réveiller Jarvis
+    presque = phrase.startswith(PRESQUE_JARVIS)
+    if whisper is not None and not presque:
+        note = jarvis_motappel.note_debut(audio)
+        if note >= jarvis_motappel.SEUIL:
+            print(f"(Mot d'appel entendu par le détecteur : note {note:.2f}, Vosk a compris « {phrase} ».)")
+            presque = True
+    if whisper is not None and presque:
         precise = transcrire(audio, phrase)
         if precise and re.match(r"\W*jarvis\b", precise, re.I):
             print("(Réveil confirmé par Whisper.)")
@@ -796,7 +809,10 @@ class ClaudeContinu:
         except Exception as erreur:
             print("Mémoire illisible :", erreur)
             memoire = ""
-        return CONSIGNES + jarvis_accueil.consigne() + jarvis_profils.consigne() + ("\n\n" + memoire if memoire else "")
+        # tutoiement / vouvoiement : le choix de la personne (jarvis_personnalite) passe avant celui de l'accueil
+        accueil = jarvis_accueil.consigne() if jarvis_personnalite.vouvoiement() is None else ""
+        return (CONSIGNES + accueil + jarvis_profils.consigne() + jarvis_personnalite.consigne()
+                + ("\n\n" + memoire if memoire else ""))
 
     def demarrer(self):
         self.arreter()
@@ -1188,6 +1204,8 @@ def suivre_musique():
 
 coupe_par_jarvis = False      # vrai si Jarvis vient d'être coupé par « Jarvis » (et non par « stop »)
 _jarvis_dans_texte = False    # Jarvis prononce lui-même son nom : on ignore alors « jarvis » (écho du haut-parleur)
+_MOT_STOP_LIBRE = re.compile(r"\b(?:stop|stoppe|arr[êe]te|tais[- ]toi|tait toi|tais toi|chut)\b")
+_stop_libre = [0.0]           # dernier moment où la reconnaissance complète a entendu un mot d'arrêt
 
 
 def interruption():
@@ -1203,20 +1221,28 @@ def interruption():
         # « Jarvis » : reconnaissance au vocabulaire complet, comme pour le réveil. Avec une liste réduite
         # de mots, Vosk croyait entendre « jarvis » dans presque toutes les phrases (essai du 17/11/2026 :
         # des dizaines de faux départs sur la voix de Jarvis ; aucun avec le vocabulaire complet).
-        if rec_coupure is not None and not _jarvis_dans_texte:
+        entendu = ""
+        if rec_coupure is not None:
             if rec_coupure.AcceptWaveform(data):
                 entendu = json.loads(rec_coupure.Result()).get("text", "")
             else:
                 entendu = json.loads(rec_coupure.PartialResult()).get("partial", "")
-            if re.search(r"\bjarvis\b", entendu):
+            if _MOT_STOP_LIBRE.search(entendu):
+                _stop_libre[0] = time.time()
+            if not _jarvis_dans_texte and re.search(r"\bjarvis\b", entendu):
                 print("Interruption : « Jarvis » (nouvelle demande)")
                 coupe_par_jarvis = True
                 return True
         if rec_stop.AcceptWaveform(data):
             texte = json.loads(rec_stop.Result()).get("text", "")
             if texte and texte in MOTS_STOP:
-                print("Interruption :", texte)
-                return True
+                # Avec sa liste réduite, Vosk ramène presque n'importe quel bruit à « stop » ou « tais-toi »
+                # (essais du 18/11/2026 : Jarvis coupé en pleine réponse sans que personne ne le dise).
+                # Le mot doit aussi être entendu par la reconnaissance complète, dans les 3 dernières secondes.
+                if rec_coupure is None or time.time() - _stop_libre[0] < 3:
+                    print("Interruption :", texte)
+                    return True
+                print("(« " + texte + " » cru entendu, non confirmé : je continue.)")
 
 
 def parler(texte, toujours=False):
@@ -1227,6 +1253,7 @@ def parler(texte, toujours=False):
         rec_stop.Reset()
     if rec_coupure is not None:
         rec_coupure.Reset()
+    _stop_libre[0] = 0.0
     vider_audio()
     coupe_par_jarvis = False
     _jarvis_dans_texte = "jarvis" in (texte or "").lower()
@@ -1284,6 +1311,20 @@ def traiter(demande, recognizer):
         etat("reponse")
         speak("Je redémarre.")
         redemarrer()
+
+    # Tâches de fond confiées à Claude Code (jarvis_taches.py) : avant les commandes instantanées,
+    # sinon « en tâche de fond, cherche … » partirait en simple recherche dans le navigateur
+    try:
+        reponse_tache = jarvis_taches.commande([demande], enfant=jarvis_enfant.actif())
+    except Exception as erreur_tache:
+        print("Tâche de fond :", erreur_tache)
+        reponse_tache = None
+    if reponse_tache:
+        derniere_reponse = reponse_tache
+        etat("reponse")
+        interrompu = parler(avec_salutation(bonjour_profil + reponse_tache))
+        preparer_ecoute(recognizer)
+        return interrompu
 
     # Commandes instantanées : réponse immédiate, sans Claude
     reponse = commande_instantanee(derniers_textes or [demande],
@@ -1343,6 +1384,16 @@ def traiter(demande, recognizer):
         histoire = False
 
     note = jarvis_extras.note_recette(demande) + note
+    try:                                         # « c'est quand la piscine ? » cherché en vain dans l'agenda iCloud
+        if not jarvis_extras.invite():           # jamais l'agenda de la famille en mode invité
+            note = jarvis_agenda.note_claude(" ".join(derniers_textes or [demande])) + note
+    except Exception as erreur_agenda:
+        print("Agenda :", erreur_agenda)
+    if re.search(r"\b(?:télé|tele|tv|télévision|chaîne|chaine|apple|player)\b", minuscules):
+        note = ("(Note : Jarvis pilote lui-même la télé (Freebox Player) et l'Apple TV, par des commandes directes. "
+                "Si cette demande en parlait, c'est qu'il ne l'a pas comprise : ne dis pas que tu ne peux pas piloter "
+                "la télé et ne parle pas d'une panne ; propose la phrase exacte à redire, par exemple « mets France 2 "
+                "sur la télé », « allume l'Apple TV » ou « lance YouTube sur l'Apple TV ».) ") + note
     try:                                         # devoirs, résumé de la journée (voir jarvis_famille)
         note = jarvis_famille.note_devoirs(demande) + note
         if jarvis_famille.resume_demande(minuscules):
@@ -1520,7 +1571,8 @@ def raconter(message, demande, recognizer):
 
 
 # « redémarre-toi », y compris mal entendu (« redémarte-toi », « redémarre temps »)
-DEMANDE_REDEMARRAGE = re.compile(r"\b(red[ée]mar\w*|relance\w*)[- ]+(toi|toit|temps|toa)\b|\b(red[ée]mar\w*|relance) jarvis\b")
+DEMANDE_REDEMARRAGE = re.compile(r"\b(red[ée]mar\w*|relance\w*)[- ]+(toi|toit|temps|toa)\b|\b(red[ée]mar\w*|relance) jarvis\b"
+                                 r"|^\W*(?:jarvis\W+)?red[ée]mar(?:re|res|rer|é)\W*$")   # « Jarvis, redémarre » tout court
 
 
 def redemarrer():
@@ -1656,8 +1708,20 @@ def main():
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
     jarvis_extras.surveiller_anniversaires(lambda texte: point_pret.put((texte, "rappel")))
     jarvis_foyer.surveiller_calendrier(lambda texte: point_pret.put((texte, "rappel")))   # calendrier familial
+    jarvis_infos.surveiller_poubelles(lambda texte: point_pret.put((texte, "rappel")))   # bacs à sortir, la veille
+    jarvis_agenda.surveiller(lambda texte: point_pret.put((texte, "rappel")),
+                             jarvis_config.chemin("agenda_veille.date"))                  # agenda iCloud, la veille
+    jarvis_taches.configurer(CLAUDE_EXE, MODELE_POINT_DU_JOUR, OUTILS_POINT_DU_JOUR, MODE_PERMISSIONS,
+                             OPTIONS_LEGERES, DOSSIER_JARVIS,
+                             lambda texte, erreur: point_pret.put((texte, erreur)))      # tâches de fond
     jarvis_enfant.annoncer = lambda texte: point_pret.put((texte, False))     # Jarvis parle de lui-même (YouTube Kids)
     threading.Thread(target=charger_whisper, daemon=True).start()
+    threading.Thread(target=jarvis_motappel.detecteur, daemon=True).start()   # détecteur « Jarvis » prêt d'avance
+    try:                                           # télé et Apple TV : connexion prête d'avance (ordres plus rapides)
+        jarvis_commandes.jarvis_tele.prechauffer()
+        jarvis_commandes.jarvis_appletv.prechauffer()
+    except Exception as erreur_tele:
+        print("Télé (préparation) :", erreur_tele)
     threading.Thread(target=suivre_musique, daemon=True).start()
     threading.Thread(target=preparer, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
