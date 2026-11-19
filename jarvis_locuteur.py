@@ -12,8 +12,8 @@ rangées dans le dossier profils/ (jamais publié).
   « Jarvis, reconnais-tu ma voix ? »
 
 Ce n'est pas une sécurité : deux voix proches peuvent être confondues, et une voix s'imite.
-Il faut le petit modèle « vosk-model-spk-0.4 » (13 Mo, alphacephei.com/vosk/models) dans le dossier de Jarvis ;
-sans lui, cette fonction est simplement absente.
+Il faut le petit modèle « vosk-model-spk-0.4 » (13 Mo, alphacephei.com/vosk/models) dans le dossier de Jarvis :
+l'installateur le télécharge tout seul. Sans lui, cette fonction est simplement absente.
 """
 
 import json
@@ -404,8 +404,8 @@ def commande(t):
     prenom = jarvis_profils.prenom_actif()
     if re.search(r"\b(apprends|apprend|apprendre|enregistre|m[ée]morise|retiens)\b", t):
         if not disponible():
-            return ("Il me manque le petit modèle des empreintes de voix. C'est expliqué sur la page du projet, "
-                    "à la rubrique Profils.")
+            return ("Il me manque le petit modèle des empreintes de voix. Pour l'ajouter, relance l'installateur de Jarvis "
+                    "et choisis 1, mettre à jour ou réparer : il l'installe tout seul.")
         # Apprentissage guidé : Jarvis dit une phrase, attend qu'on la répète, puis passe à la suivante.
         # L'ancienne empreinte n'est remplacée qu'à la fin, si assez de phrases ont été bien entendues.
         _guide.update(profil=actif, vecteurs=[], demarre=False)

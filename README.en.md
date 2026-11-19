@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.26**
+**Français : [README.md](README.md)** · **Current version: 1.27**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -31,7 +31,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
-## New in 1.26: full uninstall, several TVs, PS5
+## New in 1.26 and 1.27: full uninstall, several TVs, PS5
 
 <p align="center">
 <img src="docs/reglages_a_propos.png" alt="Settings, About tab: updates and the Uninstall Jarvis button" width="49%">
@@ -41,7 +41,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Uninstall Jarvis** from its settings (« À propos » tab): you choose whether to keep your personal files, you see the list of everything that will be removed, and nothing is deleted before you type « confirmer ». See [Uninstall](#uninstall).
 - **Installer 1.1**: it explains what the Claude subscription adds, records what it installs itself, restores the personal files kept during an uninstall, and ends with a « À retenir » (things to remember) box.
 - **Several TVs**: « mets France 2 sur la télé de la chambre ». See [The home](#the-home).
-- **PlayStation 5**: « est-ce que la PS5 est allumée ? » (on, in rest mode or off, and the running game when the console reports it).
+- **PlayStation 5**: « est-ce que la PS5 est allumée ? », « allume la PS5 », « mets la PS5 en veille ». Since 1.27, everything it needs is installed automatically with Jarvis; you just link the console once (« Jarvis, relie la PS5 »).
 - **Faster wake-up** when you say « Jarvis » alone, with the optional wake-word detector.
 - **Understanding**: « c'est quoi mon prochain rendez-vous ? » is answered at once; several misheard sentences are better understood; a sentence about the TV no longer starts music on the PC.
 
@@ -71,7 +71,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 3. **Answer the two questions** (in French): your first name, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
    - Python 3.14 (from python.org), in your user folder;
    - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes**;
-   - Jarvis, its modules and its speech model, in `C:\Jarvis`;
+   - Jarvis, its modules (PlayStation 5 included), its speech model and the one that recognises who is speaking, in `C:\Jarvis`;
    - Claude Code (from claude.ai), if you chose it;
    - a "Jarvis" shortcut on the desktop and at Windows startup.
 4. **If you chose Claude**, your browser opens so you can sign in to your Claude account. On a new PC, it may first show its own welcome screen: skip it. Sign in, accept the authorization, then go back to the installer window.
@@ -186,7 +186,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - **TV (Freebox Player POP or another Android TV)**: say « associe la télé » and type the code shown on the TV. Then « allume la télé », « mets France 2 », « mets la chaîne 27 », « monte le son de la télé de 5 », « mets la télé en pause », « lance Netflix sur la télé ».
 - **Apple TV**: say « associe l'Apple TV » and type the two 4-digit codes. Then « allume l'Apple TV », « mets l'Apple TV en pause », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (any installed app).
 - **Several TVs** (optional): describe them in the `tele/teles.json` file (an example is given at the top of `jarvis_tele.py`), then say « associe la télé de la chambre ». Then « allume la télé de la chambre », « mets France 2 sur la télé du salon ». Without a room, Jarvis talks to the default TV.
-- **PlayStation 5**: nothing to set up. « Est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? »: Jarvis says whether it is on, in rest mode or off. Read-only. Turning it on and putting it to rest mode by voice are in progress (they need a module that is not installed with Jarvis yet).
+- **PlayStation 5**: « est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? »: Jarvis says whether it is on, in rest mode or off, with nothing to set up. To turn it on or put it to rest mode by voice, link it once: say « **relie la PS5** », sign in to your PlayStation account in the window that opens, then type the code shown by the console (Settings, System, Remote Play, Link Device). Then « allume la PS5 » (it must be in rest mode) and « mets la PS5 en veille » (Jarvis asks for confirmation, since a game in progress stops). The link to your account stays in your user folder (`.pyremoteplay`), never published. In kids mode, Jarvis does not turn the console on.
 - **Network printer** (HP, Canon, Epson, Brother...): « il reste combien d'encre ? », « l'imprimante est allumée ? ». Read-only.
 - **Imou / Dahua cameras** (in progress): « ajoute les caméras » opens a window to type each camera's security code, stored by Windows. Showing the picture by voice will come in a later version.
 
@@ -235,7 +235,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_vigilance.py` | Météo-France weather warnings for your département |
 | `jarvis_extras.py` | World time, last download, tabs, close all, step-by-step recipes, birthdays, cinema and guest modes, reactor colours, YouTube summary |
 | `jarvis_profils.py` | One profile per household member (separate memory and notes) |
-| `jarvis_locuteur.py` | Optional speaker recognition for profiles (needs `vosk-model-spk-0.4`) |
+| `jarvis_locuteur.py` | Speaker recognition for profiles (uses `vosk-model-spk-0.4`, installed automatically since 1.27) |
 | `jarvis_famille.py` | Homework, bedtime, day summary, morning song per profile |
 | `jarvis_foyer.py` | Family calendar, messages, daily challenge, family quiz |
 | `jarvis_reglages_ui.py` | Settings window |
@@ -251,7 +251,8 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_tele.py` | The TV through the Freebox Player or another Android TV |
 | `jarvis_appletv.py` | The Apple TV |
 | `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |
-| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | The PlayStation 5: on, in rest mode or off (read-only); turning it on and rest mode in progress |
+| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | The PlayStation 5: status, turning on and rest mode; the window to link it once |
+| `requirements-ps5.txt` | The PlayStation 5 modules, installed separately by the installer (setup goes on if they fail) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Pairing windows (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | Each profile's speaking style (length, humour, "vous") |
 | `jarvis_taches.py` | Background tasks handed to Claude Code |

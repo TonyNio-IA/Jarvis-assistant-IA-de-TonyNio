@@ -32,6 +32,8 @@ $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VER/python-$PYTHON_VER-
 $VC_URL     = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'      # composants Microsoft Visual C++ (site de Microsoft)
 $VOSK_NOM   = 'vosk-model-small-fr-0.22'
 $VOSK_URL   = "https://alphacephei.com/vosk/models/$VOSK_NOM.zip"
+$VOIX_NOM   = 'vosk-model-spk-0.4'            # empreintes de voix : reconnaître qui parle (profils du foyer)
+$VOIX_URL   = "https://alphacephei.com/vosk/models/$VOIX_NOM.zip"
 $CLAUDE_EXE = Join-Path $env:USERPROFILE '.local\bin\claude.exe'
 $CLE        = 'HKCU:\Software\Jarvis-TonyNio'
 $AUTO       = [bool]$env:JARVIS_AUTO          # mode sans question (essais automatiques)
@@ -239,7 +241,7 @@ function Copier-Programme($dossier) {
     if (-not (Test-Path -LiteralPath (Join-Path $source 'jarvis_gardien.py'))) { Echec "Les fichiers de Jarvis sont incomplets (jarvis_gardien.py absent de $source)." }
     # Seuls les fichiers du programme sont copiés : les réglages et la mémoire ne sont jamais touchés.
     Get-ChildItem -LiteralPath $source -File | Where-Object {
-        $_.Name -like 'jarvis_*.py' -or $_.Name -like '*.md' -or $_.Name -in 'requirements.txt','config.exemple.json','.gitignore'
+        $_.Name -like 'jarvis_*.py' -or $_.Name -like '*.md' -or $_.Name -in 'requirements.txt','requirements-ps5.txt','config.exemple.json','.gitignore'
     } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $dossier $_.Name) -Force }
     $docs = Join-Path $source 'docs'
     if (Test-Path -LiteralPath $docs) { Copy-Item -LiteralPath $docs -Destination $dossier -Recurse -Force }
@@ -257,7 +259,27 @@ function Installer-Modules($dossier, $python) {
     & $env_py -m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off -r (Join-Path $dossier 'requirements.txt') | Out-Host
     if ($LASTEXITCODE -ne 0) { Echec "L'installation des modules Python a échoué (voir les lignes ci-dessus). Relance l'installateur ; si l'erreur revient, signale-la sur GitHub." }
     Bon "Modules Python installés."
+    Installer-Modules-PS5 $dossier $env_py
     return $env_py
+}
+
+function Installer-Modules-PS5($dossier, $env_py) {
+    # Pilotage de la PlayStation 5 (allumer, mettre en veille). Ces modules s'installent sans leurs dépendances
+    # (« --no-deps ») : l'une d'elles, « netifaces », ne s'installe pas sur Windows avec Python 3.14, et Jarvis la remplace
+    # lui-même. Cette étape n'arrête jamais l'installation : en cas d'échec, seule la lecture de l'état de la PS5 reste.
+    $liste = Join-Path $dossier 'requirements-ps5.txt'
+    if (-not (Test-Path -LiteralPath $liste)) { return }
+    Dire "  Installation des modules de la PlayStation 5..."
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $env_py -m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off --no-deps -r $liste | Out-Host
+        $ok = ($LASTEXITCODE -eq 0)
+    } catch { $ok = $false; Journal "Modules PS5 : $($_.Exception.Message)" }
+    if ($ok) { Bon "Modules de la PlayStation 5 installés." }
+    else {
+        Attention "Les modules de la PlayStation 5 n'ont pas pu être installés : l'installation continue sans eux."
+        Attention "Jarvis dira quand même si la PS5 est allumée. Pour réessayer : relance ce fichier et choisis 1."
+    }
 }
 
 function Installer-Vosk($dossier) {
@@ -268,6 +290,24 @@ function Installer-Vosk($dossier) {
     Expand-Archive -LiteralPath $zip -DestinationPath $dossier -Force
     if (-not (Test-Path -LiteralPath (Join-Path $cible 'am'))) { Echec "Le modèle vocal n'a pas pu être décompressé dans $cible." }
     Bon "Modèle vocal installé."
+}
+
+function Installer-Vosk-Voix($dossier) {
+    # Petit modèle des empreintes de voix (environ 13 Mo) : Jarvis reconnaît qui parle et passe tout seul sur son profil
+    # (« Jarvis, apprends ma voix »). Facultatif : en cas d'échec, l'installation continue sans lui.
+    $cible = Join-Path $dossier $VOIX_NOM
+    if (Test-Path -LiteralPath (Join-Path $cible 'final.ext.raw')) { Bon "Modèle des empreintes de voix déjà présent."; return }
+    try {
+        $zip = Join-Path $TEMP 'vosk-voix.zip'
+        Telecharger $VOIX_URL $zip "modèle des empreintes de voix (environ 13 Mo)"
+        Expand-Archive -LiteralPath $zip -DestinationPath $dossier -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $cible 'final.ext.raw'))) { throw "fichiers absents après décompression" }
+        Bon "Modèle des empreintes de voix installé (reconnaissance de qui parle)."
+    } catch {
+        Journal "Modèle des empreintes de voix : $($_.Exception.Message)"
+        Attention "Le modèle des empreintes de voix n'a pas pu être installé : l'installation continue sans lui."
+        Attention "Jarvis marche normalement, mais ne reconnaîtra pas qui parle. Pour réessayer : relance ce fichier et choisis 1."
+    }
 }
 
 function Ecrire-Reglages($dossier, $prenom, $ville) {
@@ -417,6 +457,11 @@ function Verifier($dossier, $env_py) {
     Titre "Vérifications"
     Dire "  Quelques essais (une à deux minutes en général ; plus longtemps sur un PC lent, la première fois)..."
     Verifier-Modules $env_py $dossier
+    if (Test-Path -LiteralPath (Join-Path $dossier 'requirements-ps5.txt')) {
+        if (Essai-Python $env_py $dossier "import jarvis_ps5; jarvis_ps5.preparer_netifaces(); import pyremoteplay, pyremoteplay.profile, pyremoteplay.ddp; print('ok')" 120) {
+            Bon "Pilotage de la PlayStation 5 disponible (à relier une fois : « Jarvis, relie la PS5 »)."
+        } else { Attention "Pilotage de la PlayStation 5 indisponible : Jarvis dira seulement si elle est allumée." }
+    }
     $micro = Essai-Python $env_py $dossier "import sounddevice as sd; print(sd.query_devices(kind='input')['name'])" 60
     if ($micro) { Bon "Micro détecté : $micro" }
     else { Attention "Aucun micro détecté. Jarvis en a besoin pour t'entendre : branche un micro, puis relance Jarvis." }
@@ -524,8 +569,8 @@ function Installer($dossierExistant) {
         Dire "  - Jarvis, dans $dossier"
         if (-not $python) { Dire "  - Python $PYTHON_VER (depuis python.org), dans ton dossier personnel" }
         if (-not (VC-Present)) { Dire "  - Les composants Microsoft Visual C++ (depuis microsoft.com) : Windows demandera ton autorisation" }
-        Dire "  - Les modules Python de Jarvis, dans son propre dossier (environ 600 Mo)"
-        Dire "  - Le modèle de reconnaissance vocale Vosk (environ 40 Mo)"
+        Dire "  - Les modules Python de Jarvis, dans son propre dossier (environ 600 Mo), y compris ceux de la PlayStation 5"
+        Dire "  - Le modèle de reconnaissance vocale Vosk (environ 40 Mo) et celui qui reconnaît qui parle (environ 13 Mo)"
         if ($avecClaude -and -not (Test-Path -LiteralPath $CLAUDE_EXE)) { Dire "  - Claude Code (depuis claude.ai, environ 370 Mo)" }
         Dire "  - Un raccourci « Jarvis » sur le Bureau$(if ($auDemarrage) { ' et au démarrage de Windows' })"
         Dire "  Au premier lancement, Jarvis téléchargera aussi son second modèle vocal (Whisper, environ 150 Mo)."
@@ -556,6 +601,7 @@ function Installer($dossierExistant) {
     Copier-Programme $dossier
     $env_py = Installer-Modules $dossier $python
     Installer-Vosk $dossier
+    Installer-Vosk-Voix $dossier
     if (-not $maj -and $reprendre) {
         Reprendre-Fichiers $gardes $dossier
         if (-not (Test-Path -LiteralPath (Join-Path $dossier 'config.json'))) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }

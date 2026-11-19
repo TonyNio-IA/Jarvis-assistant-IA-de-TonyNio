@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.26**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.27**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,7 +31,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
-## Nouveau en 1.26 : désinstallation complète, plusieurs télés, PS5
+## Nouveau en 1.26 et 1.27 : désinstallation complète, plusieurs télés, PS5
 
 <p align="center">
 <img src="docs/reglages_a_propos.png" alt="Réglages, onglet À propos : mises à jour et bouton Désinstaller Jarvis" width="49%">
@@ -41,7 +41,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Désinstaller Jarvis** depuis ses réglages (onglet « À propos ») : tu choisis de garder ou non tes fichiers personnels, tu vois la liste de tout ce qui sera retiré, et rien n'est supprimé avant que tu aies écrit « confirmer ». Voir [Désinstaller](#desinstaller).
 - **Installateur 1.1** : il explique ce que l'abonnement Claude apporte, retient ce qu'il installe lui-même, reprend tes fichiers personnels gardés lors d'une désinstallation, et finit par un encadré « À retenir ».
 - **Plusieurs télés** : « mets France 2 sur la télé de la chambre ». Voir [La maison](#la-maison).
-- **PlayStation 5** : « est-ce que la PS5 est allumée ? » (allumée, en veille ou éteinte, et le jeu en cours quand la console l'indique).
+- **PlayStation 5** : « est-ce que la PS5 est allumée ? », « allume la PS5 », « mets la PS5 en veille ». Depuis la 1.27, tout ce qu'il faut s'installe tout seul avec Jarvis ; il reste à relier la console une fois (« Jarvis, relie la PS5 »).
 - **Réveil plus rapide** quand tu dis « Jarvis » seul, avec le détecteur facultatif du mot d'appel.
 - **Compréhension** : « c'est quoi mon prochain rendez-vous ? » répond tout de suite ; plusieurs phrases mal entendues sont mieux comprises ; une phrase qui parle de la télé ne lance plus de musique sur le PC.
 
@@ -71,7 +71,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 3. **Réponds aux deux questions** : ton prénom, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
    - Python 3.14 (depuis python.org), dans ton dossier personnel ;
    - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** ;
-   - Jarvis, ses modules et son modèle vocal, dans `C:\Jarvis` ;
+   - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
    - Claude Code (depuis claude.ai), si tu l'as choisi ;
    - un raccourci « Jarvis » sur le Bureau et au démarrage de Windows.
 4. **Si tu as choisi Claude**, ton navigateur s'ouvre pour te connecter à ton compte Claude. Sur un PC neuf, il montre peut-être d'abord son propre écran d'accueil : passe-le. Connecte-toi, accepte l'autorisation, puis reviens dans la fenêtre de l'installateur.
@@ -163,7 +163,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - « Lis ça » : lit à voix haute le texte sélectionné.
 - Mode cinéma (« active le mode cinéma ») : vidéo en plein écran et réponses écrites pour ne pas déranger. Mode invité (« active le mode invité ») : ni mails, ni notes, ni mémoire, et rien n'est enregistré.
 - Couleurs du réacteur : « mets le réacteur en bleu » (Vice City, bleu, vert, rouge, violet ou orange).
-- Un profil par personne du foyer : « crée un profil pour Marie » (ou « un profil enfant pour Léo », en mode enfant d'office), puis « Jarvis, c'est Marie ». Chaque profil a sa propre mémoire et ses propres notes ; les rappels, la liste de courses et la ville restent communs, et les mails ne se lisent que sur le profil principal. « Qui suis-je ? », « quels sont les profils ? », « supprime le profil de Marie » (avec confirmation). Reconnaissance de la voix (facultative) : avec le petit modèle `vosk-model-spk-0.4` (13 Mo, à télécharger sur alphacephei.com/vosk/models et à décompresser dans le dossier de Jarvis), dis « Jarvis, apprends ma voix » sur chaque profil ; Jarvis passe ensuite tout seul sur le profil de la personne qu'il reconnaît, et ne change rien quand il hésite. Tout reste sur le PC. Ce n'est pas une sécurité : deux voix proches peuvent être confondues.
+- Un profil par personne du foyer : « crée un profil pour Marie » (ou « un profil enfant pour Léo », en mode enfant d'office), puis « Jarvis, c'est Marie ». Chaque profil a sa propre mémoire et ses propres notes ; les rappels, la liste de courses et la ville restent communs, et les mails ne se lisent que sur le profil principal. « Qui suis-je ? », « quels sont les profils ? », « supprime le profil de Marie » (avec confirmation). Reconnaissance de la voix (facultative) : avec le petit modèle `vosk-model-spk-0.4` (13 Mo, installé tout seul avec Jarvis depuis la 1.27), dis « Jarvis, apprends ma voix » sur chaque profil ; Jarvis passe ensuite tout seul sur le profil de la personne qu'il reconnaît, et ne change rien quand il hésite. Tout reste sur le PC. Ce n'est pas une sécurité : deux voix proches peuvent être confondues.
 - Minuteurs de cuisine nommés : « minuteur pâtes 10 minutes », « un minuteur de 25 minutes pour le four », puis « combien de temps pour les pâtes ? », « où en sont les minuteurs ? », « annule le minuteur du four ». Jarvis dit lequel sonne.
 - Avec plusieurs profils, chaque rappel dit pour qui il est (« Rappel pour Marie : ... »), et « Jarvis, bonjour » ne donne à chacun que ses rappels. « Ma musique du matin, c'est … » : « Jarvis, bonjour » la lance ensuite pour ce profil.
 - Devoirs (profil enfant ou mode enfant) : « on fait les devoirs », « aide-moi à réviser les tables », « on fait une dictée ». Une question à la fois, au niveau de sa classe (« Léo est en CE1 » : la classe avance seule à chaque rentrée), un indice plutôt que la réponse, les points comptés. « On arrête les devoirs » pour finir.
@@ -218,7 +218,7 @@ Tout se passe sur ton réseau, sans compte ni service en ligne. Chaque appareil 
 - **Télé (Freebox Player POP ou autre Android TV)** : dis « **associe la télé** » et tape le code qui s'affiche sur l'écran. Ensuite : « allume la télé », « éteins la télé », « mets France 2 », « mets la chaîne 27 », « chaîne suivante », « monte le son de la télé de 5 », « coupe le son de la télé », « mets la télé en pause », « lance Netflix sur la télé ».
 - **Apple TV** : dis « **associe l'Apple TV** » et tape les deux codes à 4 chiffres qui s'affichent. Ensuite : « allume l'Apple TV », « mets l'Apple TV en pause », « reprends l'Apple TV », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (n'importe quelle app installée).
 - **Plusieurs télés** (facultatif) : décris-les dans le fichier `tele/teles.json` (un exemple est donné en tête de `jarvis_tele.py`), puis dis « associe la télé de la chambre ». Ensuite : « allume la télé de la chambre », « mets France 2 sur la télé du salon ». Sans précision, Jarvis s'adresse à la télé par défaut.
-- **PlayStation 5** : rien à régler. « Est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? » : Jarvis dit si elle est allumée, en veille ou éteinte. Lecture seule. L'allumage et la mise en veille à la voix sont en préparation (ils demandent un module qui n'est pas encore installé avec Jarvis).
+- **PlayStation 5** : « est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? » : Jarvis dit si elle est allumée, en veille ou éteinte, sans rien régler. Pour l'allumer ou la mettre en veille à la voix, relie-la une fois : dis « **relie la PS5** », connecte-toi à ton compte PlayStation dans la fenêtre qui s'ouvre, puis tape le code affiché par la console (Paramètres, Système, Lecture à distance, Lier un appareil). Ensuite : « allume la PS5 » (elle doit être en mode repos), « mets la PS5 en veille » (Jarvis demande confirmation, car une partie en cours s'arrête). Le lien avec ton compte reste dans ton dossier personnel (`.pyremoteplay`), jamais publié. En mode enfant, Jarvis n'allume pas la console.
 - **Imprimante réseau** (HP, Canon, Epson, Brother...) : rien à régler. « Il reste combien d'encre ? », « l'imprimante est allumée ? » : niveaux d'encre, papier manquant, bourrage. Lecture seule.
 - **Caméras Imou / Dahua** (en préparation) : « ajoute les caméras » ouvre une fenêtre où tu tapes le code de sécurité de chaque caméra, rangé dans Windows. L'affichage des images à la voix arrivera dans une prochaine version.
 
@@ -267,7 +267,8 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tele.py` | La télé par le Freebox Player ou une autre Android TV |
 | `jarvis_appletv.py` | L'Apple TV |
 | `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
-| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | La PlayStation 5 : allumée, en veille ou éteinte (lecture seule) ; allumage et mise en veille en préparation |
+| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | La PlayStation 5 : état, allumage et mise en veille ; la fenêtre pour la relier une fois |
+| `requirements-ps5.txt` | Les modules de la PlayStation 5, installés à part par l'installateur (sans bloquer l'installation s'ils échouent) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Les fenêtres d'association (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | La façon de parler de chaque profil (longueur, humour, vouvoiement) |
 | `jarvis_taches.py` | Les tâches de fond confiées à Claude Code |
@@ -313,6 +314,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.27 | PlayStation 5 : l'allumage et la mise en veille à la voix sont disponibles pour tous, leurs modules s'installent tout seuls avec Jarvis (sans jamais bloquer l'installation) ; le modèle qui reconnaît qui parle (« apprends ma voix ») est lui aussi installé tout seul ; l'installateur vérifie à la fin que le pilotage de la PS5 marche |
 | 1.26 | Désinstallation complète depuis les réglages (garder ou non ses fichiers personnels, copie compressée, récapitulatif, mot « confirmer ») ; installateur 1.1 (ce qu'apporte l'abonnement Claude, trace de ce qu'il installe, reprise des fichiers gardés, encadré « À retenir ») ; plusieurs télés (« la télé de la chambre ») ; PlayStation 5 : allumée, en veille ou éteinte ; réveil plus rapide quand « Jarvis » est dit seul (avec le détecteur facultatif) ; « prochain rendez-vous » sans attendre Claude ; phrases mal entendues mieux comprises (« quelle aurait-il », « la connection Internet », « lis ce que j'ai copie ») ; une phrase qui parle de la télé ne lance plus de musique sur le PC ; « remets les couleurs Vice City » |
 | 1.25 | La maison : télé (Freebox Player ou Android TV) et Apple TV pilotées à la voix, Freebox (appels, état d'Internet, appareils connectés, Wi-Fi invité avec QR code à scanner), encre et état de l'imprimante ; agenda iCloud (« c'est quand… », rappel la veille) ; envoi de mails relus et confirmés par « oui » ; carburants, vacances, jours fériés, éphéméride, poubelles ; rappels qui se répètent ; façon de parler de chaque profil ; tâches de fond confiées à Claude ; écoute : un « stop » cru entendu dans le bruit ne coupe plus Jarvis, « redémarre » tout court, « non, c'est moi… » change de profil, phrases mal entendues mieux comprises (« c'est Khan, le rendez-vous », « la polle TV ») ; en mode enfant, une phrase incompréhensible ne lance plus de vidéo au hasard, et « retourne à l'accueil » sur YouTube Kids |
 | 1.24 | Fenêtre de réglages aux couleurs de Jarvis (thèmes, son, profils, aide avec recherche, historique, santé, sauvegarde, paramètres par défaut) ; calendrier familial, messages entre profils, quiz en famille (« avec Léo », « Marie ne joue pas »), défi du jour et étoiles, histoires à deux voix, réacteur trois fois plus grand en mode enfant ; vidéos des enfants en français seulement ; compréhension : corrections d'écoute intégrées et apprises à la voix, minuteurs « pâtes » et « four » mieux compris, commandes d'un mot (« pause », « suivant ») ; fiabilité : diagnostic, compte rendu après un plantage, volume des applications toujours rétabli ; sécurité, après un essai complet à la voix : « annule le minuteur » n'efface plus les rappels, une question sur le mode nuit ou le mode enfant ne l'active plus, « verrouille l'ordinateur » demande confirmation, la voix d'une personne ne peut plus se mélanger à l'empreinte d'une autre, Claude ne crée plus de tâche Windows et ne prétend plus avoir modifié tes données ; lecture de page sans le bruit du début ; la musique du matin garde le vrai titre même mal entendu |

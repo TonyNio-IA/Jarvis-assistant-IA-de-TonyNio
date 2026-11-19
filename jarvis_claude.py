@@ -75,7 +75,7 @@ import jarvis_agenda
 import jarvis_sources
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.26"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.27"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")

@@ -124,15 +124,59 @@ _ALLUMER = re.compile(r"\b(?:allume|allumer|r[ée]veille|r[ée]veiller|d[ée]mar
 _VEILLE = re.compile(r"\b(?:[ée]teins|[ée]teindre|coupe|arr[êe]te)\b|\b(?:mets|met|passe)\b.{0,25}\b(?:veille|repos)\b")
 
 
+def preparer_netifaces():
+    """pyremoteplay a besoin du module « netifaces », qui ne s'installe pas sur Windows avec Python 3.14 (il faudrait
+    le compiler). Jarvis fournit à la place ce dont pyremoteplay se sert (liste des cartes réseau et de leurs
+    adresses IPv4), à partir de psutil. À appeler avant tout import de pyremoteplay."""
+    import sys
+    if "netifaces" in sys.modules:
+        return
+    try:
+        import netifaces                                  # noqa: F401  (le vrai module, s'il est là)
+        return
+    except ImportError:
+        pass
+    import types
+    import psutil
+    module = types.ModuleType("netifaces")
+    module.AF_INET = socket.AF_INET
+
+    def interfaces():
+        return list(psutil.net_if_addrs())
+
+    def ifaddresses(interface):
+        resultat = {}
+        for a in psutil.net_if_addrs().get(interface, []):
+            if a.family == socket.AF_INET:
+                resultat.setdefault(socket.AF_INET, []).append(
+                    {"addr": a.address, "netmask": a.netmask, "broadcast": a.broadcast})
+        return resultat
+    module.interfaces, module.ifaddresses = interfaces, ifaddresses
+    sys.modules["netifaces"] = module
+
+
+def pilotage_disponible():
+    """Vrai si l'allumage et la mise en veille sont possibles (module pyremoteplay installé et chargeable)."""
+    try:
+        preparer_netifaces()
+        import pyremoteplay                               # noqa: F401
+        return True
+    except Exception as erreur:
+        print("PS5 (module de pilotage) :", type(erreur).__name__, erreur)
+        return False
+
+
 def profils():
     """Les comptes et consoles reliés. Le module les range dans le dossier personnel de l'utilisateur
     (.pyremoteplay), hors du dossier de Jarvis : ils ne sont donc jamais publiés."""
+    preparer_netifaces()
     from pyremoteplay.profile import Profiles
     return Profiles.load()
 
 
 def _appareil(ip):
     """(console, utilisateur relié) ou (console, None) si elle n'a pas été reliée."""
+    preparer_netifaces()
     from pyremoteplay import RPDevice
     console = RPDevice(ip)
     for _ in range(4):                                 # en mode repos, la console ne répond pas à chaque fois
@@ -207,11 +251,11 @@ def _commande_action(t, confirmer, enfant):
         return None
     if enfant:
         return "Ça, c'est pour les parents."
-    import importlib.util
-    if importlib.util.find_spec("pyremoteplay") is None:
-        # module facultatif, pas encore installé avec Jarvis : seule la lecture de l'état est disponible
-        return ("Pour allumer la PS5 ou la mettre en veille, il me faut un module qui n'est pas encore installé avec moi. "
-                "Je peux quand même te dire si elle est allumée : demande-moi, est-ce que la PS5 est allumée.")
+    if not pilotage_disponible():
+        # le module de pilotage n'a pas pu être installé : seule la lecture de l'état reste possible
+        return ("Pour allumer la PS5 ou la mettre en veille, il me manque un module. Pour le réinstaller, relance "
+                "l'installateur de Jarvis et choisis 1, mettre à jour ou réparer. En attendant, je peux te dire si elle "
+                "est allumée : demande-moi, est-ce que la PS5 est allumée.")
     if relier:
         try:
             import jarvis_tele

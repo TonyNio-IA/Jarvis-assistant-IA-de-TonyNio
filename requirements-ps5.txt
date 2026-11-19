@@ -1,0 +1,11 @@
+# Pilotage de la PlayStation 5 (allumer, mettre en veille). Installé par l'installateur avec « pip install --no-deps » :
+# pyremoteplay réclame « netifaces », qui ne s'installe pas sur Windows avec Python 3.14 (il faudrait le compiler) ;
+# Jarvis le remplace lui-même (jarvis_ps5.preparer_netifaces). Les autres modules dont il a besoin (cryptography,
+# protobuf, requests, pyyaml, aiohttp, click) viennent déjà avec requirements.txt.
+# Si cette étape échoue, Jarvis s'installe quand même : seule la lecture de l'état de la PS5 reste alors possible.
+pyremoteplay==0.7.6
+pyps4-2ndscreen==1.3.1
+construct==2.10.70
+pycryptodomex==3.24.2
+pyee==8.2.2
+async-timeout==5.0.1

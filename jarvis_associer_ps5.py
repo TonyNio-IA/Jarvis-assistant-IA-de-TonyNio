@@ -61,6 +61,7 @@ def choisir(consoles):
 
 
 def main():
+    jarvis_ps5.preparer_netifaces()                  # « netifaces » ne s'installe pas sur Windows : Jarvis le remplace
     from pyremoteplay import RPDevice, oauth
     import types
     # Le service de Sony met parfois près de 10 secondes à répondre, et le module n'en attend que 3 : on attend 40 s.
