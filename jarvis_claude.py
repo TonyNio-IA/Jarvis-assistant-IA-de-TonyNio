@@ -75,7 +75,7 @@ import jarvis_agenda
 import jarvis_sources
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.25"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.26"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -171,6 +171,8 @@ PAUSE_LONGUE_AVANT_JARVIS = 0.8   # ... et il faut alors une vraie pause pour qu
 # Quand Vosk entend l'un de ces débuts, c'est parfois « Jarvis » mal compris : Whisper vérifie
 PRESQUE_JARVIS = ("j'ai envie", "j'envie", "envie", "je vis", "genre vie", "j'en vie", "gervais", "jervis", "j'arrive", "jarre", "djar",
                   "charlie", "j'ai vis", "jadis", "jarvi")     # (voix d'enfant ou aiguë : « charlie »)
+REVEIL_DIRECT = True          # « Jarvis » seul mal transcrit : le détecteur du mot d'appel confirme à la place de Whisper
+SEUIL_REVEIL_DIRECT = 0.7     # note minimale du détecteur pour ce réveil direct (plus stricte que son seuil habituel)
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
 DOSSIER_ENREGISTREMENTS = jarvis_config.chemin("enregistrements")
@@ -702,6 +704,15 @@ def chercher_reveil(resultat, audio):
     # Début qui ressemble à « Jarvis » mal compris, ou détecteur du mot d'appel (entraîné exprès, voir
     # jarvis_motappel.py) qui l'a entendu : Whisper confirme avant de réveiller Jarvis
     presque = phrase.startswith(PRESQUE_JARVIS)
+    # « Jarvis » dit seul et mal transcrit (« j'ai envie », « j'arrive »...) : si le détecteur du mot d'appel l'a
+    # nettement entendu lui aussi, Jarvis se réveille tout de suite, sans attendre Whisper (2 à 3 secondes de gagnées).
+    # Mesuré sur 300 enregistrements : 109 « Jarvis » sur 112 reconnus ainsi, aucune fausse alerte ; les autres
+    # passent par Whisper comme avant.
+    if REVEIL_DIRECT and phrase.strip() in PRESQUE_JARVIS:
+        note = jarvis_motappel.note_debut(audio)
+        if note >= SEUIL_REVEIL_DIRECT:
+            print(f"(Réveil confirmé par le détecteur du mot d'appel : note {note:.2f}, sans attendre Whisper.)")
+            return ""
     if whisper is not None and not presque:
         note = jarvis_motappel.note_debut(audio)
         if note >= jarvis_motappel.SEUIL:

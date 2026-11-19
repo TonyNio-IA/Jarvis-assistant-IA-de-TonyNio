@@ -340,10 +340,15 @@ AIDE = [
      "Par le Freebox Player POP. Une fois au début : « associe la télé »."),
     ("Maison", "« allume l'Apple TV », « mets l'Apple TV en pause », « qu'est-ce qui passe sur l'Apple TV ? », "
      "« lance Netflix sur l'Apple TV »", "Une fois au début : « associe l'Apple TV »."),
+    ("Maison", "« mets France 2 sur la télé de la chambre », « éteins la télé du salon »",
+     "Plusieurs télés : décrites dans le fichier tele/teles.json, puis « associe la télé de la chambre »."),
+    ("Maison", "« est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? »", "Lecture seule."),
     ("Maison", "« il reste combien d'encre ? », « l'imprimante est allumée ? »", "Lecture seule, rien n'est imprimé."),
     ("Jarvis", "« ouvre les réglages »", "Cette fenêtre."),
     ("Jarvis", "« cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? »", ""),
     ("Jarvis", "« redémarre-toi »", ""),
+    ("Jarvis", "Désinstaller Jarvis : onglet « À propos », bouton « Désinstaller Jarvis »",
+     "Retire tout ce qui a été installé pour lui, après une dernière confirmation. Tu peux garder tes fichiers personnels."),
 ]
 
 
@@ -950,6 +955,19 @@ def _construire():
                     bouton(boites, "Vérifier", verifier).pack(side="right", padx=4, pady=5)
             attendre()
         bouton(boites, "Vérifier les mises à jour", verifier, fort=True).pack(side="right", padx=4, pady=5)
+        section("Désinstallation")
+        cadre = ligne()
+        tk.Label(cadre, text="Retirer Jarvis de ce PC, avec tout ce qui a été installé pour lui. Rien n'est supprimé "
+                             "avant une dernière confirmation.", bg=PANNEAU2, fg=TEXTE, font=POLICE,
+                 wraplength=px(330), justify="left").pack(side="left", padx=12, pady=9)
+
+        def desinstaller():
+            try:
+                import jarvis_desinstaller
+                jarvis_desinstaller.ouvrir(racine)
+            except Exception as erreur:
+                messagebox.showerror("Jarvis", f"La fenêtre de désinstallation n'a pas pu s'ouvrir : {erreur}", parent=racine)
+        bouton(cadre, "Désinstaller Jarvis…", desinstaller).pack(side="right", padx=12, pady=5)
 
     pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
              ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("À propos", page_a_propos)]

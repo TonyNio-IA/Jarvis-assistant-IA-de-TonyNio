@@ -573,7 +573,8 @@ def choisir_couleur(texte):
 
 def commande_couleur(t):
     if not re.search(r"\br[ée]acteur\b|\b(tes|ta) couleurs?\b|\bcouleurs? vice city\b", t) or not re.search(
-            r"\b(mets|met|change|passe|choisis|prends|je veux|je pr[ée]f[eè]re|en)\b", t):
+            r"\b(mets|met|remets|remet|change|passe|repasse|choisis|prends|reprends|reviens|retourne|"
+            r"je veux|je pr[ée]f[eè]re|en)\b", t):        # « remets les couleurs Vice City » aussi
         return None
     if re.search(r"\bquelles? couleurs?\b.*\b(possibles?|disponibles?|existe)", t):
         return "Je peux prendre les couleurs Vice City, bleu, vert, rouge, violet ou orange."

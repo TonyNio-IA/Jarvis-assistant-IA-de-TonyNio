@@ -48,13 +48,32 @@ async def associer(ip):
     return False
 
 
+def _noter_associee(appareil):
+    """Retient dans tele/teles.json que cette télé est associée (Jarvis s'y connecte alors dès son démarrage)."""
+    import json
+    try:
+        with open(jarvis_tele.FICHIER_TELES, encoding="utf-8-sig") as f:
+            donnees = json.load(f)
+        for tele in donnees.get("teles", []):
+            if tele.get("appareil", "").lower() == appareil.lower():
+                tele["associee"] = True
+        with open(jarvis_tele.FICHIER_TELES, "w", encoding="utf-8") as f:
+            json.dump(donnees, f, ensure_ascii=False, indent=1)
+    except (OSError, ValueError) as erreur:
+        print("Réglage des télés non mis à jour :", erreur)
+
+
 def main():
-    ip = jarvis_tele.adresse()
+    appareil = sys.argv[1] if len(sys.argv) > 1 else None        # une autre télé que le Player (voir tele/teles.json)
+    nom = appareil or "Freebox Player POP"
+    ip = jarvis_tele.adresse(appareil=appareil)
     if not ip:
-        print("Je ne trouve pas le Freebox Player POP sur le réseau. Il est allumé ?")
+        print(f"Je ne trouve pas {nom} sur le réseau. La télé est allumée ?")
     else:
-        print(f"Freebox Player POP trouvé. Allume la télé et le Player, puis attends le code.")
+        print(f"{nom} trouvé. Allume la télé, puis attends le code.")
         ok = asyncio.run(associer(ip))
+        if ok and appareil:
+            _noter_associee(appareil)
         print("\nC'est fini, tu peux fermer cette fenêtre." if ok else "\nÇa n'a pas marché : relance ce fichier.")
     input("\nAppuie sur Entrée pour fermer.")
 

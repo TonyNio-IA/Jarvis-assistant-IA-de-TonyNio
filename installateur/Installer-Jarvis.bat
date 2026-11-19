@@ -7,6 +7,7 @@ chcp 65001 >nul
 set "JARVIS_FICHIER=%~f0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:JARVIS_FICHIER,[Text.Encoding]::UTF8); $i=$t.IndexOf('#==JARVIS-POWERSHELL=='+'#'); Invoke-Expression $t.Substring($i)"
 set "CODE=%ERRORLEVEL%"
+if "%CODE%"=="99" exit /b 0
 if not defined JARVIS_AUTO pause
 exit /b %CODE%
 #==JARVIS-POWERSHELL==#
@@ -24,7 +25,7 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $env:PYTHONIOENCODING = 'utf-8'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSION_INSTALLATEUR = '1.0'
+$VERSION_INSTALLATEUR = '1.1'
 $DEPOT      = 'TonyNio-IA/Jarvis-assistant-IA-de-TonyNio'
 $PYTHON_VER = '3.14.10'
 $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VER/python-$PYTHON_VER-amd64.exe"
@@ -36,8 +37,18 @@ $CLE        = 'HKCU:\Software\Jarvis-TonyNio'
 $AUTO       = [bool]$env:JARVIS_AUTO          # mode sans question (essais automatiques)
 $JOURNAL    = Join-Path $env:TEMP 'Jarvis-installation.log'
 $TEMP       = Join-Path $env:TEMP 'Jarvis-installation'
-$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json','liste.json','reglages_voix.json','mise_a_jour.json','enfant.json','salutation.date','vigilance.json','recette.json','anniversaires.date','apparence.json','accueil.json','profils.json','profils','rappels_faits.json','calendrier.json','messages.json','preferences.json','corrections.json','reprise.json','Jarvis-demarrage-desactive.lnk'
+$PERSONNELS = 'config.json','ville.txt','memoire.json','rappels.json','applications.json','notes.txt','position.txt','volumes.json','liste.json','reglages_voix.json','mise_a_jour.json','enfant.json','salutation.date','vigilance.json','recette.json','anniversaires.date','apparence.json','accueil.json','profils.json','profils','rappels_faits.json','calendrier.json','messages.json','preferences.json','corrections.json','reprise.json','infos.json','personnalite.json','cameras.json','tele','mot_appel','Jarvis-demarrage-desactive.lnk'
 $UTF8       = New-Object Text.UTF8Encoding $false
+$FERMER     = $false                          # vrai quand la fenêtre de l'installateur peut se fermer sans attendre
+
+function Noter($nom) {
+    # Retient, dans le registre, ce que cet installateur a installé lui-même (Python, Visual C++, Claude Code) :
+    # la désinstallation ne retirera d'office que cela, jamais ce qui était déjà sur le PC avant Jarvis.
+    try {
+        if (-not (Test-Path -Path $CLE)) { New-Item -Path $CLE -Force | Out-Null }
+        Set-ItemProperty -Path $CLE -Name $nom -Value '1'
+    } catch { Journal "Note « $nom » impossible : $($_.Exception.Message)" }
+}
 
 function Journal($texte) {
     try { Add-Content -LiteralPath $JOURNAL -Value ("[{0}] {1}" -f (Get-Date -Format 'dd/MM HH:mm:ss'), $texte) -Encoding UTF8 } catch {}
@@ -143,6 +154,7 @@ function Installer-VC {
     Dire "  Windows va te demander l'autorisation de les installer : réponds Oui." 'White'
     try {
         $p = Start-Process -FilePath $programme -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
+        if ($p.ExitCode -in 0, 3010) { Noter 'VCInstalle' }       # 1638 : une version plus récente était déjà là
         if ($p.ExitCode -in 0, 3010, 1638) { Bon "Composants Microsoft Visual C++ installés." }
         else { Attention "Les composants Microsoft n'ont pas pu être installés (code $($p.ExitCode))." }
     } catch { Attention "Installation des composants Microsoft refusée ou impossible." }
@@ -166,6 +178,40 @@ function Chemins-Raccourcis {
     return @{
         Bureau    = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Jarvis.lnk'
         Demarrage = Join-Path ([Environment]::GetFolderPath('Startup')) 'Jarvis.lnk'
+    }
+}
+
+# ---------- Fichiers personnels gardés lors d'une désinstallation ----------
+function Fichiers-Gardes {
+    # Le dossier « Jarvis - fichiers personnels » du Bureau, sinon la copie compressée la plus récente, sinon rien
+    $ErrorActionPreference = 'SilentlyContinue'
+    $bureau = [Environment]::GetFolderPath('Desktop')
+    $d = if ($env:JARVIS_GARDES) { $env:JARVIS_GARDES } else { Join-Path $bureau 'Jarvis - fichiers personnels' }
+    if ($d -like '*.zip') { if (Test-Path -LiteralPath $d) { return $d } else { return $null } }
+    if ((Test-Path -LiteralPath $d -PathType Container) -and (Get-ChildItem -LiteralPath $d -Force | Where-Object { $_.Name -in $PERSONNELS } | Select-Object -First 1)) { return $d }
+    if ($env:JARVIS_GARDES) { return $null }
+    $zip = Get-ChildItem -LiteralPath $bureau -Filter 'Jarvis-sauvegarde-*.zip' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($zip) { return $zip.FullName }
+    return $null
+}
+function Reprendre-Fichiers($source, $dossier) {
+    # Seuls des fichiers personnels connus sont repris : jamais de programme ni de raccourci
+    try {
+        $origine = $source
+        if ($source -like '*.zip') {
+            $origine = Join-Path $TEMP 'fichiers-gardes'
+            if (Test-Path -LiteralPath $origine) { Remove-Item -LiteralPath $origine -Recurse -Force }
+            Expand-Archive -LiteralPath $source -DestinationPath $origine -Force
+        }
+        $n = 0
+        Get-ChildItem -LiteralPath $origine -Force | Where-Object { $_.Name -in $PERSONNELS -and $_.Name -notlike '*.lnk' } | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $dossier -Recurse -Force
+            $n++
+        }
+        Bon "Tes fichiers personnels sont repris ($n éléments). Tu peux garder ou supprimer « $(Split-Path -Leaf $source) » sur le Bureau."
+    } catch {
+        Journal "Reprise des fichiers personnels : $($_.Exception.Message)"
+        Attention "Tes fichiers personnels n'ont pas pu être repris. Ils sont toujours ici : $source"
     }
 }
 
@@ -260,6 +306,7 @@ function Installer-Claude {
             Attention "Claude Code n'a pas pu être installé. Jarvis fonctionnera avec les commandes immédiates. Tu pourras réessayer en relançant ce fichier (« Ajouter Claude »)."
             return
         }
+        Noter 'ClaudeInstalle'
         Bon "Claude Code installé."
         Dire "  (Les messages en anglais ci-dessus viennent de l'installation officielle de Claude Code."
         Dire "   S'ils parlent de « PATH », tu peux les ignorer : Jarvis trouve Claude tout seul.)"
@@ -436,7 +483,17 @@ function Installer($dossierExistant) {
     } else {
         Dire "  Bienvenue. Deux questions, puis l'installation se fait toute seule."
         Dire ''
-        $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM'
+        # Fichiers personnels gardés lors d'une désinstallation (dossier ou copie compressée sur le Bureau)
+        $gardes = Fichiers-Gardes
+        $reprendre = $false
+        if ($gardes) {
+            Dire "  Des fichiers personnels d'une ancienne installation de Jarvis ont été trouvés :" 'White'
+            Dire "    $gardes"
+            $reprendre = OuiNon "Les reprendre (tes réglages, les profils et les voix, la mémoire, les rappels, les notes) ?" (-not $AUTO) 'JARVIS_REPRENDRE'
+            Dire ''
+        }
+        $prenom = ''
+        if (-not $reprendre) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }
         # Le reste se règle plus tard : la ville en le disant à Jarvis, le dossier et le démarrage par défaut
         $ville = ''
         $dossier = if ($env:JARVIS_DOSSIER) { $env:JARVIS_DOSSIER } else { 'C:\Jarvis' }
@@ -446,8 +503,12 @@ function Installer($dossierExistant) {
         }
         $auDemarrage = $env:JARVIS_DEMARRAGE -notin 'n','non','0'
         Dire ''
-        Dire "  Jarvis répond seul à l'heure, la météo, les minuteurs, les fenêtres, la musique."
-        Dire "  Pour les questions libres, il utilise Claude Code, qui demande un abonnement Claude (Pro ou supérieur)."
+        Dire "  Sans abonnement, Jarvis répond seul à ses commandes immédiates : l'heure, la météo, les minuteurs et les rappels,"
+        Dire "  la musique, les fenêtres et les applications du PC."
+        Dire "  Avec un abonnement Claude (Pro ou supérieur), il fait beaucoup plus : de vraies conversations, des réponses à"
+        Dire "  toutes tes questions, et tout ce qui demande de réfléchir, de rédiger ou de chercher sur Internet."
+        Dire "  Sans cet abonnement, tu auras donc accès à moins de fonctionnalités de Jarvis." 'White'
+        Dire "  Tu pourras le relier plus tard, quand tu voudras, en relançant cet installateur."
         $avecClaude = OuiNon "As-tu un abonnement Claude et veux-tu l'utiliser avec Jarvis ?" $false 'JARVIS_CLAUDE'
         if ((Test-Path -LiteralPath $dossier) -and (Get-ChildItem -LiteralPath $dossier -Force | Select-Object -First 1) -and -not (Test-Path -LiteralPath (Join-Path $dossier 'jarvis_gardien.py'))) {
             Echec "Le dossier $dossier existe déjà et contient autre chose. Choisis un dossier vide ou nouveau."
@@ -484,6 +545,7 @@ function Installer($dossierExistant) {
         $p = Start-Process -FilePath $programme -ArgumentList '/quiet','InstallAllUsers=0','PrependPath=0','Include_launcher=0','Include_test=0','Include_doc=0' -Wait -PassThru
         $python = Python-314
         if (-not $python) { Echec "Python n'a pas pu être installé (code $($p.ExitCode)). Installe Python 3.14 depuis https://www.python.org/downloads/ puis relance l'installateur." }
+        Noter 'PythonInstalle'
         Bon "Python $PYTHON_VER installé."
     }
 
@@ -494,6 +556,10 @@ function Installer($dossierExistant) {
     Copier-Programme $dossier
     $env_py = Installer-Modules $dossier $python
     Installer-Vosk $dossier
+    if (-not $maj -and $reprendre) {
+        Reprendre-Fichiers $gardes $dossier
+        if (-not (Test-Path -LiteralPath (Join-Path $dossier 'config.json'))) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }
+    }
     Ecrire-Reglages $dossier $prenom $ville
 
     # 8. Claude
@@ -506,7 +572,7 @@ function Installer($dossierExistant) {
     Raccourci (Join-Path $dossier 'Jarvis.lnk') $pythonw $dossier
     Raccourci $liens.Bureau $pythonw $dossier
     if ($auDemarrage) { Raccourci $liens.Demarrage $pythonw $dossier }
-    New-Item -Path $CLE -Force | Out-Null
+    if (-not (Test-Path -Path $CLE)) { New-Item -Path $CLE -Force | Out-Null }     # sans effacer ce qui y est déjà noté
     Set-ItemProperty -Path $CLE -Name Dossier -Value $dossier
     Set-ItemProperty -Path $CLE -Name Version -Value (Version-Installee $dossier)
     $fichierInstallateur = Ranger-Installateur $dossier
@@ -532,11 +598,19 @@ function Installer($dossierExistant) {
         Dire "  (une copie est rangée dans $dossier), puis tape 3 (« Connecter Claude »)." 'White'
         Dire ''
     }
-    Dire "  Pour lui parler : dis « Jarvis », attends le bip, puis ta demande. Exemple : « Jarvis, quelle heure est-il ? »"
-    Dire "  Pour la météo de chez toi, dis-lui une fois : « Jarvis, ma ville est Toulouse » (avec le nom de ta ville)."
-    Dire "  Jarvis se lance avec Windows. Pour l'empêcher : supprime le raccourci « Jarvis » du dossier Démarrage (touche Windows + R, puis shell:startup)."
-    Dire "  Clic droit sur le réacteur pour l'arrêter. Pour mettre à jour ou désinstaller : relance ce fichier"
-    Dire "  (une copie est rangée dans $dossier : touche Windows + R, tape $dossier, puis Entrée)."
+    Dire ''
+    Dire '  ------------------------------------------------------------' 'Cyan'
+    Dire '   À RETENIR' 'Cyan'
+    Dire '  ------------------------------------------------------------' 'Cyan'
+    Dire "   Lui parler : dis « Jarvis », attends le bip, puis ta demande. Exemple : « Jarvis, quelle heure est-il ? »" 'White'
+    Dire "   La météo de chez toi : dis-lui une fois « Jarvis, ma ville est Toulouse » (avec le nom de ta ville)."
+    Dire "   Ses réglages : dis « Jarvis, ouvre les réglages ». Tu y choisis aussi s'il se lance avec Windows (onglet Système)."
+    Dire "   L'arrêter : clic droit sur le réacteur."
+    Dire "   Le mettre à jour : dis « Jarvis, mets-toi à jour », ou relance ce fichier."
+    Dire "   Le désinstaller : dans ses réglages, onglet « À propos », bouton « Désinstaller Jarvis » (ou relance ce fichier)." 'White'
+    Dire "   Tout ce qui a été installé pour lui est alors retiré, après ta confirmation, et Windows revient comme avant."
+    Dire "   Une copie de cet installateur est rangée dans $dossier (touche Windows + R, tape $dossier, puis Entrée)."
+    Dire '  ------------------------------------------------------------' 'Cyan'
     if (-not $env:JARVIS_SANS_LANCEMENT) {
         Start-Process -FilePath (Join-Path $dossier 'Jarvis.lnk')
         Dire "  Jarvis démarre (le premier lancement prend une minute ou deux : il télécharge Whisper)." 'Green'
@@ -547,6 +621,20 @@ function Installer($dossierExistant) {
 function Desinstaller($dossier) {
     Titre "Désinstallation de Jarvis"
     Dire "  Jarvis est installé dans $dossier."
+    # La désinstallation complète se fait dans la fenêtre de Jarvis (jarvis_desinstaller.py) : elle demande quoi faire
+    # des fichiers personnels, montre tout ce qui sera retiré (Python et Claude Code compris, s'ils ont été installés
+    # pour Jarvis) et attend le mot « confirmer ». Sans elle (ancienne version, essais automatiques) : méthode simple.
+    $fenetre = Join-Path $dossier 'jarvis_desinstaller.py'
+    $pythonw = Join-Path $dossier 'python-env\Scripts\pythonw.exe'
+    if (-not $AUTO -and (Test-Path -LiteralPath $fenetre) -and (Test-Path -LiteralPath $pythonw)) {
+        Dire "  La fenêtre de désinstallation de Jarvis s'ouvre : suis ses indications." 'White'
+        Dire "  Elle te demande si tu veux garder tes fichiers personnels, puis une dernière confirmation."
+        Dire "  Rien n'est supprimé avant cette confirmation. Cette fenêtre noire va se fermer toute seule."
+        Start-Process -FilePath $pythonw -ArgumentList ('"' + $fenetre + '"') -WorkingDirectory $env:TEMP
+        Start-Sleep -Seconds 6
+        $script:FERMER = $true
+        return
+    }
     if (-not (OuiNon "Désinstaller Jarvis de ce PC ?" $false 'JARVIS_OK')) { Dire "  Rien n'a été modifié."; return }
     $garder = -not (OuiNon "Supprimer aussi tes réglages, sa mémoire, tes rappels et tes notes ?" $false 'JARVIS_TOUT_SUPPRIMER')
     # Garde-fou : on ne supprime qu'un vrai dossier de Jarvis, jamais un disque ni le dossier personnel
@@ -631,4 +719,5 @@ try {
     try { if (Test-Path -LiteralPath $TEMP) { Remove-Item -LiteralPath $TEMP -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
 }
 Write-Host ''
+if ($FERMER -and -not $code) { exit 99 }      # 99 : la fenêtre se ferme sans « Appuyez sur une touche »
 exit $code

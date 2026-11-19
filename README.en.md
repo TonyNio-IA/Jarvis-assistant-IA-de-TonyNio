@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.25**
+**Français : [README.md](README.md)** · **Current version: 1.26**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -29,6 +29,21 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Aide** (help): every command by theme, with search.
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
+- **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.26: full uninstall, several TVs, PS5
+
+<p align="center">
+<img src="docs/reglages_a_propos.png" alt="Settings, About tab: updates and the Uninstall Jarvis button" width="49%">
+<img src="docs/desinstaller_confirmation.png" alt="Last confirmation before uninstalling: the list of everything that will be removed" width="49%">
+</p>
+
+- **Uninstall Jarvis** from its settings (« À propos » tab): you choose whether to keep your personal files, you see the list of everything that will be removed, and nothing is deleted before you type « confirmer ». See [Uninstall](#uninstall).
+- **Installer 1.1**: it explains what the Claude subscription adds, records what it installs itself, restores the personal files kept during an uninstall, and ends with a « À retenir » (things to remember) box.
+- **Several TVs**: « mets France 2 sur la télé de la chambre ». See [The home](#the-home).
+- **PlayStation 5**: « est-ce que la PS5 est allumée ? » (on, in rest mode or off, and the running game when the console reports it).
+- **Faster wake-up** when you say « Jarvis » alone, with the optional wake-word detector.
+- **Understanding**: « c'est quoi mon prochain rendez-vous ? » is answered at once; several misheard sentences are better understood; a sentence about the TV no longer starts music on the PC.
 
 ## New in 1.25: the home, the calendar and mails
 
@@ -53,7 +68,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 
 1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 200 KB).
 2. **Double-click it.** Windows will probably show a blue screen, "Windows protected your PC": this is normal for a small free program that is not signed by a paid publisher. Click **More info**, then **Run anyway**.
-3. **Answer the two questions** (in French): your first name, and whether you want to use your Claude subscription. Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
+3. **Answer the two questions** (in French): your first name, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
    - Python 3.14 (from python.org), in your user folder;
    - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes**;
    - Jarvis, its modules and its speech model, in `C:\Jarvis`;
@@ -65,6 +80,8 @@ Everything can be set without editing a file: right-click the reactor then « R�
 To get your local weather, say once: "**Jarvis, ma ville est** …" followed by the name of your town.
 
 **Update, repair, add Claude or uninstall:** run the same file again. A copy is also kept in `C:\Jarvis` (Windows key + R, type `C:\Jarvis`, then Enter). A menu lets you update, uninstall, or add Claude if it is missing. Updating keeps your settings, its memory and your reminders.
+
+<a id="uninstall"></a>**Uninstall:** in Jarvis's settings, « À propos » tab, click « Désinstaller Jarvis… » (or run the installer again and choose « Désinstaller »). A first window asks what to do with your personal files (settings, profiles and voices, memory, reminders, notes, lists): keep them in a « Jarvis - fichiers personnels » folder on the desktop, or delete them, with a compressed copy if you wish. A last window lists everything that will be removed: the Jarvis folder, its shortcuts (desktop and Windows startup), its registry marker, its temporary files, plus Python, Claude Code and the Microsoft Visual C++ components. These last three are ticked by default: **untick the ones you use for something else**. Nothing is deleted until you type « confirmer ». If you install Jarvis again later, the installer offers to restore the kept files.
 
 **If your antivirus rejects the .exe file:** download [Installer-Jarvis.bat](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat) instead. It runs exactly the same setup, without the reactor icon. The code of both is readable in the project's `installateur` folder.
 
@@ -168,6 +185,8 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - **Freebox**: say « connecte-toi à la Freebox » and confirm on the box's screen; then tick the "Jarvis" app's rights in Freebox OS (access management) for settings and calls. « Est-ce que j'ai eu des appels ? », « est-ce qu'Internet marche ? », « combien d'appareils sont connectés ? », « crée un Wi-Fi invité pour 2 heures » (a QR code opens on screen), « montre le QR code du Wi-Fi invité », « ferme le Wi-Fi invité ».
 - **TV (Freebox Player POP or another Android TV)**: say « associe la télé » and type the code shown on the TV. Then « allume la télé », « mets France 2 », « mets la chaîne 27 », « monte le son de la télé de 5 », « mets la télé en pause », « lance Netflix sur la télé ».
 - **Apple TV**: say « associe l'Apple TV » and type the two 4-digit codes. Then « allume l'Apple TV », « mets l'Apple TV en pause », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (any installed app).
+- **Several TVs** (optional): describe them in the `tele/teles.json` file (an example is given at the top of `jarvis_tele.py`), then say « associe la télé de la chambre ». Then « allume la télé de la chambre », « mets France 2 sur la télé du salon ». Without a room, Jarvis talks to the default TV.
+- **PlayStation 5**: nothing to set up. « Est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? »: Jarvis says whether it is on, in rest mode or off. Read-only. Turning it on and putting it to rest mode by voice are in progress (they need a module that is not installed with Jarvis yet).
 - **Network printer** (HP, Canon, Epson, Brother...): « il reste combien d'encre ? », « l'imprimante est allumée ? ». Read-only.
 - **Imou / Dahua cameras** (in progress): « ajoute les caméras » opens a window to type each camera's security code, stored by Windows. Showing the picture by voice will come in a later version.
 
@@ -224,6 +243,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_sante.py` | Self-check and crash report |
 | `jarvis_accueil.py` | Guided first run for new users |
 | `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
+| `jarvis_desinstaller.py` | The full uninstall: personal files choice, summary and last confirmation |
 | `jarvis_infos.py` | Fuel prices, school holidays, bank holidays, "on this day", bin days |
 | `jarvis_agenda.py` | The iCloud calendar (public link) and the evening-before reminder |
 | `jarvis_freebox.py` | The Freebox: calls, internet status, connected devices, guest Wi-Fi |
@@ -231,6 +251,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_tele.py` | The TV through the Freebox Player or another Android TV |
 | `jarvis_appletv.py` | The Apple TV |
 | `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |
+| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | The PlayStation 5: on, in rest mode or off (read-only); turning it on and rest mode in progress |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Pairing windows (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | Each profile's speaking style (length, humour, "vous") |
 | `jarvis_taches.py` | Background tasks handed to Claude Code |

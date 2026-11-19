@@ -55,6 +55,7 @@ import jarvis_infos
 import jarvis_freebox
 import jarvis_agenda
 import jarvis_imprimante
+import jarvis_ps5
 import jarvis_tele
 import jarvis_appletv
 import jarvis_personnalite
@@ -1277,6 +1278,10 @@ _PAS_UN_TITRE = (r"\b(applications?|applis?|fenêtres?|écran|ecran|ordinateur|o
 
 
 def _commande_musique(t):
+    # Une phrase qui parle de la télé (ou de l'Apple TV) ne lance jamais de musique sur le PC : mal entendue
+    # (« mais france de sur la télé »), elle ouvrait une vidéo YouTube au hasard dans Chrome.
+    if re.search(r"\b(?:télé|tele|télévision|television|tv|téloche|cha[îi]ne|player|freebox|apple)\b", t):
+        return None
     # Mode enfant : jamais le YouTube ordinaire. Une vidéo ou une musique passe par YouTube Kids.
     if jarvis_enfant.actif() and re.match(r"\W*(mets|mets-moi|met|mettre|mais|mes|joue|joue-moi|jouer|lance|passe|"
                                           r"passe-moi)\b", t):
@@ -1564,6 +1569,7 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_infos.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_freebox.commande(t),
                              lambda: jarvis_imprimante.commande(t),
+                             lambda: jarvis_ps5.commande(t, demander_confirmation, jarvis_enfant.actif()),
                              lambda: jarvis_agenda.commande(t),
                              lambda: _commande_memoire(brut),
                              lambda: jarvis_extras.commande_anniversaire(t, brut),

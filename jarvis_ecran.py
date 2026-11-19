@@ -185,7 +185,7 @@ _TOUT_ECRAN = r"\b(tout l'écran|écran entier|l'écran en entier|tout mon écra
 # « le texte copier » : Whisper écrit souvent « copier » pour « copié »
 _COPIE = (r"\b(copiée?s?|presse[- ]papiers?|sélectionnée?s?|sélection|surlignée?s?)\b|\b(?:texte|j'ai) copier\b")
 _SELECTION = r"\b(sélectionnée?s?|sélection|surlignée?s?)\b"
-_LIRE_COPIE = r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|dis-moi)\b.*\b(copiée?s?|copier|presse[- ]papiers?)\b"
+_LIRE_COPIE = r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lire|relis|dis-moi)\b.*\b(copiée?s?|copier|j'ai copie|presse[- ]papiers?)\b"
 _BALISE = re.compile(r"\[\[COPIE\]\](.*?)\[\[/COPIE\]\]", re.S)
 CONSIGNE = ("Quand une note t'indique une capture d'écran, lis l'image avec l'outil Read avant de répondre, "
             "puis réponds à la voix, brièvement. Quand une note te donne un texte copié et que " + jarvis_config.NOM + " veut "

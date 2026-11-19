@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.25**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.26**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -29,6 +29,21 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Aide** : toutes les commandes rangées par thème, avec une recherche.
 - **Santé** : un diagnostic en un clic (micro, haut-parleur, reconnaissance vocale, Claude, connexion, disque).
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
+- **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.26 : désinstallation complète, plusieurs télés, PS5
+
+<p align="center">
+<img src="docs/reglages_a_propos.png" alt="Réglages, onglet À propos : mises à jour et bouton Désinstaller Jarvis" width="49%">
+<img src="docs/desinstaller_confirmation.png" alt="Dernière confirmation avant la désinstallation : la liste de tout ce qui sera retiré" width="49%">
+</p>
+
+- **Désinstaller Jarvis** depuis ses réglages (onglet « À propos ») : tu choisis de garder ou non tes fichiers personnels, tu vois la liste de tout ce qui sera retiré, et rien n'est supprimé avant que tu aies écrit « confirmer ». Voir [Désinstaller](#desinstaller).
+- **Installateur 1.1** : il explique ce que l'abonnement Claude apporte, retient ce qu'il installe lui-même, reprend tes fichiers personnels gardés lors d'une désinstallation, et finit par un encadré « À retenir ».
+- **Plusieurs télés** : « mets France 2 sur la télé de la chambre ». Voir [La maison](#la-maison).
+- **PlayStation 5** : « est-ce que la PS5 est allumée ? » (allumée, en veille ou éteinte, et le jeu en cours quand la console l'indique).
+- **Réveil plus rapide** quand tu dis « Jarvis » seul, avec le détecteur facultatif du mot d'appel.
+- **Compréhension** : « c'est quoi mon prochain rendez-vous ? » répond tout de suite ; plusieurs phrases mal entendues sont mieux comprises ; une phrase qui parle de la télé ne lance plus de musique sur le PC.
 
 ## Nouveau en 1.25 : la maison, l'agenda et les mails
 
@@ -53,7 +68,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 
 1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 200 Ko).
 2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
-3. **Réponds aux deux questions** : ton prénom, et si tu veux utiliser ton abonnement Claude. Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
+3. **Réponds aux deux questions** : ton prénom, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
    - Python 3.14 (depuis python.org), dans ton dossier personnel ;
    - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** ;
    - Jarvis, ses modules et son modèle vocal, dans `C:\Jarvis` ;
@@ -65,6 +80,8 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
 
 **Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. La mise à jour garde tes réglages, sa mémoire et tes rappels.
+
+<a id="desinstaller"></a>**Désinstaller :** dans les réglages de Jarvis, onglet « À propos », clique sur « Désinstaller Jarvis… » (ou relance l'installateur et choisis « Désinstaller »). Une première fenêtre te demande quoi faire de tes fichiers personnels (réglages, profils et voix, mémoire, rappels, notes, listes) : les garder dans un dossier « Jarvis - fichiers personnels » sur le Bureau, ou les supprimer, avec si tu veux une copie compressée. Une dernière fenêtre liste tout ce qui va être retiré : le dossier de Jarvis, ses raccourcis (Bureau et démarrage de Windows), son repère dans le registre, ses fichiers temporaires, ainsi que Python, Claude Code et les composants Microsoft Visual C++. Ces trois derniers sont cochés d'office : **décoche ceux que tu utilises pour autre chose**. Rien n'est supprimé tant que tu n'as pas écrit « confirmer ». Si tu réinstalles Jarvis plus tard, l'installateur te propose de reprendre les fichiers gardés.
 
 **Si ton antivirus refuse le fichier .exe :** télécharge à la place [Installer-Jarvis.bat](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat). Il fait exactement la même installation, sans l'icône du réacteur. Le code des deux est lisible dans le dossier `installateur` du projet.
 
@@ -200,6 +217,8 @@ Tout se passe sur ton réseau, sans compte ni service en ligne. Chaque appareil 
 - **Freebox** : dis « **connecte-toi à la Freebox** », puis valide sur l'écran de la box. Ensuite : « est-ce que j'ai eu des appels ? », « est-ce qu'Internet marche ? », « combien d'appareils sont connectés ? ». Pour le Wi-Fi invité et le journal des appels, coche ensuite les droits de l'application « Jarvis » dans Freebox OS (Paramètres de la Freebox, Gestion des accès, onglet Applications), notamment la modification des réglages de la Freebox et l'accès aux appels. Puis « **crée un Wi-Fi invité pour 2 heures** » : Jarvis ouvre un **QR code** à l'écran, que tes invités scannent avec l'appareil photo de leur téléphone. Le mot de passe n'est jamais dit à voix haute. « Montre le QR code du Wi-Fi invité », « ferme le Wi-Fi invité ».
 - **Télé (Freebox Player POP ou autre Android TV)** : dis « **associe la télé** » et tape le code qui s'affiche sur l'écran. Ensuite : « allume la télé », « éteins la télé », « mets France 2 », « mets la chaîne 27 », « chaîne suivante », « monte le son de la télé de 5 », « coupe le son de la télé », « mets la télé en pause », « lance Netflix sur la télé ».
 - **Apple TV** : dis « **associe l'Apple TV** » et tape les deux codes à 4 chiffres qui s'affichent. Ensuite : « allume l'Apple TV », « mets l'Apple TV en pause », « reprends l'Apple TV », « qu'est-ce qui passe sur l'Apple TV ? », « lance YouTube sur l'Apple TV » (n'importe quelle app installée).
+- **Plusieurs télés** (facultatif) : décris-les dans le fichier `tele/teles.json` (un exemple est donné en tête de `jarvis_tele.py`), puis dis « associe la télé de la chambre ». Ensuite : « allume la télé de la chambre », « mets France 2 sur la télé du salon ». Sans précision, Jarvis s'adresse à la télé par défaut.
+- **PlayStation 5** : rien à régler. « Est-ce que la PS5 est allumée ? », « la PlayStation est en veille ? » : Jarvis dit si elle est allumée, en veille ou éteinte. Lecture seule. L'allumage et la mise en veille à la voix sont en préparation (ils demandent un module qui n'est pas encore installé avec Jarvis).
 - **Imprimante réseau** (HP, Canon, Epson, Brother...) : rien à régler. « Il reste combien d'encre ? », « l'imprimante est allumée ? » : niveaux d'encre, papier manquant, bourrage. Lecture seule.
 - **Caméras Imou / Dahua** (en préparation) : « ajoute les caméras » ouvre une fenêtre où tu tapes le code de sécurité de chaque caméra, rangé dans Windows. L'affichage des images à la voix arrivera dans une prochaine version.
 
@@ -240,6 +259,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_sante.py` | Le diagnostic et le compte rendu après un plantage |
 | `jarvis_accueil.py` | Les premiers pas d'un nouvel utilisateur (une question à la fois) |
 | `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
+| `jarvis_desinstaller.py` | La désinstallation complète : choix des fichiers personnels, récapitulatif et dernière confirmation |
 | `jarvis_infos.py` | Carburants, vacances scolaires, jours fériés, éphéméride, jours des poubelles |
 | `jarvis_agenda.py` | L'agenda iCloud (lien public) et le rappel de la veille |
 | `jarvis_freebox.py` | La Freebox : appels, état d'Internet, appareils connectés, Wi-Fi invité |
@@ -247,6 +267,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tele.py` | La télé par le Freebox Player ou une autre Android TV |
 | `jarvis_appletv.py` | L'Apple TV |
 | `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
+| `jarvis_ps5.py`, `jarvis_associer_ps5.py` | La PlayStation 5 : allumée, en veille ou éteinte (lecture seule) ; allumage et mise en veille en préparation |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Les fenêtres d'association (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | La façon de parler de chaque profil (longueur, humour, vouvoiement) |
 | `jarvis_taches.py` | Les tâches de fond confiées à Claude Code |
@@ -292,6 +313,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.26 | Désinstallation complète depuis les réglages (garder ou non ses fichiers personnels, copie compressée, récapitulatif, mot « confirmer ») ; installateur 1.1 (ce qu'apporte l'abonnement Claude, trace de ce qu'il installe, reprise des fichiers gardés, encadré « À retenir ») ; plusieurs télés (« la télé de la chambre ») ; PlayStation 5 : allumée, en veille ou éteinte ; réveil plus rapide quand « Jarvis » est dit seul (avec le détecteur facultatif) ; « prochain rendez-vous » sans attendre Claude ; phrases mal entendues mieux comprises (« quelle aurait-il », « la connection Internet », « lis ce que j'ai copie ») ; une phrase qui parle de la télé ne lance plus de musique sur le PC ; « remets les couleurs Vice City » |
 | 1.25 | La maison : télé (Freebox Player ou Android TV) et Apple TV pilotées à la voix, Freebox (appels, état d'Internet, appareils connectés, Wi-Fi invité avec QR code à scanner), encre et état de l'imprimante ; agenda iCloud (« c'est quand… », rappel la veille) ; envoi de mails relus et confirmés par « oui » ; carburants, vacances, jours fériés, éphéméride, poubelles ; rappels qui se répètent ; façon de parler de chaque profil ; tâches de fond confiées à Claude ; écoute : un « stop » cru entendu dans le bruit ne coupe plus Jarvis, « redémarre » tout court, « non, c'est moi… » change de profil, phrases mal entendues mieux comprises (« c'est Khan, le rendez-vous », « la polle TV ») ; en mode enfant, une phrase incompréhensible ne lance plus de vidéo au hasard, et « retourne à l'accueil » sur YouTube Kids |
 | 1.24 | Fenêtre de réglages aux couleurs de Jarvis (thèmes, son, profils, aide avec recherche, historique, santé, sauvegarde, paramètres par défaut) ; calendrier familial, messages entre profils, quiz en famille (« avec Léo », « Marie ne joue pas »), défi du jour et étoiles, histoires à deux voix, réacteur trois fois plus grand en mode enfant ; vidéos des enfants en français seulement ; compréhension : corrections d'écoute intégrées et apprises à la voix, minuteurs « pâtes » et « four » mieux compris, commandes d'un mot (« pause », « suivant ») ; fiabilité : diagnostic, compte rendu après un plantage, volume des applications toujours rétabli ; sécurité, après un essai complet à la voix : « annule le minuteur » n'efface plus les rappels, une question sur le mode nuit ou le mode enfant ne l'active plus, « verrouille l'ordinateur » demande confirmation, la voix d'une personne ne peut plus se mélanger à l'empreinte d'une autre, Claude ne crée plus de tâche Windows et ne prétend plus avoir modifié tes données ; lecture de page sans le bruit du début ; la musique du matin garde le vrai titre même mal entendu |
 | 1.23 | Alertes de la Vigilance Météo-France pour ton département, avec animation du réacteur à la couleur de l'alerte ; heure dans une autre ville ; dernier téléchargement ; « où j'en étais ? » (onglets de Chrome) ; « ferme tout » avec confirmation ; recette pas à pas ; anniversaires des proches rappelés la veille et le jour même ; anecdotes ; résumé d'une vidéo YouTube ; lecture du texte sélectionné ; modes cinéma et invité ; couleurs du réacteur au choix ; un profil par personne du foyer, reconnu à sa voix ; minuteurs nommés ; devoirs et coucher pour les enfants ; résumé de la journée ; premiers pas guidés pour les nouveaux utilisateurs ; « avance de… / recule de… » mieux compris et plus précis ; « mets la première vidéo sur lecture » |

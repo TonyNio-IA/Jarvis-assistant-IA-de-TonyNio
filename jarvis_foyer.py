@@ -183,14 +183,19 @@ def _phrase_evenement(e, avec_jour=True, avec_qui=True):
 
 def commande_consulter(t):
     t = t.replace("’", "'")
-    if not re.search(r"\b(qu'est-ce qu(?:'on|e j'ai|e tu as|e nous avons)|quel est le programme|quels sont les rendez-vous|"
+    # « c'est quoi mon prochain rendez-vous ? » (toute la demande) : le premier à venir, dans les 60 jours
+    prochain = re.search(r"^\W*(?:jarvis\W+)?(?:c'est quoi|quel est|quels sont|dis[- ]moi|donne[- ]moi)?\s*"
+                         r"(?:mon|mes|le|les|notre|nos)?\s*prochains? (?:rendez[- ]vous|rdv)\W*$", t, re.I)
+    if not prochain and not re.search(r"\b(qu'est-ce qu(?:'on|e j'ai|e tu as|e nous avons)|quel est le programme|quels sont les rendez-vous|"
                      r"calendrier|agenda|on a quoi|j'ai quoi|qu'y a-t-il)\b", t):
         return None
     if re.search(r"\b(fait|fais|faire)\b", t):
         return None                                  # « qu'est-ce qu'on a fait aujourd'hui » : le résumé
     aujourdhui = datetime.date.today()
     debut_jour = datetime.datetime.combine(aujourdhui, datetime.time()).timestamp()
-    if re.search(r"\bcette semaine\b|\bla semaine\b", t):
+    if prochain:
+        debut, fin, periode = time.time(), debut_jour + 60 * 86400, "dans les deux mois qui viennent"
+    elif re.search(r"\bcette semaine\b|\bla semaine\b", t):
         debut, fin, periode = time.time(), debut_jour + 7 * 86400, "cette semaine"
     elif re.search(r"\bapr[eè]s[- ]demain\b", t):
         debut, fin, periode = debut_jour + 2 * 86400, debut_jour + 3 * 86400, "après-demain"
@@ -241,6 +246,8 @@ def commande_consulter(t):
             continue
         qui = "tu as" if e.get("pour") == moi else f"{_prenom(e.get('pour'))} a"
         phrases.append(f"{jour}à {_heure_parlee(t_e.tm_hour, t_e.tm_min)}, {qui} {e['quoi']}")
+    if prochain:
+        return "Prochain rendez-vous : " + phrases[0] + "."
     debut_phrase = (periode[0].upper() + periode[1:]) if periode in ("demain", "aujourd'hui", "après-demain") else "Au programme"
     return debut_phrase + " : " + " ; ".join(phrases) + "."
 

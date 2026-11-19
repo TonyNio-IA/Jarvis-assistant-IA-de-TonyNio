@@ -36,8 +36,60 @@ _NOMBRES = {"un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "s
 _TELE = re.compile(r"\b(?:télé|tele|télévision|television|tv|téloche|player|freebox)\b")
 
 
-def adresse(forcer=False):
-    """IP du Freebox Player POP d'après la Freebox (gardée 10 minutes), ou None."""
+# ---------- Plusieurs télés (facultatif) ----------
+# Sans réglage, « la télé » est le Freebox Player. Pour piloter aussi d'autres télés Android TV de la maison, on les
+# décrit dans tele/teles.json (dossier jamais publié : les noms des pièces restent sur ce PC) :
+#   {"teles": [{"nom": "du salon", "mots": ["salon"], "appareil": "player", "defaut": true},
+#              {"nom": "de la chambre", "mots": ["chambre"], "appareil": "Android TV"}]}
+# « appareil » : « player » pour le Freebox Player, sinon le nom de la télé tel que la Freebox l'affiche.
+# « mets France 2 sur la télé de la chambre » va à la télé dont un des « mots » est dans la phrase ; sinon à celle par défaut.
+FICHIER_TELES = os.path.join(DOSSIER_CERT, "teles.json")
+_memos = {}                     # appareil -> (ip, quand)
+
+
+def _sans_accents(t):
+    for a, b in (("àâä", "a"), ("éèêë", "e"), ("îï", "i"), ("ôö", "o"), ("ùûü", "u"), ("ç", "c")):
+        for lettre in a:
+            t = t.replace(lettre, b)
+    return t.lower()
+
+
+def teles():
+    """Les télés décrites dans tele/teles.json ([] s'il n'y en a pas : une seule télé, le Player)."""
+    try:
+        import json
+        with open(FICHIER_TELES, encoding="utf-8-sig") as f:
+            return [x for x in json.load(f).get("teles", []) if x.get("nom") and x.get("appareil")]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def tele_nommee(t):
+    """(télé citée dans la phrase ou None, phrase sans le nom de la pièce). None : la télé par défaut."""
+    simple = _sans_accents(t)
+    for tele in teles():
+        for mot in sorted(tele.get("mots") or [], key=len, reverse=True):
+            m = re.search(r"\s*\b(?:(?:de|dans|à|a) (?:la |le |l')?|du |d')?" + re.escape(_sans_accents(mot)) + r"\b", simple)
+            if m:
+                reste = (t[:m.start()] + t[m.end():]).strip()
+                return (None if tele.get("defaut") else tele), " ".join(reste.split())
+    return None, t
+
+
+def adresse(forcer=False, appareil=None):
+    """IP de la télé d'après la Freebox (gardée 10 minutes), ou None. Sans « appareil » : le Freebox Player POP."""
+    if appareil and appareil.lower() != "player":
+        ip, quand = _memos.get(appareil, (None, 0.0))
+        if ip and not forcer and time.time() - quand < 600:
+            return ip
+        import jarvis_freebox
+        for h in jarvis_freebox._lire("lan/browser/pub/") or []:
+            if (h.get("primary_name") or "").strip().lower() == appareil.strip().lower():
+                ips = [c["addr"] for c in (h.get("l3connectivities") or []) if c.get("af") == "ipv4" and c.get("active")]
+                if ips:
+                    _memos[appareil] = (ips[0], time.time())
+                    return ips[0]
+        return None
     if _memo["ip"] and not forcer and time.time() - _memo["quand"] < 600:
         return _memo["ip"]
     import jarvis_freebox
@@ -57,7 +109,7 @@ def associe():
 # ---------- Connexion gardée ouverte : les ordres partent tout de suite ----------
 
 _boucle = None
-_lien = {"tele": None, "ip": None}
+_liens = {}                     # ip -> connexion ouverte (une par télé)
 
 
 def _boucle_fond():
@@ -68,40 +120,42 @@ def _boucle_fond():
     return _boucle
 
 
-def _oublier_connexion():
-    tele = _lien["tele"]
-    _lien.update(tele=None, ip=None)
-    if tele is not None:
-        try:
-            tele.disconnect()
-        except Exception:
-            pass
+def _oublier_connexion(ip=None):
+    """Ferme la connexion de cette télé (ou de toutes, sans adresse)."""
+    for adresse_ip in ([ip] if ip else list(_liens)):
+        tele = _liens.pop(adresse_ip, None)
+        if tele is not None:
+            try:
+                tele.disconnect()
+            except Exception:
+                pass
 
 
 async def _connexion(ip):
-    if _lien["tele"] is not None and _lien["ip"] == ip:
-        return _lien["tele"]
-    _oublier_connexion()
+    if _liens.get(ip) is not None:
+        return _liens[ip]
     from androidtvremote2 import AndroidTVRemote
     tele = AndroidTVRemote("Jarvis", CERT, CLE, ip)
     await asyncio.wait_for(tele.async_connect(), timeout=8)
-    tele.keep_reconnecting()                           # se reconnecte tout seul si le Player redémarre
+    tele.keep_reconnecting()                           # se reconnecte tout seul si la télé redémarre
     await asyncio.sleep(0.4)                           # le temps de recevoir l'état (allumée ou non)
-    _lien.update(tele=tele, ip=ip)
+    _liens[ip] = tele
     return tele
 
 
 def prechauffer():
-    """Au démarrage de Jarvis : se connecter tout de suite, pour que le premier ordre soit rapide."""
+    """Au démarrage de Jarvis : se connecter tout de suite, pour que le premier ordre soit rapide
+    (le Player, et les autres télés déjà associées)."""
     if not associe():
         return
     def connecter():
-        try:
-            ip = adresse()
-            if ip:
-                asyncio.run_coroutine_threadsafe(_connexion(ip), _boucle_fond()).result(timeout=15)
-        except Exception as erreur:
-            print("Télé (préparation) :", type(erreur).__name__, erreur)
+        for appareil in [None] + [x["appareil"] for x in teles() if not x.get("defaut") and x.get("associee")]:
+            try:
+                ip = adresse(appareil=appareil)
+                if ip:
+                    asyncio.run_coroutine_threadsafe(_connexion(ip), _boucle_fond()).result(timeout=15)
+            except Exception as erreur:
+                print("Télé (préparation) :", appareil or "Player", type(erreur).__name__, erreur)
     threading.Thread(target=connecter, daemon=True).start()
 
 
@@ -111,7 +165,7 @@ async def _envoyer_avec_reprise(ip, actions):
     except Exception as erreur:
         if "InvalidAuth" in type(erreur).__name__:
             raise
-        _oublier_connexion()
+        _oublier_connexion(ip)
         return await _envoyer(await _connexion(ip), actions)
 
 
@@ -131,23 +185,32 @@ async def _envoyer(tele, actions):
         return tele.is_on
 
 
-def executer(actions):
-    """Envoie les touches au Player. Renvoie (réussi, message d'erreur)."""
-    if not associe():
-        return False, ("La télé n'est pas encore associée à Jarvis. Dis-moi : associe la télé, puis tape le code "
-                       "qui s'affiche sur l'écran.")
-    ip = adresse() or adresse(forcer=True)
+def executer(actions, tele=None):
+    """Envoie les touches à la télé (sans « tele » : le Freebox Player). Renvoie (réussi, message d'erreur)."""
+    nom = ("la télé " + tele["nom"]) if tele else "la télé"
+    appareil = tele["appareil"] if tele else None
+    if not associe() or (tele and not tele.get("associee")):
+        return False, (f"{nom[0].upper() + nom[1:]} n'est pas encore associée à Jarvis. Dis-moi : associe {nom}, "
+                       "puis tape le code qui s'affiche sur l'écran.")
+    ip = adresse(appareil=appareil) or adresse(forcer=True, appareil=appareil)
     if not ip:
+        if tele:
+            return False, f"Je ne trouve pas {nom} sur le réseau. Elle est peut-être éteinte ou débranchée."
         return False, "Je ne trouve pas le Freebox Player sur le réseau. Il est peut-être débranché."
     try:
         asyncio.run_coroutine_threadsafe(_envoyer_avec_reprise(ip, actions), _boucle_fond()).result(timeout=20)
         return True, ""
     except Exception as erreur:
         print("Télé :", type(erreur).__name__, erreur)
-        _memo.update(ip=None, quand=0.0)
-        _boucle_fond().call_soon_threadsafe(_oublier_connexion)
+        if tele:
+            _memos.pop(appareil, None)
+        else:
+            _memo.update(ip=None, quand=0.0)
+        _boucle_fond().call_soon_threadsafe(_oublier_connexion, ip)
         if "InvalidAuth" in type(erreur).__name__:
-            return False, "La télé ne reconnaît plus Jarvis. Dis-moi : associe la télé, pour recommencer l'association."
+            return False, f"{nom[0].upper() + nom[1:]} ne reconnaît plus Jarvis. Dis-moi : associe {nom}, pour recommencer l'association."
+        if tele:
+            return False, f"{nom[0].upper() + nom[1:]} ne répond pas. Elle est peut-être éteinte ou débranchée."
         return False, "Le Freebox Player ne répond pas. Il est peut-être en veille profonde ou débranché."
 
 
@@ -187,7 +250,7 @@ _ASSOCIER = re.compile(r"\b(?:associe|associer|appaire|appairer|jumelle|jumeler|
 _CAMERAS = re.compile(r"\b(?:ajoute|ajouter|relie|associe|connecte|configure)\b.{0,15}\bcam[ée]ras?\b")
 
 
-def _lancer_outil(nom):
+def _lancer_outil(nom, *arguments):
     """Ouvre un petit outil (association de la télé, de l'Apple TV, des caméras) dans sa propre fenêtre :
     il faut y taper un code, que Jarvis ne voit jamais."""
     import subprocess
@@ -196,13 +259,14 @@ def _lancer_outil(nom):
     python = os.path.join(os.path.dirname(sys.executable), "python.exe")
     if not os.path.exists(python):
         python = sys.executable
-    subprocess.Popen([python, os.path.join(dossier, nom)], cwd=dossier,
+    subprocess.Popen([python, os.path.join(dossier, nom), *arguments], cwd=dossier,
                      creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
 
 
 def commande_associer(t, enfant=False):
     """« associe la télé », « associe l'Apple TV », « ajoute les caméras » : ouvre l'outil d'association."""
     t = t.replace("’", "'").lower()
+    arguments = ()
     if _CAMERAS.search(t):
         outil, texte = "jarvis_ajouter_camera.py", ("J'ouvre la fenêtre des caméras. Tape le code de sécurité de chaque "
                                                    "caméra, celui écrit sous la caméra ; je ne le vois jamais.")
@@ -213,12 +277,17 @@ def commande_associer(t, enfant=False):
         else:
             outil, texte = "jarvis_associer_tele.py", ("J'ouvre la fenêtre d'association. Allume la télé : un code de six "
                                                       "caractères va s'y afficher, tape-le dans la fenêtre.")
+            cible = tele_nommee(t)[0]                      # « associe la télé de la chambre » : une autre télé
+            if cible:
+                arguments = (cible["appareil"],)
+                texte = (f"J'ouvre la fenêtre d'association. Allume la télé {cible['nom']} : un code de six "
+                         "caractères va s'y afficher, tape-le dans la fenêtre.")
     else:
         return None
     if enfant:
         return "Ça, c'est pour les parents."
     try:
-        _lancer_outil(outil)
+        _lancer_outil(outil, *arguments)
     except Exception as erreur:
         print("Outil d'association :", erreur)
         return "Je n'arrive pas à ouvrir la fenêtre d'association."
@@ -233,6 +302,7 @@ def commande(t, enfant=False):
         return reponse
     if re.search(r"\b(?:apple|appel|apel|happy|polle|pôle|pole|appelle)[\s-]*(?:tv|t\.v|tévé|tivi|télé|tele)\b", t):
         return None                                      # l'Apple TV a son propre module (jarvis_appletv)
+    cible, t = tele_nommee(t)                            # « … sur la télé de la chambre » : quelle télé ?
     tele = bool(_TELE.search(t))
     actions, reponse = None, None
     if tele and re.search(r"\b(?:allume|allumer|démarre|mets en route)\b", t):
@@ -266,5 +336,12 @@ def commande(t, enfant=False):
         return None
     if enfant and actions[0] == ("allumer", True) and len(actions) == 1:
         return "Pour allumer la télé, demande à un parent."
-    ok, erreur = executer(actions)
-    return reponse if ok else erreur
+    if cible is None:
+        ok, erreur = executer(actions)
+        return reponse if ok else erreur
+    ok, erreur = executer(actions, cible)
+    if not ok:
+        return erreur
+    if "la télé" in reponse:
+        return reponse.replace("la télé", "la télé " + cible["nom"], 1)
+    return reponse.rstrip(".") + f", sur la télé {cible['nom']}."

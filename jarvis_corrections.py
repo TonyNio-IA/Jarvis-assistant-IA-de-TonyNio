@@ -83,6 +83,12 @@ INTEGREES = (
     (r"\bsuprime\b", "supprime"),
     # « crée » entendu « craig » devant une demande de création
     (r"^(\W*(?:jarvis\W+)?)(?:craig|crée-le|cré|krek)\b(?=\s+(?:déjà|le|un|une|mon|ma)\s)", r"\1crée"),
+    # « quelle heure est-il » entendu « quelle aurait-il » (toute la demande)
+    (r"^(\W*(?:jarvis\W+)?)(?:quelle?s?|qu'elle) (?:aurait|aurais|auraient|orée?)[- ]t?-?ils?(\W*)$", r"\1quelle heure est-il\2"),
+    # « donne-moi la météo » entendu « donne-moi la MTA » (toute la demande)
+    (r"^(\W*(?:jarvis\W+)?)((?:donne|dis)[- ]moi|c'est quoi|quelle est) la (?:mta|m\.t\.a\.?|méta|métao)(\W*)$", r"\1\2 la météo\3"),
+    # « connexion » écrit « connection »
+    (r"\bconnection(s?)\b", r"connexion\1"),
 )
 
 # seulement dans une phrase de minuteur
