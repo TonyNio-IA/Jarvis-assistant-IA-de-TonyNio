@@ -48,6 +48,7 @@ import jarvis_corrections
 import jarvis_sante
 import jarvis_ecran
 import jarvis_enfant
+import jarvis_tablette
 import jarvis_mails
 import jarvis_vigilance
 import jarvis_extras
@@ -1534,6 +1535,8 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_pratique.commande_aide(t),
                              lambda: jarvis_enfant.commande(t),
                              lambda: jarvis_enfant.commande_web(t),
+                             lambda: jarvis_tablette.commande(t, enfant=jarvis_enfant.actif(),
+                                                              invite=jarvis_extras.invite()),
                              lambda: jarvis_profils.commande(t, demander_confirmation),
                              lambda: jarvis_locuteur.commande(t),
                              lambda: jarvis_famille.commande_fin_devoirs(t),

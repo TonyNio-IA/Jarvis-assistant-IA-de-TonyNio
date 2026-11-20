@@ -53,3 +53,9 @@ tests/
 tele/
 docs/entrainer_mot_appel.md
 docs/colab_generate_samples_shim.py
+tablette.json
+tablette/
+android-tools/
+android/construction/
+android/Jarvis-tablette.apk
+android/Jarvis-tablette.json

@@ -345,6 +345,11 @@ AIDE = [
     ("Maison", "« est-ce que la PS5 est allumée ? », « allume la PS5 », « mets la PS5 en veille »",
      "Une fois au début : « relie la PS5 » (compte PlayStation, puis code affiché par la console)."),
     ("Maison", "« il reste combien d'encre ? », « l'imprimante est allumée ? »", "Lecture seule, rien n'est imprimé."),
+    ("Jarvis", "Écrire au lieu de parler : clique dans la fenêtre au-dessus du réacteur, écris, puis Entrée",
+     "Jarvis répond au même endroit, et à voix haute (sauf en mode nuit). Échap annule, Ctrl+V colle."),
+    ("Jarvis", "« active la tablette », « montre le QR code de la tablette », « désactive la tablette »",
+     "Jarvis sur une tablette de la maison : on vise le QR code, puis on ajoute la page à l'écran d'accueil. "
+     "Il y parle comme en mode enfant et n'y fait aucune action sur le PC."),
     ("Jarvis", "« ouvre les réglages »", "Cette fenêtre."),
     ("Jarvis", "« cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? »", ""),
     ("Jarvis", "« redémarre-toi »", ""),
@@ -660,11 +665,7 @@ def _construire():
         x = largeur - aff.w - 40 if "droite" in coin else 40
         y = hauteur - aff.h - 140 if "bas" in coin else 40
         user32.SetWindowPos(aff.hwnd, 0, x, y, 0, 0, 0x0001 | 0x0004 | 0x0010)
-        try:
-            with open(aff.src.FICHIER_POSITION, "w", encoding="utf-8") as f:
-                f.write("%d,%d" % (x, y))
-        except OSError:
-            pass
+        aff.enregistrer_position()
 
     def page_son():
         vider()

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Jarvis sur la tablette : une fenêtre sur la page servie par le Jarvis du PC (jarvis_tablette.py). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="fr.tonynio.jarvis"
+    android:versionCode="@CODE@"
+    android:versionName="@NOM@">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <!-- pour connaître les applications que l'on peut lancer (« Jarvis, ouvre ... ») -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Jarvis"
+        android:theme="@style/Jarvis"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- le lien « Ouvrir dans l'application » de la page de Jarvis -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:host="relier" android:scheme="jarvis" />
+            </intent-filter>
+        </activity>
+
+        <!-- prête à l'installateur d'Android le fichier de la mise à jour téléchargée -->
+        <provider
+            android:name=".Fichier"
+            android:authorities="fr.tonynio.jarvis.maj"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

@@ -67,12 +67,26 @@ def regler_voix(voix=None, vitesse=None):
     _enregistrer_reglages()
 
 
-# ----- Mode nuit : Jarvis répond par écrit sous le réacteur, sans parler ni biper (sauf rappels) -----
+# ----- Mode nuit : Jarvis répond par écrit au-dessus du réacteur, sans parler ni biper (sauf rappels) -----
 # Par défaut, il ne s'active QUE quand on le demande (« active le mode nuit ») et reste actif, même après
 # un redémarrage, jusqu'à « désactive le mode nuit ». Des horaires automatiques restent possibles
 # si on les met dans config.json ("mode_nuit": {"debut": 22, "fin": 7}).
 import jarvis_config
-afficher = None          # fonction qui affiche un texte sous le réacteur (donnée par jarvis_claude)
+afficher = None          # fonction qui écrit un texte dans la fenêtre de discussion (donnée par jarvis_claude)
+_garde_affichage = 0.0   # jusqu'à ce moment, ce que Jarvis dit ne remplace pas le texte affiché
+
+
+def montrer(texte, garder=20):
+    """Affiche un texte sans le dire (un code du Wi-Fi invité, par exemple) et le garde à l'écran « garder »
+    secondes : la phrase que Jarvis dit ensuite ne le remplace pas. Renvoie True si le texte est affiché."""
+    global _garde_affichage
+    if not afficher:
+        return False
+    afficher(texte)
+    _garde_affichage = time.time() + garder
+    return True
+
+
 _nuit_forcee = _nuit_lue if isinstance(_nuit_lue, bool) else None   # choix dit à la voix (gardé dans reglages_voix.json)
 
 
@@ -331,19 +345,20 @@ def _decouper(texte):
 def speak(texte, interruption=None, toujours=False):
     """Fait parler Jarvis avec la voix naturelle (ou la voix Windows en secours).
     Si « interruption » est donnée, la lecture peut être coupée : renvoie alors True.
-    En mode nuit, le texte est seulement affiché sous le réacteur, sauf pour un rappel (toujours=True)."""
+    En mode nuit, le texte est seulement écrit dans la fenêtre de discussion, sauf pour un rappel (toujours=True)."""
     if not texte:
         return False
     a_deux_voix = OUVRE_AUTRE_VOIX in texte
     if a_deux_voix and (mode_nuit() and not toujours or av is None or sd is None):
         texte = sans_balises_voix(texte)
+    # Ce que Jarvis dit s'écrit aussi dans la fenêtre de discussion (sauf si un texte à garder y est affiché)
+    if afficher and time.time() >= _garde_affichage:
+        try:
+            afficher(sans_balises_voix(texte))
+        except Exception:
+            pass
     if mode_nuit() and not toujours:
         print("JARVIS (mode nuit, sans voix) :", texte)
-        if afficher:
-            try:
-                afficher(texte)
-            except Exception:
-                pass
         time.sleep(min(5.0, 1.0 + len(texte) / 40))       # le temps de lire le début
         return False
     print("JARVIS :", sans_balises_voix(texte))

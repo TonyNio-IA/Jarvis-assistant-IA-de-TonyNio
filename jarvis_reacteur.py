@@ -9,8 +9,8 @@ l'état de Jarvis :
   - Je réponds    : bleu, le cœur vibre comme une voix
   - Erreur        : rouge clignotant
   - En pause      : violet, pendant que Claude lit un message (F9)
-Sous le réacteur : ce que Jarvis a compris, puis la charge du processeur,
-la mémoire utilisée et le débit du réseau, en temps réel.
+Au-dessus du réacteur : la fenêtre de discussion (ce que tu dis ou écris, puis la réponse de Jarvis).
+Sous le réacteur : la charge du processeur, la mémoire utilisée et le réseau, en temps réel.
 
 Lancement :  python C:\\Jarvis\\jarvis_reacteur.py
 Déplacer   :  clic gauche maintenu sur le réacteur
@@ -111,17 +111,32 @@ DUREE_TEXTE = 12           # secondes d'affichage
 
 
 texte_en_direct = False     # vrai pendant l'écoute : les mots s'affichent au fur et à mesure
+duree_texte = DUREE_TEXTE   # un long texte reste affiché plus longtemps (le temps de le lire)
+LONGUEUR_MAX_TEXTE = 1500   # au-delà, le texte affiché est coupé
 
 
-def changer_texte(texte, en_direct=False):
-    global texte_actuel, texte_depuis, texte_en_direct
+texte_reponse = False       # vrai quand le texte affiché est une réponse de Jarvis (et non la demande)
+
+
+def changer_texte(texte, en_direct=False, reponse=False):
+    """Le texte de la fenêtre de discussion, au-dessus du réacteur : la demande (dite ou écrite),
+    puis la réponse de Jarvis, qui la remplace."""
+    global texte_actuel, texte_depuis, texte_en_direct, duree_texte, texte_reponse
     texte = " ".join(str(texte).split())
-    if en_direct:                  # on garde la fin de la phrase : ce sont les derniers mots dits
-        texte_actuel = texte if len(texte) <= 44 else "..." + texte[-41:]
-    else:
-        texte_actuel = texte if len(texte) <= 44 else texte[:41] + "..."
+    if len(texte) > LONGUEUR_MAX_TEXTE:
+        texte = texte[:LONGUEUR_MAX_TEXTE - 1] + "…"
+    texte_actuel = texte
     texte_en_direct = en_direct
+    texte_reponse = reponse
     texte_depuis = time.time()
+    duree_texte = max(DUREE_TEXTE, 5 + len(texte) / 13)
+
+
+def _court(texte, en_direct=False):
+    """Pour l'ancien affichage (secours), qui n'a qu'une ligne : 44 caractères au plus."""
+    if len(texte) <= 44:
+        return texte
+    return "..." + texte[-41:] if en_direct else texte[:41] + "..."
 
 
 def changer_etat(nom):
@@ -495,7 +510,7 @@ class Reacteur:
         cfg(self.it_texte, text=texte.upper(), fill=teinte(1.0))
         fondu = 1.0 if age < DUREE_TEXTE - 2 else max(0.0, (DUREE_TEXTE - age) / 2)
         c.coords(self.it_sous_titre, cx, self.m + self.d + ((50 if self.it_sys else 27) * s))
-        cfg(self.it_sous_titre, text=("« " + texte_actuel + " »") if visible else "",
+        cfg(self.it_sous_titre, text=("« " + _court(texte_actuel, texte_en_direct) + " »") if visible else "",
             fill=teinte(0.85 * fondu, blanc))
 
     def _dessiner_hud(self):

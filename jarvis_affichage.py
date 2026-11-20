@@ -9,12 +9,13 @@ Autour du réacteur, une couronne de graduations réagit au vrai son : le spectr
 ta voix quand Jarvis écoute, celui de sa voix quand il répond. Une onde part du cœur
 à chaque réveil, et un léger halo lumineux entoure les filaments.
 
+Au-dessus du réacteur, la fenêtre de discussion : ce que tu dis s'y écrit au fur et à mesure, puis la
+réponse de Jarvis le remplace. Un clic dedans et tu peux écrire ta demande au clavier (Entrée l'envoie).
 Sous le réacteur, le panneau affiche l'état de Jarvis, l'heure et des jauges :
 processeur, mémoire, carte graphique, réseau (et température si le PC la fournit).
-Pendant l'écoute, les mots compris s'y affichent au fur et à mesure.
 
-En veille, le réacteur se fait discret : il rétrécit et son panneau disparaît. Il reprend sa
-taille dès que Jarvis t'entend, ou quand tu passes la souris dessus.
+En veille, le réacteur se fait discret : il rétrécit, la fenêtre de discussion et le panneau disparaissent
+(il reste les jauges). Il reprend sa taille dès que Jarvis t'entend, ou quand tu passes la souris dessus.
 Un minuteur ou un rappel en attente se lit sur la couronne (elle se vide peu à peu) et dans le panneau.
 Au lancement, le réacteur se forme ; à l'arrêt ou au redémarrage, il se referme.
 """
@@ -71,6 +72,11 @@ DUREE_NAISSANCE = 1.4    # secondes que met le réacteur à se former au lanceme
 DUREE_ALERTE = 5.0       # secondes d'animation quand un minuteur ou un rappel sonne
 DUREE_FERMETURE = 0.7    # secondes qu'il met à se refermer à l'arrêt
 HALO = True              # léger halo lumineux autour des filaments (False = dessin net, un peu plus rapide)
+HAUTEUR_DISCUSSION = 66  # hauteur de la fenêtre de discussion, au-dessus du réacteur
+LIGNES_DISCUSSION = 3    # lignes de texte visibles (un texte plus long défile tout seul)
+LONGUEUR_SAISIE = 400    # caractères au plus dans une demande écrite
+ABANDON_SAISIE = 60      # secondes sans frappe avant d'abandonner une demande commencée
+INVITE_SAISIE = "Clique ici pour écrire à Jarvis"
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
 user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_wchar_p]
@@ -82,6 +88,10 @@ user32.DestroyMenu.argtypes = [ctypes.c_void_p]
 user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, ctypes.c_uint]
 PREMIER_PLAN = ctypes.c_void_p(-1)
+_clavier = ctypes.WinDLL("user32")       # copie à part de user32, pour donner le clavier à la fenêtre
+_clavier.SetFocus.argtypes = [ctypes.c_void_p]
+_clavier.SetFocus.restype = ctypes.c_void_p
+_clavier.GetFocus.restype = ctypes.c_void_p
 
 
 class POINT(ctypes.Structure):
@@ -120,6 +130,32 @@ def _soleil(lat, lon, jour_annee, decalage_minutes):
     return lever, coucher
 
 
+def _presse_papiers():
+    """Le texte du presse-papiers (pour Ctrl+V dans la fenêtre de discussion), ou « » s'il n'y en a pas."""
+    u, k = ctypes.WinDLL("user32"), ctypes.WinDLL("kernel32")     # copies à part : types déclarés ici seulement
+    u.GetClipboardData.restype = ctypes.c_void_p
+    k.GlobalLock.restype = ctypes.c_void_p
+    k.GlobalLock.argtypes = k.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    texte = ""
+    try:
+        if not u.OpenClipboard(None):
+            return ""
+        try:
+            poignee = u.GetClipboardData(13)               # 13 : texte Unicode
+            if poignee:
+                adresse = k.GlobalLock(poignee)
+                if adresse:
+                    try:
+                        texte = ctypes.wstring_at(adresse)
+                    finally:
+                        k.GlobalUnlock(poignee)
+        finally:
+            u.CloseClipboard()
+    except Exception as erreur:
+        print("Presse-papiers :", erreur)
+    return texte[:LONGUEUR_SAISIE]
+
+
 def _degrade(couleurs, position):
     """Couleur à la « position » (0 à len(couleurs), en boucle) d'un dégradé circulaire."""
     n = len(couleurs)
@@ -147,18 +183,25 @@ class Affichage:
         largeur_ecran, hauteur_ecran = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         x = largeur_ecran - self.w - int(source.MARGE_DROITE * s)
         y = hauteur_ecran - self.h - int(source.MARGE_BAS * s)
+        migre = False
         try:                                  # dernière position choisie à la souris
             with open(source.FICHIER_POSITION, encoding="utf-8") as f:
-                px, py = (int(v) for v in f.read().split(","))
+                valeurs = [int(v) for v in f.read().split(",")]
+            px, py = valeurs[0], valeurs[1]
+            if len(valeurs) < 3:              # position retenue avant la fenêtre de discussion : la fenêtre
+                py -= self.haut               # a grandi vers le haut, le réacteur reste où il était
+                migre = True
             # Une position qui dépasse un peu du bord est ramenée dans l'écran (avant, elle était ignorée)
             x = max(0, min(largeur_ecran - self.w, px))
             y = max(0, min(hauteur_ecran - self.h, py))
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             pass
 
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{x},{y}"
+        os.environ.setdefault("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1")   # le premier clic compte (pas seulement le deuxième)
         pygame.display.init()
         pygame.font.init()
+        pygame.key.set_repeat(400, 35)        # une touche maintenue se répète (effacer)
         self.ecran = pygame.display.set_mode((self.w, self.h), pygame.NOFRAME)
         pygame.display.set_caption("Jarvis")
         self.hwnd = pygame.display.get_wm_info()["window"]
@@ -169,6 +212,10 @@ class Affichage:
         user32.SetLayeredWindowAttributes(self.hwnd, CLE[0] | CLE[1] << 8 | CLE[2] << 16, 0, 1)
         user32.ShowWindow(self.hwnd, 8)
         self._premier_plan()
+        try:                                  # la frappe au clavier est prête dès le lancement
+            pygame.key.start_text_input()
+        except Exception:
+            pass
 
         self.fond = _rgb(source.FOND)
         self.couleur = _rgb(source.ETATS["demarrage"][0])
@@ -203,10 +250,15 @@ class Affichage:
         self._grad_bande = np.abs(haut - NB_GRADUATIONS / 2) / (NB_GRADUATIONS / 2)   # 0 = haut, 1 = bas
         petit = max(8, self.d // 4)
         self._halo_petit = (petit, petit)
-        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.m, self.d, self.d)
+        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.yr, self.d, self.d)
         self._masque = pygame.Surface((self.d, self.d))
         self._masque.set_colorkey((255, 0, 255))
         self._polices()
+        self._saisie = None                        # la demande en cours de frappe (None : on n'écrit pas)
+        self._saisie_touche = 0.0                  # moment de la dernière frappe
+        self._zone_discussion = None               # rectangle de la fenêtre de discussion (pour le clic)
+        self._fin_active = 0.0                     # dernier moment où Jarvis écoutait, réfléchissait ou parlait
+        self._lignes = (None, [])                  # dernier texte mis en lignes (pour ne pas le recalculer)
 
         n = self.n = 160
         th = np.arange(n + 1) * (2 * math.pi / n)
@@ -219,6 +271,8 @@ class Affichage:
 
         self._zone_compacte = None                  # rectangle du petit panneau (pour le survol de la souris)
         self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
+        if migre:
+            self.enregistrer_position()
 
     def _calculer_tailles(self, echelle):
         """Tailles de la fenêtre pour cette échelle (1 = normale, 3 = mode enfant)."""
@@ -228,10 +282,15 @@ class Affichage:
         self.m = int(4 * s)
         # Le panneau est un peu plus large que le réacteur, pour des jauges bien lisibles
         self.w = self.d + 2 * self.m + int((2 * ELARGISSEMENT if source.AFFICHER_SYSTEME else 0) * s)
-        self.h = self.d + 2 * self.m + int((70 if source.AFFICHER_SYSTEME else 44) * s)
+        # De haut en bas : la fenêtre de discussion, le réacteur, puis le panneau (état, heure et jauges)
+        self.haut = int(HAUTEUR_DISCUSSION * s)
+        self.yr = self.haut + self.m                       # haut du réacteur
+        self.h = self.haut + self.d + 2 * self.m + int((56 if source.AFFICHER_SYSTEME else 30) * s)
 
     def _polices(self):
         s = self.s
+        self.police_discussion = pygame.font.SysFont("segoeui", int(12 * s))
+        self._lignes = (None, [])
         self.police_titre = pygame.font.SysFont("segoeui", int(13.5 * s), bold=True)
         self.police_jauge = pygame.font.SysFont("consolas", int(11 * s), bold=True)
         self.police_jauge_petite = pygame.font.SysFont("consolas", int(11 * s), bold=True)
@@ -279,12 +338,21 @@ class Affichage:
         user32.SetWindowPos(self.hwnd, PREMIER_PLAN, x, y, 0, 0, 0x0001 | 0x0010)
         petit = max(8, self.d // 4)
         self._halo_petit = (petit, petit)
-        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.m, self.d, self.d)
+        self._zone = pygame.Rect(self.w // 2 - self.d // 2, self.yr, self.d, self.d)
         self._masque = pygame.Surface((self.d, self.d))
         self._masque.set_colorkey((255, 0, 255))
         self._polices()
 
     # ---------- Fenêtre ----------
+
+    def enregistrer_position(self):
+        """Retient l'emplacement de la fenêtre pour les prochains démarrages (le « 2 » dit que la hauteur
+        compte déjà la fenêtre de discussion)."""
+        try:
+            with open(self.src.FICHIER_POSITION, "w", encoding="utf-8") as f:
+                f.write("%d,%d,2" % self._position())
+        except OSError:
+            pass
 
     def _premier_plan(self):
         user32.SetWindowPos(self.hwnd, PREMIER_PLAN, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
@@ -343,23 +411,90 @@ class Affichage:
         zone = self._zone_compacte
         if zone is not None and zone.collidepoint(x - fx, y - fy):
             return True
-        return math.hypot(x - (fx + self.w / 2), y - (fy + self.m + self.d / 2)) <= rayon
+        return math.hypot(x - (fx + self.w / 2), y - (fy + self.yr + self.d / 2)) <= rayon
+
+    # ---------- Écrire à Jarvis ----------
+
+    def _ouvrir_saisie(self):
+        """Un clic dans la fenêtre de discussion : on peut écrire sa demande."""
+        if self._saisie is None:
+            self._saisie = ""
+            print("(Fenêtre de discussion : clic, prête pour une demande écrite.)")
+        self._saisie_touche = self._saisie_clavier = time.time()
+        try:
+            user32.SetForegroundWindow(self.hwnd)          # les touches du clavier arrivent ici
+            # La toute première fois que la fenêtre passait au premier plan, Windows ne lui donnait pas le
+            # clavier pour de bon : les touches arrivaient, mais pas les lettres. On le lui donne nous-mêmes.
+            _clavier.SetFocus(ctypes.c_void_p(self.hwnd))
+        except Exception as erreur:
+            print("Fenêtre de discussion (clavier) :", erreur)
+
+    def _fermer_saisie(self):
+        self._saisie = None
+
+    def _envoyer_saisie(self):
+        """Entrée : la phrase part chez Jarvis. Elle reste affichée jusqu'à sa réponse, qui la remplace."""
+        texte = " ".join((self._saisie or "").split())
+        self._saisie = ""
+        self._saisie_touche = time.time()
+        if not texte:
+            return
+        self._message(texte)
+        try:
+            jarvis_claude.ecrire(texte)
+        except Exception as erreur:
+            print("Demande écrite :", erreur)
+
+    def _touche(self, ev):
+        """Une touche pendant qu'on écrit : Entrée envoie, Échap annule, Retour arrière efface, Ctrl+V colle."""
+        self._saisie_touche = time.time()
+        controle = bool(ev.mod & pygame.KMOD_CTRL) and not ev.mod & pygame.KMOD_ALT     # AltGr = Ctrl+Alt
+        if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            self._envoyer_saisie()
+        elif ev.key == pygame.K_ESCAPE:
+            self._fermer_saisie()
+        elif ev.key == pygame.K_BACKSPACE:
+            if controle:                                   # Ctrl + Retour arrière : le dernier mot
+                self._saisie = re.sub(r"\S+\s*$", "", self._saisie)
+            else:
+                self._saisie = self._saisie[:-1]
+        elif ev.key == pygame.K_v and controle:
+            colle = " ".join(_presse_papiers().split())
+            self._saisie = (self._saisie + colle)[:LONGUEUR_SAISIE]
 
     def _evenements(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 os._exit(0)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                self.glisse = (self._curseur(), self._position())
+                zone = self._zone_discussion
+                if zone is not None and zone.collidepoint(ev.pos):
+                    self._ouvrir_saisie()                  # clic dans la discussion : on écrit
+                else:
+                    if not self._saisie:
+                        self._fermer_saisie()
+                    self.glisse = (self._curseur(), self._position())
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1 and self.glisse:
                 self.glisse = None
-                try:                          # la position est retenue pour les prochains démarrages
-                    with open(self.src.FICHIER_POSITION, "w", encoding="utf-8") as f:
-                        f.write("%d,%d" % self._position())
-                except OSError:
-                    pass
+                self.enregistrer_position()   # la position est retenue pour les prochains démarrages
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 3:
                 self._menu()
+            elif ev.type == pygame.TEXTINPUT and self._saisie is not None:
+                self._saisie = (self._saisie + ev.text)[:LONGUEUR_SAISIE]
+                self._saisie_touche = time.time()
+            elif ev.type == pygame.KEYDOWN and self._saisie is not None:
+                self._touche(ev)
+        if self._saisie is not None:
+            maintenant = time.time()
+            # On a cliqué ailleurs sans rien écrire : la saisie se referme (après 2 secondes sans le clavier,
+            # pour ne pas la refermer sur un simple aller-retour entre deux fenêtres).
+            if (user32.GetForegroundWindow() & 0xFFFFFFFF) == (self.hwnd & 0xFFFFFFFF):
+                self._saisie_clavier = maintenant
+            elif not self._saisie and maintenant - self._saisie_clavier > 2:
+                self._fermer_saisie()
+            # Une demande commencée puis laissée de côté est abandonnée au bout d'une minute
+            if self._saisie is not None and maintenant - self._saisie_touche > ABANDON_SAISIE:
+                self._fermer_saisie()
         if self.glisse:
             if not pygame.mouse.get_pressed()[0]:
                 self.glisse = None
@@ -481,13 +616,26 @@ class Affichage:
                 self._onde = maintenant
             if e_vrai == "arret":
                 self.fermer(quitter=False)
+            # Jarvis se remet à écouter : l'ancienne réponse s'efface (un texte tout neuf, lui, reste)
+            if (e_vrai == "ecoute" and src.texte_actuel and not getattr(src, "texte_en_direct", False)
+                    and maintenant - src.texte_depuis > 0.5):
+                src.texte_actuel = ""
             self._etat_prec = e_vrai
+
+        # Le texte de la discussion reste tant que Jarvis écoute, réfléchit ou parle, puis encore un moment
+        if src.etat_actuel not in ("veille", "pause", "demarrage"):
+            self._fin_active = maintenant
+        self._reste_texte = max(src.texte_depuis + getattr(src, "duree_texte", src.DUREE_TEXTE),
+                                self._fin_active + 8) - maintenant if src.texte_actuel else 0.0
+        if src.texte_actuel and self._reste_texte <= 0:
+            src.texte_actuel = ""
+        ecrit = self._saisie is not None
 
         # Taille du réacteur : discret en veille, normal dès qu'il se passe quelque chose
         en_fete = self._fete is not None and maintenant - self._fete[0] < DUREE_FETE
         actif = (e not in ("veille", "pause") or self.glisse is not None or alerte < DUREE_ALERTE or en_fete
-                 or self._vigilance is not None
-                 or maintenant - src.texte_depuis < src.DUREE_TEXTE)
+                 or self._vigilance is not None or ecrit
+                 or self._reste_texte > 0)
         if actif:
             self._dernier_eveil = maintenant
         deploye = (not MODE_DISCRET or actif or maintenant - getattr(self, "_dernier_eveil", maintenant) < DELAI_DISCRET
@@ -502,7 +650,8 @@ class Affichage:
         self._k = k
         s = s * (0.55 + 0.45 * min(1.0, k))                # traits et points un peu plus fins quand il est petit
 
-        cx, cy = self.w / 2, self.m + self.d / 2
+        cx, cy = self.w / 2, self.yr + self.d / 2
+        self._zone_discussion = None
         if k < 0.03:                                       # trop petit pour être dessiné
             surf.fill(CLE)
             return
@@ -511,6 +660,9 @@ class Affichage:
         R0 = R * 0.68
         ligne, aaligne, cercle = pygame.draw.lines, pygame.draw.aalines, self._cercle
         gx, gy = self._suivre_regard(cx, cy, R, dt)    # le cœur se tourne un peu vers la souris
+        # Réacteur rétréci (veille) : un point sur deux suffit à tracer les filaments, les courbes restent
+        # aussi lisses à cette taille et le dessin coûte moins cher
+        fin = 2 if self._k < 0.6 else 1
         surf.fill(CLE)
 
         # Fond : le contour du disque ondule lui aussi (il n'est plus un cercle fixe),
@@ -528,8 +680,8 @@ class Affichage:
             phi = f * 2.2
             pts = self._filament(cx, cy, R * (0.925 - 0.014 * f), ondulation,
                                  [(4, 0.6, ph * 0.7 + phi), (7, 0.4, -ph * 1.1 + 2 * phi)])
-            ligne(surf, teinte(0.12 * eclat), True, pts, max(2, int(3 * s)))
-            aaligne(surf, teinte((0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat), True, pts)
+            ligne(surf, teinte(0.12 * eclat), True, pts[::fin], max(2, int(3 * s)))
+            aaligne(surf, teinte((0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat), True, pts[::fin])
 
         # Filaments intérieurs, qui tournent en sens inverse
         for f in range(src.NB_FILAMENTS_INT):
@@ -537,8 +689,8 @@ class Affichage:
             pts = self._filament(cx + gx * 0.5, cy + gy * 0.5, R0 * (0.50 + 0.03 * f), amplitude * 0.8,
                                  [(2, 0.6, -ph * 0.8 + phi), (4, 0.4, ph * 0.5 + 2 * phi)])
             force = (0.35 + 0.15 * math.sin(t * 0.9 + phi)) * eclat
-            ligne(surf, teinte(0.3 * force), True, pts, max(2, int(3 * s)))
-            aaligne(surf, teinte(force), True, pts)
+            ligne(surf, teinte(0.3 * force), True, pts[::fin], max(2, int(3 * s)))
+            aaligne(surf, teinte(force), True, pts[::fin])
 
         # Poussière lumineuse à l'intérieur de l'anneau
         for q in self.poussiere:
@@ -590,8 +742,8 @@ class Affichage:
             pts = self._filament(cx, cy, R0 * (1 + decal), amp_f,
                                  [(3, 0.55, ph * 1.3 + phi), (5, 0.30, -ph * 0.9 + 2 * phi),
                                   (2, 0.15, ph * 0.6 + 3 * phi)])
-            ligne(surf, teinte(0.3 * force), True, pts, max(2, int(4 * s)))
-            aaligne(surf, teinte(force), True, pts)
+            ligne(surf, teinte(0.3 * force), True, pts[::fin], max(2, int(4 * s)))
+            aaligne(surf, teinte(force), True, pts[::fin])
             idx = self.idx_points[f]
             scints = 0.5 + 0.5 * np.sin(t * 4 + idx * 0.7 + phi)
             for i, scint in zip(idx.tolist(), scints.tolist()):
@@ -659,6 +811,7 @@ class Affichage:
         self._zone_compacte = None
         if self._forme > 0.75 and naissance >= 1 and self._fermeture is None:
             self._panneau(surf, teinte, blanc, eclat, titre, cx, dt)
+            self._discussion(surf, teinte, blanc, eclat, cx, maintenant)
         elif PANNEAU_COMPACT and src.AFFICHER_SYSTEME and naissance >= 1 and self._fermeture is None:
             # mode discret : un petit panneau juste sous le réacteur, avec seulement les jauges
             self._panneau_compact(surf, teinte, blanc, e, t, cx, cy + Rext + 5 * self.s, dt)
@@ -841,7 +994,7 @@ class Affichage:
 
     def _panneau(self, surf, teinte, blanc, eclat, titre, cx, dt=0.05):
         src, s = self.src, self.s
-        yb = self.m + self.d
+        yb = self.yr + self.d
         x0, x1 = 5 * s, self.w - 5 * s
         y0, y1 = yb + 4 * s, self.h - 3 * s
         k = 9 * s
@@ -871,8 +1024,6 @@ class Affichage:
             pygame.draw.line(surf, teinte(0.45), (x0 + k + 4 * s, yt), (cx - demi, yt))
             pygame.draw.line(surf, teinte(0.45), (cx + demi, yt), (fin_ligne, yt))
 
-        age = time.time() - src.texte_depuis
-        visible = bool(src.texte_actuel) and age < src.DUREE_TEXTE
         if src.AFFICHER_SYSTEME:
             jauges = self._mesures()
             colonne = (x1 - x0 - 14 * s) / len(jauges)
@@ -899,33 +1050,103 @@ class Affichage:
                     pygame.draw.polygon(surf, couleur if j < allumes else eteint,
                                         [(xj + 1.5 * s, ya), (xj + large + 1.5 * s, ya),
                                          (xj + large, yz), (xj, yz)])
-        if not visible:
-            rappel = self._prochain_rappel()
-            if rappel:
-                quand, _, message = rappel
-                reste = quand - time.time()
-                if reste < 3600:
-                    moment = "dans %d:%02d" % (max(0, reste) // 60, max(0, reste) % 60)
-                else:
-                    moment = "à " + time.strftime("%H:%M", time.localtime(quand))
-                message = re.sub(r"^Rappel : |\.$", "", message)
-                if message.startswith("Le minuteur") or message.startswith("Il est"):
-                    message = "minuteur" if message.startswith("Le minuteur") else "rappel"
-                contenu = f"{moment} · {message}"
-                if len(contenu) > 44:
-                    contenu = contenu[:43] + "…"
-                image = self._texte(self.police_texte, contenu, teinte(0.7, blanc))
-                surf.blit(image, image.get_rect(center=(cx, yb + (60 if src.AFFICHER_SYSTEME else 32) * s)))
-        if visible:
-            fondu = 1.0 if age < src.DUREE_TEXTE - 2 else max(0.0, (src.DUREE_TEXTE - age) / 2)
+
+    # ---------- Fenêtre de discussion (au-dessus du réacteur) ----------
+
+    def _mettre_en_lignes(self, texte, largeur):
+        """Découpe le texte en lignes qui tiennent dans la largeur (gardé en mémoire tant qu'il ne change pas)."""
+        cle = (texte, int(largeur), id(self.police_discussion))
+        if self._lignes[0] == cle:
+            return self._lignes[1]
+        mesure = self.police_discussion.size
+        lignes, ligne = [], ""
+        for mot in texte.split(" "):
+            essai = (ligne + " " + mot) if ligne else mot
+            if mesure(essai)[0] <= largeur:
+                ligne = essai
+                continue
+            if ligne:
+                lignes.append(ligne)
+            while mesure(mot)[0] > largeur and len(mot) > 1:     # un mot plus long que la ligne : on le coupe
+                n = len(mot) - 1
+                while n > 1 and mesure(mot[:n])[0] > largeur:
+                    n -= 1
+                lignes.append(mot[:n])
+                mot = mot[n:]
+            ligne = mot
+        if ligne:
+            lignes.append(ligne)
+        self._lignes = (cle, lignes)
+        return lignes
+
+    def _texte_rappel(self):
+        """« dans 3:20 · minuteur » : le prochain minuteur ou rappel, ou « » s'il n'y en a pas."""
+        rappel = self._prochain_rappel()
+        if not rappel:
+            return ""
+        quand, _, message = rappel
+        reste = quand - time.time()
+        if reste < 3600:
+            moment = "dans %d:%02d" % (max(0, reste) // 60, max(0, reste) % 60)
+        else:
+            moment = "à " + time.strftime("%H:%M", time.localtime(quand))
+        message = re.sub(r"^Rappel : |\.$", "", message)
+        if message.startswith("Le minuteur") or message.startswith("Il est"):
+            message = "minuteur" if message.startswith("Le minuteur") else "rappel"
+        return f"{moment} · {message}"
+
+    def _discussion(self, surf, teinte, blanc, eclat, cx, maintenant):
+        """La fenêtre de discussion : ce que tu dis ou écris, puis la réponse de Jarvis, qui le remplace.
+        Un clic dedans, et tu écris ta demande ; Entrée l'envoie."""
+        src, s = self.src, self.s
+        x0, x1 = 5 * s, self.w - 5 * s
+        y0, y1 = 3 * s, self.haut - 2 * s
+        k = 9 * s
+        contour = [(x0 + k, y0), (x1, y0), (x1, y1 - k), (x1 - k, y1), (x0, y1), (x0, y0 + k)]
+        pygame.draw.polygon(surf, self.fond, contour)
+        ecrit = self._saisie is not None
+        pygame.draw.aalines(surf, teinte((0.6 if ecrit else 0.28) * eclat), True, contour)
+        e, ep = 14 * s, max(2, int(2 * s))
+        pygame.draw.lines(surf, teinte(1.0), False, [(x1 - e, y0), (x1, y0), (x1, y0 + e)], ep)
+        pygame.draw.lines(surf, teinte(1.0), False, [(x0, y1 - e), (x0, y1), (x0 + e, y1)], ep)
+        self._reflet(surf, teinte, blanc, contour, time.time(), decalage=1.7)
+        self._zone_discussion = pygame.Rect(int(x0), int(y0), int(x1 - x0), int(y1 - y0))
+
+        largeur = x1 - x0 - 22 * s
+        curseur = int(maintenant * 2.5) % 2 == 0
+        nb = LIGNES_DISCUSSION
+        if ecrit and (self._saisie or not src.texte_actuel):
+            # On écrit : la demande en cours, avec un curseur qui clignote (les dernières lignes si elle est longue)
+            lignes = list(self._mettre_en_lignes(self._saisie, largeur - 8 * s))[-nb:] or [""]
+            lignes[-1] += "|" if curseur else " "
+            couleur = teinte(0.95, blanc)
+        elif src.texte_actuel:
+            lignes = self._mettre_en_lignes(src.texte_actuel, largeur)
             if getattr(src, "texte_en_direct", False) and src.etat_actuel == "ecoute":
                 # pendant l'écoute : les mots au fil de l'eau, avec un curseur qui clignote
-                contenu = src.texte_actuel + (" |" if int(time.time() * 2.5) % 2 else "  ")
-                fondu = 1.0
+                lignes = list(lignes[-nb:])
+                lignes[-1] += " |" if curseur else "  "
+                couleur = teinte(0.85, blanc)
             else:
-                contenu = "« " + src.texte_actuel + " »"
-            image = self._texte(self.police_texte, contenu, teinte(0.85 * fondu, blanc))
-            surf.blit(image, image.get_rect(center=(cx, yb + (60 if src.AFFICHER_SYSTEME else 32) * s)))
+                if len(lignes) > nb:                       # un long texte défile, à la vitesse où on le lit
+                    par_ligne = max(1.2, len(src.texte_actuel) / len(lignes) / 14.0)
+                    debut = int((maintenant - src.texte_depuis) / par_ligne - 1.5)
+                    debut = max(0, min(len(lignes) - nb, debut))
+                    lignes = lignes[debut:debut + nb]
+                fondu = max(0.0, min(1.0, self._reste_texte / 2))
+                # la réponse de Jarvis est plus lumineuse que la demande
+                force = 0.95 if getattr(src, "texte_reponse", False) else 0.7
+                couleur = teinte(force * fondu, blanc)
+        else:
+            rappel = self._texte_rappel()
+            lignes = self._mettre_en_lignes(rappel, largeur)[:nb] if rappel else [INVITE_SAISIE]
+            couleur = teinte(0.7, blanc) if rappel else teinte(0.5)
+        pas = self.police_discussion.get_linesize()
+        y = (y0 + y1) / 2 - pas * (len(lignes) - 1) / 2
+        for ligne in lignes:
+            image = self._texte(self.police_discussion, ligne, couleur)
+            surf.blit(image, image.get_rect(center=(cx, y)))
+            y += pas
 
     def _couleurs_jauges(self, nombre):
         """En veille avec les couleurs Vice City : une teinte du dégradé par jauge (sinon None)."""
@@ -941,10 +1162,13 @@ class Affichage:
         """Un reflet de lumière fait tout le tour d'un contour (panneau ou cercle du réacteur), puis une
         courte pause avant le tour suivant. points : les sommets du contour, dans l'ordre."""
         S = self.s
-        pts = [(float(x), float(y)) for x, y in points]
-        longueurs = [math.hypot(pts[(i + 1) % len(pts)][0] - pts[i][0], pts[(i + 1) % len(pts)][1] - pts[i][1])
-                     for i in range(len(pts))]
-        total = sum(longueurs)
+        # Le contour fermé et la distance parcourue jusqu'à chaque sommet : tous les points du reflet sont
+        # ensuite placés d'un seul calcul (avant, chaque petit trait reparcourait le contour : 40 % du temps
+        # de dessin d'une image)
+        pts = np.asarray(points, dtype=float)
+        pts = np.vstack((pts, pts[:1]))
+        cumul = np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(pts[:, 0]), np.diff(pts[:, 1])))))
+        total = float(cumul[-1])
         if total < 1:
             return
         longueur = min(LONGUEUR_REFLET * S, 0.7 * total / max(1, NB_REFLETS))   # jamais deux reflets qui se touchent
@@ -960,21 +1184,12 @@ class Affichage:
         elif avance > total + longueur:
             return
 
-        def point(d):
-            d %= total
-            for i, l in enumerate(longueurs):
-                if d <= l or i == len(longueurs) - 1:
-                    a, b = pts[i], pts[(i + 1) % len(pts)]
-                    f = d / l if l else 0.0
-                    return a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f
-                d -= l
-            return pts[0]
-
         morceaux = 24
         pas = longueur / morceaux
         epais = max(1, int(1.7 * S))
         # plusieurs reflets, répartis à égale distance sur le contour (deux : l'un à l'opposé de l'autre)
         nombre = NB_REFLETS if PAUSE_REFLET <= 0 else 1
+        debuts, fins, forces = [], [], []             # chaque morceau du reflet : d'où à où, et sa force
         for r in range(max(1, nombre)):
             tete = avance + r * total / max(1, nombre)
             for k in range(morceaux):
@@ -983,15 +1198,19 @@ class Affichage:
                     break
                 if d1 > total and PAUSE_REFLET > 0:     # la tête a fini le tour : seule la traîne finit de passer
                     continue
-                force = 0.95 * (1 - k / morceaux) ** 1.4
-                depart = max(0.0, d2)
-                # on suit le contour même dans les angles (plusieurs petits traits)
-                n = max(1, int((d1 - depart) / (3 * S)))
-                prec = point(depart)
-                for m in range(1, n + 1):
-                    cour = point(depart + (d1 - depart) * m / n)
-                    pygame.draw.line(surf, teinte(force, blanc), prec, cour, epais)
-                    prec = cour
+                debuts.append(max(0.0, d2))
+                fins.append(d1)
+                forces.append(0.95 * (1 - k / morceaux) ** 1.4)
+        if not forces:
+            return
+        # on suit le contour même dans les angles : chaque morceau est fait de plusieurs petits traits
+        n = max(1, int(pas / (3 * S)))
+        debuts, fins = np.array(debuts)[:, None], np.array(fins)[:, None]
+        d = (debuts + (fins - debuts) * np.linspace(0.0, 1.0, n + 1)[None, :]) % total
+        xy = np.stack((np.interp(d, cumul, pts[:, 0]), np.interp(d, cumul, pts[:, 1])), axis=2)
+        for force, morceau in zip(forces, xy):
+            # un morceau à cheval sur la fin du tour : le contour est fermé, ses points se suivent quand même
+            pygame.draw.lines(surf, teinte(force, blanc), False, morceau, epais)
 
     def _etiquette(self, surf, police, nom, valeur, unite, couleur, xc, yc):
         """« CPU [icône] 12% », centré sur (xc, yc). L'icône a la hauteur des lettres."""
@@ -1134,6 +1353,7 @@ class Affichage:
             actif = (src.etat_actuel in ("ecoute", "traitement", "reponse", "erreur", "arret", "rappel")
                      or maintenant - self._alerte < DUREE_ALERTE
                      or self.glisse is not None or maintenant - src.texte_depuis < 1
+                     or self._saisie is not None           # on écrit : les lettres suivent la frappe
                      or maintenant - self.t0 < DUREE_NAISSANCE + 0.5 or self._fermeture is not None
                      or 0.02 < self._forme < 0.98)          # pendant qu'il change de taille
             if actif:

@@ -144,12 +144,10 @@ _LETTRES = "abcdefghjkmnpqrstuvwxyz23456789"         # sans l, i, o, 0, 1 : rien
 
 
 def _afficher(texte):
-    """Affiche sous le réacteur (12 secondes), sans le dire."""
+    """Affiche dans la fenêtre de discussion (une vingtaine de secondes), sans le dire."""
     try:
         import jarvis_voix
-        if jarvis_voix.afficher:
-            jarvis_voix.afficher(texte)
-            return True
+        return jarvis_voix.montrer(texte)
     except Exception as erreur:
         print("Affichage :", erreur)
     return False
@@ -221,7 +219,7 @@ def _wifi_invite(t, action):
             code = cle['params'].get('key', '?')
             _afficher(f"Wi-Fi invité : {code}")
             qr = _montrer_qr(nom, code)
-            return (f"{'Je t’affiche le QR code à l’écran : il suffit de le scanner. ' if qr else 'Je l’affiche sous le réacteur. '}"
+            return (f"{'Je t’affiche le QR code à l’écran : il suffit de le scanner. ' if qr else 'Je l’affiche au-dessus du réacteur. '}"
                     f"Réseau {nom}, encore valable environ {heures} heure{'s' if heures > 1 else ''}.")
         secondes, duree_dite = _duree(t)
         code = "-".join("".join(secrets.choice(_LETTRES) for _ in range(4)) for _ in range(3))
@@ -235,7 +233,7 @@ def _wifi_invite(t, action):
             fin = (" Le QR code est à l'écran : tes invités n'ont qu'à le scanner avec l'appareil photo. "
                    "Redemande « montre le QR code du Wi-Fi invité » si besoin.")
         elif affiche:
-            fin = (" Le mot de passe est affiché sous le réacteur pendant quelques secondes ; "
+            fin = (" Le mot de passe est affiché au-dessus du réacteur pendant quelques secondes ; "
                    "redemande « affiche le code du Wi-Fi invité » si besoin.")
         else:
             fin = " Je n'arrive pas à l'afficher ici : regarde dans Freebox OS, rubrique Wi-Fi invité."

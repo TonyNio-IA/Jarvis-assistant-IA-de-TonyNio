@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.27**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.28**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -30,6 +30,19 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Santé** : un diagnostic en un clic (micro, haut-parleur, reconnaissance vocale, Claude, connexion, disque).
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.28 : Jarvis sur la tablette
+
+<p align="center"><img src="docs/tablette.png" alt="Jarvis sur une tablette : accueil, choix du profil, code, réglages, couleurs" width="90%"></p>
+
+- **Une application Android** (Android 8 à 16) : la page du QR code la propose ; elle s'installe sans Play Store et se met à jour depuis la tablette (roue des réglages, « Mise à jour »).
+- **Écoute permanente** : dis « Jarvis, quelle heure est-il ? » sans toucher la tablette. Ta phrase s'affiche, puis la réponse la remplace, comme sur le PC. Elle se coupe dans la roue des réglages ; tant qu'elle est active, l'écran reste allumé.
+- **Un profil par personne**, avec ses couleurs (six palettes, ou trois couleurs au choix) et sa propre conversation. Un enfant entre sans code ; un adulte tape un code à 4 chiffres. « Jarvis, c'est Léo » change de profil, et la tablette se rouvre sur le dernier profil utilisé.
+- **Sans Claude** : « ouvre YouTube Kids » lance l'application de la tablette ; « recette de crêpes », « cherche … sur Internet », « images de … », « cherche … sur YouTube » ouvrent le navigateur ; l'heure, la météo et les calculs répondent tout de suite.
+- **Tes données restent sur ton PC.** Seuls le texte des questions et des réponses passent par Claude et par la voix en ligne. Les 1 000 dernières demandes de chaque profil sont gardées sur le PC.
+- **Au-dessus du réacteur**, sur le PC, une fenêtre de discussion où l'on peut aussi écrire sa demande au clavier.
+
+Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 ## Nouveau en 1.26 et 1.27 : désinstallation complète, plusieurs télés, PS5
 
@@ -132,7 +145,9 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - « Jarvis, redémarre-toi ». Un gardien le relance tout seul s'il plante ou si le micro est débranché.
 - « Jarvis, note que... » et « Jarvis, lis mes notes » (fichier `notes.txt`).
 - Mémoire durable : « Jarvis, retiens que... », « qu'est-ce que tu as retenu ? », « oublie que... », « efface toute ta mémoire » (avec confirmation). Jarvis garde aussi le fil des derniers échanges : il sait de quoi vous parliez même après un redémarrage. Tout reste dans `memoire.json`, sur le PC.
-- Sous le réacteur : l'heure, les mots compris au fil de l'écoute, puis la charge du processeur, la mémoire et le débit du réseau en temps réel.
+- Au-dessus du réacteur, la fenêtre de discussion : les mots compris s'y écrivent au fil de l'écoute, puis la réponse de Jarvis les remplace. Clique dedans pour écrire ta demande au clavier (Entrée l'envoie) : Jarvis y répond par écrit, et à voix haute comme d'habitude. Elle disparaît quand le réacteur se fait discret, et revient dès que tu passes la souris dessus ou que tu lui parles.
+- Sous le réacteur : l'état de Jarvis, l'heure, puis la charge du processeur, la mémoire, la carte graphique et le réseau en temps réel.
+- Jarvis sur une tablette ou un téléphone de la maison : voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 - Autour du réacteur : une couronne de graduations qui dessine le spectre du son (ta voix quand il écoute, la sienne quand il répond).
 - En veille : couleurs façon coucher de soleil de Vice City (rose, orange, violet) ; au bout de 35 secondes, le réacteur se fait discret et seules les jauges restent, dans un petit bandeau ; un reflet de lumière fait sans cesse le tour des panneaux et du réacteur ; le réacteur danse quand le PC joue de la musique, son cœur se tourne vers la souris, il se fait plus doux après le coucher du soleil, et une petite fête l'anime à minuit et le jour de ton anniversaire.
 - Pour lui couper la parole, dis « Jarvis » : il se tait aussitôt et écoute ta nouvelle demande (« stop » le fait taire).
@@ -147,7 +162,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Le son d'une seule application : « baisse le son de Chrome », « mets le son de Spotify à 30 », « coupe le son de Discord ».
 - Navigateur : « cherche des recettes de crêpes sur YouTube » (aussi Amazon, Google, Wikipédia, Leboncoin, Google Maps...), « clique sur Connexion », « clique sur la deuxième vidéo », « clique sur le premier résultat », « fais défiler », « remonte », « tout en haut », « reviens en arrière », « page suivante », « lis-moi cette page », « résume cette page » (Claude reçoit le texte de la page).
 - Windows : « active le mode sombre », « passe en mode clair », « active le Bluetooth », « coupe le Bluetooth », « monte la luminosité », « luminosité à 60 » (écrans qui l'acceptent depuis Windows).
-- Mode nuit, seulement quand tu le demandes : « Active le mode nuit ». Jarvis répond alors par écrit sous le réacteur, sans voix ni bip (les rappels et le réveil sonnent quand même), et le reste même après un redémarrage, jusqu'à « désactive le mode nuit ». Des heures fixes sont possibles dans `config.json` : `"mode_nuit": {"debut": 22, "fin": 7}`.
+- Mode nuit, seulement quand tu le demandes : « Active le mode nuit ». Jarvis répond alors par écrit dans la fenêtre de discussion, au-dessus du réacteur, sans voix ni bip (les rappels et le réveil sonnent quand même), et le reste même après un redémarrage, jusqu'à « désactive le mode nuit ». Des heures fixes sont possibles dans `config.json` : `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voix : « prends une voix de femme », « reprends la voix d'Henri », « parle plus vite », « parle plus lentement », « parle à vitesse normale ».
 - « Jarvis, qu'est-ce que tu sais faire ? » : il résume ses commandes.
 - Mails, seulement quand tu les demandes : « est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails » (expéditeur et objet des 5 derniers non lus), « lis-moi le premier mail ». Jarvis ne fait que lire : il n'envoie, ne supprime et ne déplace rien, les mails restent « non lus », et leur contenu n'est pas envoyé à Claude. Mise en place une fois, voir la rubrique [Mails](#mails).
@@ -224,6 +239,19 @@ Tout se passe sur ton réseau, sans compte ni service en ligne. Chaque appareil 
 
 Les certificats et clés d'association restent sur ton PC (dossier `tele` et Gestionnaire d'identification de Windows), jamais publiés. En mode enfant, Jarvis n'allume ni la télé ni l'Apple TV et ne touche pas aux réglages.
 
+## Jarvis sur la tablette
+
+1. Sur le PC : « **Jarvis, active la tablette** » (ou « … pour Léo », le prénom du profil qui s'ouvrira par défaut). Un QR code s'affiche ; « Jarvis, montre le QR code de la tablette » le réaffiche.
+2. Sur la tablette : vise le QR code avec l'appareil photo, ouvre le lien et accepte l'avertissement de sécurité (le certificat est fabriqué par ton Jarvis, il n'est connu de personne d'autre).
+3. La page propose l'application Android : « Télécharger et installer » (Android demande d'autoriser l'installation), puis « Ouvrir dans l'application ». Sur une tablette qui n'est pas sous Android, la page s'utilise dans le navigateur.
+4. **Codes des adultes** : pendant les 10 minutes qui suivent l'affichage du QR code, chaque adulte choisit son code à 4 chiffres sur la tablette. Ensuite, « Changer mon code » dans la roue des réglages demande l'ancien.
+
+Le PC doit être allumé, avec Jarvis lancé ; Windows demande une fois d'autoriser Python sur le réseau privé. Depuis la tablette, Jarvis discute et répond, ouvre les applications de la tablette et lance des recherches, mais ne fait **aucune action sur le PC ni dans la maison**. Un adulte du foyer a un Jarvis qui lui parle en adulte, un enfant un Jarvis qui lui parle comme en mode enfant. La voix d'un enfant reconnue fait passer la tablette sur son profil ; celle d'un adulte est seulement proposée, et son code reste demandé.
+
+La roue des réglages : profil, volume, écoute permanente, mode silencieux, mode nuit, nouvelle conversation, couleurs, code, mise à jour, à propos, désinstallation. « Jarvis, désactive la tablette », sur le PC, referme l'accès et jette la clé secrète.
+
+Loin de la maison, la tablette peut joindre Jarvis par le VPN de ta box (WireGuard sur une Freebox récente, par exemple), comme si elle était sur ton Wi-Fi.
+
 ## Alertes météo
 
 Rien à régler : Jarvis lit la carte de Vigilance que Météo-France publie en données ouvertes sur [data.gouv.fr](https://www.data.gouv.fr/datasets/vigilance-meteorologique-archivee) (Licence Ouverte), sans compte ni clé, et la vérifie toutes les 30 minutes. Le département est retrouvé à partir de ta ville ; pour le forcer : `"departement": "33"` dans `config.json`.
@@ -268,6 +296,9 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_appletv.py` | L'Apple TV |
 | `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
 | `jarvis_ps5.py`, `jarvis_associer_ps5.py` | La PlayStation 5 : état, allumage et mise en veille ; la fenêtre pour la relier une fois |
+| `jarvis_tablette.py` | Jarvis sur les tablettes de la maison : la page servie par le PC (HTTPS, clé secrète), profils, codes et couleurs, écoute permanente, applications et recherches sans Claude, historique |
+| `android/` | Le code de l'application Android (une fenêtre sur la page de Jarvis, avec le micro, l'ouverture des applications et les mises à jour) ; `construire.py` la fabrique sans Android Studio |
+| `docs/Jarvis-tablette.apk` | L'application Android toute faite, que le PC propose aux tablettes |
 | `requirements-ps5.txt` | Les modules de la PlayStation 5, installés à part par l'installateur (sans bloquer l'installation s'ils échouent) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Les fenêtres d'association (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | La façon de parler de chaque profil (longueur, humour, vouvoiement) |
@@ -306,7 +337,7 @@ Jarvis est publié sous licence **PolyForm Strict 1.0.0** (fichier `LICENSE.md`)
 - tu ne peux pas le modifier, ni en publier une copie ou une version à toi ;
 - les nouveautés arrivent avec les versions publiées ici.
 
-Jarvis s'appuie sur des modules libres, installés avec lui : Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, pour la télé), pyatv (MIT, pour l'Apple TV), segno (BSD, pour le QR code), entre autres. Certaines idées de la 1.25 (infos pratiques, façon de parler, tâches de fond, mot d'appel) sont reprises du projet [Cornelius](https://github.com/lfpoulain/Cornelius) des Frères Poulain (licence MIT) et réécrites pour Jarvis.
+Jarvis s'appuie sur des modules libres, installés avec lui : Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, pour la télé), pyatv (MIT, pour l'Apple TV), segno (BSD, pour le QR code), cryptography (Apache 2.0, pour la liaison chiffrée avec la tablette), entre autres. Certaines idées de la 1.25 (infos pratiques, façon de parler, tâches de fond, mot d'appel) sont reprises du projet [Cornelius](https://github.com/lfpoulain/Cornelius) des Frères Poulain (licence MIT) et réécrites pour Jarvis.
 
 Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **Issues**, en français ou en anglais : c'est la bonne façon de faire avancer le projet.
 
@@ -314,6 +345,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.28 | Jarvis sur la tablette : application Android (installée et mise à jour depuis la tablette), écoute permanente avec « Jarvis », un profil par personne avec ses couleurs, codes à 4 chiffres pour les adultes, « c'est Léo » pour changer de profil, dernier profil rouvert, applications de la tablette et recherches ouvertes sans Claude, historique des 1 000 dernières demandes par profil sur le PC ; sur le PC, une fenêtre de discussion au-dessus du réacteur, où l'on peut aussi écrire |
 | 1.27 | PlayStation 5 : l'allumage et la mise en veille à la voix sont disponibles pour tous, leurs modules s'installent tout seuls avec Jarvis (sans jamais bloquer l'installation) ; le modèle qui reconnaît qui parle (« apprends ma voix ») est lui aussi installé tout seul ; l'installateur vérifie à la fin que le pilotage de la PS5 marche |
 | 1.26 | Désinstallation complète depuis les réglages (garder ou non ses fichiers personnels, copie compressée, récapitulatif, mot « confirmer ») ; installateur 1.1 (ce qu'apporte l'abonnement Claude, trace de ce qu'il installe, reprise des fichiers gardés, encadré « À retenir ») ; plusieurs télés (« la télé de la chambre ») ; PlayStation 5 : allumée, en veille ou éteinte ; réveil plus rapide quand « Jarvis » est dit seul (avec le détecteur facultatif) ; « prochain rendez-vous » sans attendre Claude ; phrases mal entendues mieux comprises (« quelle aurait-il », « la connection Internet », « lis ce que j'ai copie ») ; une phrase qui parle de la télé ne lance plus de musique sur le PC ; « remets les couleurs Vice City » |
 | 1.25 | La maison : télé (Freebox Player ou Android TV) et Apple TV pilotées à la voix, Freebox (appels, état d'Internet, appareils connectés, Wi-Fi invité avec QR code à scanner), encre et état de l'imprimante ; agenda iCloud (« c'est quand… », rappel la veille) ; envoi de mails relus et confirmés par « oui » ; carburants, vacances, jours fériés, éphéméride, poubelles ; rappels qui se répètent ; façon de parler de chaque profil ; tâches de fond confiées à Claude ; écoute : un « stop » cru entendu dans le bruit ne coupe plus Jarvis, « redémarre » tout court, « non, c'est moi… » change de profil, phrases mal entendues mieux comprises (« c'est Khan, le rendez-vous », « la polle TV ») ; en mode enfant, une phrase incompréhensible ne lance plus de vidéo au hasard, et « retourne à l'accueil » sur YouTube Kids |

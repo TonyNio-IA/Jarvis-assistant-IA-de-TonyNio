@@ -18,14 +18,19 @@ from segno import helpers
 def main():
     donnees = json.loads(sys.stdin.read() or "{}")
     reseau, cle = donnees.get("reseau", ""), donnees.get("cle", "")
+    adresse = donnees.get("adresse", "")          # autre usage : une adresse à ouvrir (Jarvis sur la tablette)
     minutes = max(1, min(int(donnees.get("minutes", 5)), 30))
-    if not reseau or not cle:
+    if adresse:
+        qr = segno.make(adresse, error="m")
+    elif reseau and cle:
+        qr = helpers.make_wifi(ssid=reseau, password=cle, security="WPA", hidden=False)
+    else:
         return
-    qr = helpers.make_wifi(ssid=reseau, password=cle, security="WPA", hidden=False)
     matrice = list(qr.matrix_iter(border=4))
+    titre = donnees.get("titre") or "Wi-Fi invité"
 
     fen = tk.Tk()
-    fen.title("Wi-Fi invité")
+    fen.title(titre)
     fen.configure(bg="white")
     fen.attributes("-topmost", True)
     fen.resizable(False, False)
@@ -33,8 +38,8 @@ def main():
     case = max(4, min(14, int(hauteur_ecran * 0.4 / len(matrice))))     # assez grand pour un téléphone, sans déborder
     taille = case * len(matrice)
 
-    tk.Label(fen, text="Wi-Fi invité", font=("Segoe UI", 22, "bold"), bg="white").pack(pady=(16, 4))
-    tk.Label(fen, text="Vise ce code avec l'appareil photo du téléphone", font=("Segoe UI", 12),
+    tk.Label(fen, text=titre, font=("Segoe UI", 22, "bold"), bg="white").pack(pady=(16, 4))
+    tk.Label(fen, text=donnees.get("texte") or "Vise ce code avec l'appareil photo du téléphone", font=("Segoe UI", 12),
              bg="white", fg="#444").pack()
     toile = tk.Canvas(fen, width=taille, height=taille, bg="white", highlightthickness=0)
     toile.pack(padx=24, pady=12)
@@ -42,8 +47,13 @@ def main():
         for x, noir in enumerate(ligne):
             if noir:
                 toile.create_rectangle(x * case, y * case, (x + 1) * case, (y + 1) * case, fill="black", width=0)
-    tk.Label(fen, text=f"Réseau : {reseau}", font=("Segoe UI", 13), bg="white").pack()
-    tk.Label(fen, text=f"Mot de passe : {cle}", font=("Consolas", 15, "bold"), bg="white").pack(pady=(2, 6))
+    if adresse:                                   # l'adresse contient une clé : elle n'est pas écrite en clair
+        for ligne in donnees.get("lignes") or []:
+            tk.Label(fen, text=str(ligne), font=("Segoe UI", 12), bg="white", anchor="w", justify="left",
+                     wraplength=max(420, taille + 40)).pack(fill="x", padx=24)
+    else:
+        tk.Label(fen, text=f"Réseau : {reseau}", font=("Segoe UI", 13), bg="white").pack()
+        tk.Label(fen, text=f"Mot de passe : {cle}", font=("Consolas", 15, "bold"), bg="white").pack(pady=(2, 6))
     tk.Label(fen, text=f"Se ferme tout seul dans {minutes} minute{'s' if minutes > 1 else ''} (ou clique dessus).",
              font=("Segoe UI", 9), bg="white", fg="#777").pack(pady=(0, 14))
 

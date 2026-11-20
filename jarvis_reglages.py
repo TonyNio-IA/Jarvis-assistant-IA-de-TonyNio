@@ -2,7 +2,7 @@
 JARVIS - réglages à la voix (de Jarvis et du PC).
 
   - le mode nuit : « active le mode nuit », « désactive le mode nuit », « parle normalement ».
-    En mode nuit, Jarvis répond par écrit sous le réacteur, sans voix ni bip ; les rappels et le
+    En mode nuit, Jarvis répond par écrit au-dessus du réacteur, sans voix ni bip ; les rappels et le
     réveil sonnent quand même. Il s'active tout seul aux heures choisies dans config.json (22 h à 7 h
     par défaut) ; ce qui est dit à la voix vaut jusqu'au prochain changement d'horaire ;
   - la voix : « prends une voix de femme » (Denise), « reprends la voix d'Henri » ;
@@ -65,7 +65,7 @@ def commande_mode_nuit(t):
         # « le mode nuit » tout seul (souvent un mot mal entendu) : on demande plutôt que deviner
         return "Tu veux que j'active ou que je désactive le mode nuit ?"
     jarvis_voix.forcer_nuit(True)
-    return "Mode nuit activé : je te réponds par écrit, sous le réacteur. Les rappels sonnent quand même."
+    return "Mode nuit activé : je te réponds par écrit, au-dessus du réacteur. Les rappels sonnent quand même."
 
 
 # ---------- Voix et vitesse ----------

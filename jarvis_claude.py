@@ -73,9 +73,10 @@ import jarvis_taches
 import jarvis_motappel
 import jarvis_agenda
 import jarvis_sources
+import jarvis_tablette
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.27"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.28"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -258,8 +259,27 @@ def afficher_texte(texte, en_direct=False):
     pass
 
 
-def sous_titre(texte, en_direct=False):
-    """Affiche sous le réacteur ce que Jarvis a compris (en direct : les mots au fil de l'écoute)."""
+demandes_ecrites = queue.Queue()     # demandes tapées dans la fenêtre de discussion, au-dessus du réacteur
+_demande_ecrite = False              # vrai pendant le traitement d'une demande écrite (personne n'a parlé)
+
+
+def ecrire(texte):
+    """Une demande tapée au clavier dans la fenêtre de discussion : traitée comme une demande dite."""
+    texte = " ".join(str(texte or "").split())
+    if texte:
+        demandes_ecrites.put(texte)
+
+
+def sous_titre(texte, en_direct=False, reponse=False):
+    """Affiche dans la fenêtre de discussion ce que Jarvis a compris (en direct : les mots au fil de
+    l'écoute), ou sa réponse (reponse=True), qui remplace la demande."""
+    try:
+        afficher_texte(texte, en_direct, reponse)
+        return
+    except TypeError:
+        pass
+    except Exception:
+        return
     try:
         afficher_texte(texte, en_direct)
     except TypeError:
@@ -295,6 +315,7 @@ session_id = None
 dernier_echange = 0.0
 
 whisper = None
+verrou_whisper = threading.Lock()     # Whisper sert aussi à la tablette : une retranscription à la fois
 
 
 # ---------- Audio ----------
@@ -638,9 +659,10 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
         if WHISPER_SILENCE:
             audio = np.concatenate((np.zeros(int(SAMPLE_RATE * WHISPER_SILENCE), dtype=np.float32), audio))
         debut_whisper = time.time()
-        segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
-                                         initial_prompt=_vocabulaire())
-        texte = " ".join(s.text for s in segments).strip()
+        with verrou_whisper:
+            segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
+                                             initial_prompt=_vocabulaire())
+            texte = " ".join(s.text for s in segments).strip()
         duree_whisper = time.time() - debut_whisper
     except Exception as erreur:
         print("Erreur Whisper :", erreur)
@@ -796,6 +818,9 @@ class ClaudeContinu:
     (environ 1 à 2 secondes par réponse au lieu de 8 à 15), et la mémoire de la
     conversation est conservée tant que le programme tourne.
     """
+    outils = None             # outils de Claude (None : ceux de Jarvis). La tablette en a moins.
+    avec_memoire = True       # la mémoire de Jarvis accompagne les demandes (jamais celles de la tablette)
+    nom = ""                  # pour le journal
 
     def __init__(self):
         self.proc = None
@@ -839,7 +864,7 @@ class ClaudeContinu:
              "--output-format", "stream-json", "--verbose", "--include-partial-messages",
              "--append-system-prompt", self._consignes(),
              "--permission-mode", MODE_PERMISSIONS, "--model", MODELE,
-             *OPTIONS_LEGERES, "--tools", OUTILS],
+             *OPTIONS_LEGERES, "--tools", self.outils or OUTILS],
             cwd=DOSSIER_JARVIS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
             bufsize=1, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -849,7 +874,7 @@ class ClaudeContinu:
                          daemon=True).start()
         self.dernier_usage = time.time()
         self.utilise = False
-        print("Claude prêt en continu (modèle", MODELE + ").")
+        print("Claude prêt en continu (modèle", MODELE + (", " + self.nom if self.nom else "") + ").")
 
     def entretenir(self):
         """Quand la mémoire de la conversation a expiré, relance Claude à l'avance
@@ -879,7 +904,8 @@ class ClaudeContinu:
             if self.proc is None:
                 return SANS_CLAUDE, True
             self.utilise = True
-            texte = jarvis_memoire.nouveautes() + texte
+            if self.avec_memoire:
+                texte = jarvis_memoire.nouveautes() + texte
             message = {"type": "user", "message": {"role": "user", "content": texte}}
             try:
                 self.proc.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
@@ -1293,7 +1319,9 @@ def traiter(demande, recognizer):
     try:
         # « apprends ma voix » (voix pas encore connue) ou « c'est Marie » (la personne dit qui elle est) :
         # la voix ne fait pas changer de profil
-        if (not jarvis_extras.invite() and not re.search(r"\bappren\w*\b.{0,15}\b(?:voix|voie|envoie)\b", minuscules)
+        # (une demande écrite au clavier n'a pas de voix : on reste sur le profil en cours)
+        if (not _demande_ecrite
+                and not jarvis_extras.invite() and not re.search(r"\bappren\w*\b.{0,15}\b(?:voix|voie|envoie)\b", minuscules)
                 and not any(jarvis_profils._CEST.match(jarvis_commandes._propre(x)) for x in (derniers_textes or [demande]))):
             bonjour_profil = jarvis_locuteur.appliquer()
         if bonjour_profil and jarvis_extras.redemarrer_claude:
@@ -1455,6 +1483,31 @@ def traiter(demande, recognizer):
     interrompu = parler(reponse)
     preparer_ecoute(recognizer)
     return interrompu
+
+
+def traiter_ecrit(demande, recognizer):
+    """Une demande tapée dans la fenêtre de discussion. Même traitement qu'une demande dite, et Jarvis répond
+    aussi à voix haute (sauf en mode nuit, comme toujours) ; il ne guette pas de suite à la voix ensuite."""
+    global _demande_ecrite
+    print("Demande écrite :", demande)
+    derniers_textes[:] = [demande]
+    baisser_son()
+    try:
+        if re.fullmatch(r"\W*(?:jarvis\W+)?(?:stop|arr[eê]te|tais[- ]toi)\W*", demande, re.I):
+            sous_titre("")
+        elif est_politesse(demande) and not jarvis_commandes.confirmation_en_attente():
+            etat("reponse")
+            speak(phrase_variee(REMERCIEMENTS))
+        else:
+            _demande_ecrite = True
+            try:
+                traiter(demande, recognizer)
+            finally:
+                _demande_ecrite = False
+    finally:
+        remonter_son()
+    preparer_ecoute(recognizer)
+    etat("veille")
 
 
 def apprendre_voix_guidee(recognizer):
@@ -1704,7 +1757,8 @@ def main():
             pass
 
     reparer_volumes()
-    jarvis_voix.afficher = sous_titre          # en mode nuit, les réponses s'affichent sous le réacteur
+    # Tout ce que Jarvis dit s'écrit aussi dans la fenêtre de discussion (en mode nuit, il l'écrit sans le dire)
+    jarvis_voix.afficher = lambda texte: sous_titre(texte, reponse=True)
     print("Chargement du modèle français...")
     model = Model(MODEL_PATH)
     recognizer = KaldiRecognizer(model, SAMPLE_RATE)
@@ -1725,6 +1779,11 @@ def main():
     jarvis_taches.configurer(CLAUDE_EXE, MODELE_POINT_DU_JOUR, OUTILS_POINT_DU_JOUR, MODE_PERMISSIONS,
                              OPTIONS_LEGERES, DOSSIER_JARVIS,
                              lambda texte, erreur: point_pret.put((texte, erreur)))      # tâches de fond
+    try:                                         # la tablette de la maison, si son accès est activé
+        jarvis_tablette.configurer(sys.modules[__name__])
+        jarvis_tablette.demarrer()
+    except Exception as erreur_tablette:
+        print("Tablette :", erreur_tablette)
     jarvis_enfant.annoncer = lambda texte: point_pret.put((texte, False))     # Jarvis parle de lui-même (YouTube Kids)
     threading.Thread(target=charger_whisper, daemon=True).start()
     threading.Thread(target=jarvis_motappel.detecteur, daemon=True).start()   # détecteur « Jarvis » prêt d'avance
@@ -1807,6 +1866,12 @@ def main():
                     preparer_ecoute(recognizer)
                     tampon.clear()
                     etat("veille")
+                    continue
+
+                # Une demande écrite au clavier, dans la fenêtre de discussion
+                if not demandes_ecrites.empty():
+                    traiter_ecrit(demandes_ecrites.get(), recognizer)
+                    tampon.clear()
                     continue
 
                 # Pause pendant que Claude lit un message à voix haute

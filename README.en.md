@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.27**
+**Français : [README.md](README.md)** · **Current version: 1.28**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +30,17 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.28: Jarvis on the tablet
+
+<p align="center"><img src="docs/tablette.png" alt="Jarvis on a tablet: home, choosing a profile, code, settings, colours" width="90%"></p>
+
+- **An Android app** (Android 8 to 16): the QR-code page offers it; it installs without the Play Store and updates from the tablet (settings wheel, « Mise à jour »).
+- **Always listening**: say « Jarvis, quelle heure est-il ? » without touching the tablet. Your sentence is shown, then replaced by the answer, as on the PC. It can be turned off in the settings wheel; while it is on, the screen stays on.
+- **One profile per person**, with its own colours (six palettes, or any three colours) and its own conversation. A child gets in without a code; an adult types a 4-digit code. « Jarvis, c'est Léo » switches profile, and the tablet reopens on the last profile used.
+- **Without Claude**: « ouvre YouTube Kids » opens the tablet's app; recipes, web, image and YouTube searches open the browser; time, weather and calculations answer at once.
+- **Your data stays on your PC.** Only the text of questions and answers goes through Claude and the online voice. The last 1,000 requests of each profile are kept on the PC.
+- **Above the reactor**, on the PC, a chat window where you can also type your request.
 
 ## New in 1.26 and 1.27: full uninstall, several TVs, PS5
 
@@ -143,7 +154,8 @@ The commands below are the French phrases Jarvis understands, with their meaning
 - Videos: « avance de 30 secondes ». One app's volume: « baisse le son de Chrome ».
 - Browser by voice: « cherche des recettes sur YouTube », « clique sur Connexion », « clique sur la deuxième vidéo », « clique sur le premier résultat », « fais défiler », « reviens en arrière », « lis-moi cette page », « résume cette page ».
 - Windows: dark or light mode, Bluetooth on or off, screen brightness (on screens that allow it from Windows).
-- Night mode, only when you ask for it (« active le mode nuit »): answers are written under the reactor, with no voice or beep (reminders still ring). It stays on, even after a restart, until « désactive le mode nuit ». Fixed hours are possible in `config.json`: `"mode_nuit": {"debut": 22, "fin": 7}`.
+- Jarvis on a tablet or phone at home: « active la tablette » shows a QR code; scan it with the tablet, accept the security warning (the certificate is made by your Jarvis), then install the Android app the page offers (or use the page in the browser). During the 10 minutes after the QR code is shown, each adult chooses a 4-digit code on the tablet. Jarvis answers on the tablet in writing and aloud, opens the tablet's apps and runs searches, but performs no action on the PC or the house. « désactive la tablette » closes the access. Away from home, the tablet can reach Jarvis through your router's VPN (WireGuard on a recent Freebox, for example).
+- Night mode, only when you ask for it (« active le mode nuit »): answers are written in the chat panel above the reactor, with no voice or beep (reminders still ring). It stays on, even after a restart, until « désactive le mode nuit ». Fixed hours are possible in `config.json`: `"mode_nuit": {"debut": 22, "fin": 7}`.
 - Voice: a female voice (« prends une voix de femme »), faster or slower speech. « Qu'est-ce que tu sais faire ? » lists the commands.
 
 **New in 1.24**
@@ -252,6 +264,9 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_appletv.py` | The Apple TV |
 | `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |
 | `jarvis_ps5.py`, `jarvis_associer_ps5.py` | The PlayStation 5: status, turning on and rest mode; the window to link it once |
+| `jarvis_tablette.py` | Jarvis on the home tablets: the page served by the PC (HTTPS, secret key), profiles, codes and colours, always-on listening, apps and searches without Claude, history |
+| `android/` | The Android app source (a window on Jarvis's page, with the microphone, opening apps and updates); `construire.py` builds it without Android Studio |
+| `docs/Jarvis-tablette.apk` | The ready-made Android app the PC offers to tablets |
 | `requirements-ps5.txt` | The PlayStation 5 modules, installed separately by the installer (setup goes on if they fail) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Pairing windows (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
 | `jarvis_personnalite.py` | Each profile's speaking style (length, humour, "vous") |
@@ -276,7 +291,7 @@ Jarvis is published under the **PolyForm Strict 1.0.0** license (file `LICENSE.m
 - you may not modify it, or publish a copy or your own version of it;
 - new features arrive with the versions published here.
 
-Jarvis relies on free modules installed with it, among them Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, TV), pyatv (MIT, Apple TV) and segno (BSD, QR code). Some 1.25 ideas (everyday info, speaking style, background tasks, wake word) come from the [Cornelius](https://github.com/lfpoulain/Cornelius) project by Les Frères Poulain (MIT license), rewritten for Jarvis.
+Jarvis relies on free modules installed with it, among them Vosk, faster-whisper, edge-tts, PyAV, pygame-ce, androidtvremote2 (Apache 2.0, TV), pyatv (MIT, Apple TV) segno (BSD, QR code) and cryptography (Apache 2.0, encrypted link with the tablet). Some 1.25 ideas (everyday info, speaking style, background tasks, wake word) come from the [Cornelius](https://github.com/lfpoulain/Cornelius) project by Les Frères Poulain (MIT license), rewritten for Jarvis.
 
 An idea, a bug, a missing command? Open a request in the **Issues** tab, in French or in English: that is the way to move the project forward.
 
