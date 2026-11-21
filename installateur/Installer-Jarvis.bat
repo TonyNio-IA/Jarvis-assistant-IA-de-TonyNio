@@ -70,13 +70,267 @@ function Noter($nom) {
 function Journal($texte) {
     try { Add-Content -LiteralPath $JOURNAL -Value ("[{0}] {1}" -f (Get-Date -Format 'dd/MM HH:mm:ss'), $texte) -Encoding UTF8 } catch {}
 }
-function Dire($texte, $couleur = 'Gray') { Write-Host $texte -ForegroundColor $couleur; Journal $texte }
-function Titre($texte) { Write-Host ''; Write-Host ("  " + $texte) -ForegroundColor Cyan; Journal ("== " + $texte) }
+function Dire($texte, $couleur = 'Gray') { Write-Host $texte -ForegroundColor $couleur; Journal $texte; if ($FEN) { Fenetre-Ligne $texte } }
+function Titre($texte) { Write-Host ''; Write-Host ("  " + $texte) -ForegroundColor Cyan; Journal ("== " + $texte); if ($FEN) { Fenetre-Etape $texte } }
 function Bon($texte) { Dire ("  [OK] " + $texte) 'Green' }
 function Attention($texte) { Dire ("  [!]  " + $texte) 'Yellow' }
 function Echec($texte) { throw $texte }
 
+# ---------- La fenêtre de l'installateur (au lieu de la console noire) ----------
+# Pour un nouvel utilisateur, une console noire où défilent des lignes fait peur. L'installateur montre donc une
+# vraie fenêtre : les questions avec des cases, puis une barre de progression et des phrases simples. La console
+# reste cachée derrière (elle revient si la fenêtre ne peut pas s'ouvrir, ou avec JARVIS_CONSOLE=1).
+$FEN = $null                 # la fenêtre de progression, quand elle est ouverte
+$REPONSES = @{}              # les réponses données dans la fenêtre, lues par Demander
+$ETAPE = 0
+$NB_ETAPES = 8
+$FOND = $null; $ACCENT = $null; $GRIS = $null
+
+function Fenetre-Possible {
+    if ($AUTO -or $env:JARVIS_CONSOLE) { return $false }
+    try {
+        Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+        if (-not $script:FOND) {
+            [Windows.Forms.Application]::EnableVisualStyles()
+            $script:FOND = [Drawing.Color]::FromArgb(13, 27, 42)
+            $script:ACCENT = [Drawing.Color]::FromArgb(79, 195, 247)
+            $script:GRIS = [Drawing.Color]::FromArgb(160, 180, 200)
+        }
+        return $true
+    } catch { return $false }
+}
+function Console-Visible($oui) {
+    try {
+        if (-not ('JarvisInstallateur.Fenetre' -as [type])) {
+            Add-Type -Name Fenetre -Namespace JarvisInstallateur -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+'@
+        }
+        [void][JarvisInstallateur.Fenetre]::ShowWindow([JarvisInstallateur.Fenetre]::GetConsoleWindow(), $(if ($oui) { 5 } else { 0 }))
+    } catch {}
+}
+function Pomper { if ($FEN) { try { [Windows.Forms.Application]::DoEvents() } catch {} } }
+function Patienter($p) { $null = $p.Handle; while (-not $p.WaitForExit(150)) { Pomper } }
+
+function Nouvelle-Fenetre($titre, $largeur, $hauteur) {
+    $f = New-Object Windows.Forms.Form
+    $f.Text = $titre
+    $f.StartPosition = 'CenterScreen'
+    $f.FormBorderStyle = 'FixedDialog'
+    $f.MaximizeBox = $false
+    $f.MinimizeBox = $true
+    $f.BackColor = $FOND
+    $f.ForeColor = [Drawing.Color]::White
+    $f.Font = New-Object Drawing.Font('Segoe UI', 10)
+    $f.AutoScaleMode = 'Font'
+    $f.ClientSize = New-Object Drawing.Size($largeur, $hauteur)
+    $f.TopMost = $true
+    try {
+        if ($env:JARVIS_LANCEUR -and (Test-Path -LiteralPath $env:JARVIS_LANCEUR)) {
+            $f.Icon = [Drawing.Icon]::ExtractAssociatedIcon($env:JARVIS_LANCEUR)
+        }
+    } catch {}
+    return $f
+}
+function Etiquette($f, $texte, $x, $y, $l, $h, $taille = 10, $gras = $false, $couleur = $null) {
+    $e = New-Object Windows.Forms.Label
+    $e.Text = $texte
+    $e.Location = New-Object Drawing.Point($x, $y)
+    $e.Size = New-Object Drawing.Size($l, $h)
+    $e.Font = New-Object Drawing.Font('Segoe UI', $taille, $(if ($gras) { [Drawing.FontStyle]::Bold } else { [Drawing.FontStyle]::Regular }))
+    if ($couleur) { $e.ForeColor = $couleur }
+    $f.Controls.Add($e)
+    return $e
+}
+function Case($f, $texte, $x, $y, $l, $coche) {
+    $c = New-Object Windows.Forms.CheckBox
+    $c.Text = $texte
+    $c.Location = New-Object Drawing.Point($x, $y)
+    $c.Size = New-Object Drawing.Size($l, 44)
+    $c.Checked = [bool]$coche
+    $f.Controls.Add($c)
+    return $c
+}
+function Saisie($f, $x, $y, $l) {
+    $s = New-Object Windows.Forms.TextBox
+    $s.Location = New-Object Drawing.Point($x, $y)
+    $s.Size = New-Object Drawing.Size($l, 28)
+    $s.Font = New-Object Drawing.Font('Segoe UI', 11)
+    $f.Controls.Add($s)
+    return $s
+}
+function Bouton($f, $texte, $x, $y, $l, $principal) {
+    $b = New-Object Windows.Forms.Button
+    $b.Text = $texte
+    $b.Location = New-Object Drawing.Point($x, $y)
+    $b.Size = New-Object Drawing.Size($l, 38)
+    $b.FlatStyle = 'Flat'
+    $b.FlatAppearance.BorderColor = $ACCENT
+    if ($principal) { $b.BackColor = $ACCENT; $b.ForeColor = $FOND; $b.Font = New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold) }
+    $f.Controls.Add($b)
+    return $b
+}
+
+function Fenetre-Questions($gardes) {
+    # Les trois petites questions d'une nouvelle installation, dans une seule fenêtre. Renvoie $true pour installer.
+    $f = Nouvelle-Fenetre 'Installer Jarvis' 600 560
+    Console-Visible $false
+    $script:FERMER = $true                      # console cachée : elle se fermera toute seule à la fin
+    [void](Etiquette $f 'Bienvenue dans Jarvis' 24 18 550 34 17 $true $ACCENT)
+    [void](Etiquette $f ("Jarvis est un assistant vocal en français pour ton PC. Réponds à ces petites questions, puis clique " +
+                         "sur « Installer » : tout le reste se fait tout seul (10 à 20 minutes selon le PC).") 24 58 550 44)
+    [void](Etiquette $f "Ton prénom (Jarvis t'appellera ainsi)" 24 112 550 22)
+    $prenom = Saisie $f 24 136 300
+    [void](Etiquette $f 'Ta ville, pour la météo (tu peux la laisser vide)' 24 176 550 22)
+    $ville = Saisie $f 24 200 300
+    $claude = Case $f "J'ai un abonnement Claude (Pro ou supérieur) : Jarvis pourra répondre à toutes mes questions" 24 244 550 $false
+    [void](Etiquette $f ("Sans abonnement, Jarvis répond déjà à l'heure, la météo, les minuteurs, les rappels, la musique " +
+                         "et aux commandes du PC. Tu pourras ajouter Claude plus tard.") 44 288 530 40 9 $false $GRIS)
+    $demarrage = Case $f 'Lancer Jarvis au démarrage de Windows' 24 330 550 $true
+    $reprendre = $null
+    $y = 374
+    if ($gardes) {
+        $reprendre = Case $f "Reprendre mes fichiers personnels d'une ancienne installation (réglages, profils, mémoire)" 24 370 550 $true
+        $y = 418
+    }
+    $liste = @('Jarvis et son modèle de voix (environ 800 Mo en tout)')
+    if (-not (Python-314)) { $liste += 'Python, le langage de Jarvis (dans ton dossier personnel)' }
+    if (-not (VC-Present)) { $liste += 'Des composants de Microsoft (Windows demandera ton accord)' }
+    $liste += 'Un raccourci « Jarvis » sur le Bureau'
+    [void](Etiquette $f ("Ce qui sera installé :`n- " + ($liste -join "`n- ")) 24 $y 550 (24 + 20 * $liste.Count) 9 $false $GRIS)
+    $installer = Bouton $f 'Installer' 330 505 120 $true
+    $annuler = Bouton $f 'Annuler' 460 505 110 $false
+    $installer.DialogResult = 'OK'
+    $annuler.DialogResult = 'Cancel'
+    $f.AcceptButton = $installer
+    $f.CancelButton = $annuler
+    $f.Add_Shown({ $prenom.Focus() })
+    if ($f.ShowDialog() -ne 'OK') { return $false }
+    $script:REPONSES['JARVIS_PRENOM'] = $prenom.Text.Trim()
+    $script:REPONSES['JARVIS_VILLE'] = $ville.Text.Trim()
+    $script:REPONSES['JARVIS_CLAUDE'] = $(if ($claude.Checked) { 'o' } else { 'n' })
+    if ($reprendre) { $script:REPONSES['JARVIS_REPRENDRE'] = $(if ($reprendre.Checked) { 'o' } else { 'n' }) }
+    $script:REPONSES['JARVIS_OK'] = 'o'
+    if (-not $demarrage.Checked) { $env:JARVIS_DEMARRAGE = 'n' }
+    return $true
+}
+
+function Fenetre-Choix($version, $dossier, $sansClaude, $claudeInstalle) {
+    # Jarvis est déjà installé : mettre à jour, désinstaller, ajouter Claude, ou rien. Renvoie '1', '2', '3' ou '0'.
+    $f = Nouvelle-Fenetre 'Installer Jarvis' 520 330
+    Console-Visible $false
+    $script:FERMER = $true
+    [void](Etiquette $f "Jarvis $version est déjà installé" 24 18 470 34 16 $true $ACCENT)
+    [void](Etiquette $f "Dossier : $dossier" 24 56 470 22 9 $false $GRIS)
+    $choix = @()
+    $textes = @('Mettre à jour (ou réparer) — tes réglages et ta mémoire sont gardés', 'Désinstaller Jarvis')
+    if ($sansClaude) { $textes += $(if ($claudeInstalle) { 'Connecter Claude à mon compte' } else { 'Ajouter Claude (demande un abonnement Claude)' }) }
+    $y = 92
+    foreach ($t in $textes) {
+        $r = New-Object Windows.Forms.RadioButton
+        $r.Text = $t
+        $r.Location = New-Object Drawing.Point(28, $y)
+        $r.Size = New-Object Drawing.Size(470, 30)
+        $f.Controls.Add($r)
+        $choix += $r
+        $y += 36
+    }
+    $choix[0].Checked = $true
+    $ok = Bouton $f 'Continuer' 260 275 120 $true
+    $non = Bouton $f 'Fermer' 390 275 110 $false
+    $ok.DialogResult = 'OK'
+    $non.DialogResult = 'Cancel'
+    $f.AcceptButton = $ok
+    $f.CancelButton = $non
+    if ($f.ShowDialog() -ne 'OK') { return '0' }
+    for ($i = 0; $i -lt $choix.Count; $i++) { if ($choix[$i].Checked) { $script:REPONSES['JARVIS_OK'] = 'o'; return [string]($i + 1) } }
+    return '0'
+}
+
+function Fenetre-Progression($titre) {
+    if ($FEN -or -not (Fenetre-Possible)) { return }
+    $f = Nouvelle-Fenetre 'Installer Jarvis' 600 430
+    $f.ControlBox = $false                      # pas de croix pendant l'installation : elle s'arrêterait au milieu
+    $f.TopMost = $false                         # le navigateur (connexion à Claude) doit pouvoir passer devant
+    [void](Etiquette $f $titre 24 18 550 34 16 $true $ACCENT)
+    $etape = Etiquette $f 'Préparation...' 24 62 550 26 12 $true
+    $barre = New-Object Windows.Forms.ProgressBar
+    $barre.Location = New-Object Drawing.Point(24, 96)
+    $barre.Size = New-Object Drawing.Size(550, 22)
+    $barre.Maximum = $NB_ETAPES
+    $f.Controls.Add($barre)
+    $detail = Etiquette $f '' 24 126 550 44 10 $false $GRIS
+    $texte = New-Object Windows.Forms.TextBox
+    $texte.Multiline = $true
+    $texte.ReadOnly = $true
+    $texte.ScrollBars = 'Vertical'
+    $texte.Location = New-Object Drawing.Point(24, 176)
+    $texte.Size = New-Object Drawing.Size(550, 186)
+    $texte.BackColor = [Drawing.Color]::FromArgb(22, 40, 60)
+    $texte.ForeColor = [Drawing.Color]::White
+    $texte.BorderStyle = 'None'
+    $texte.Font = New-Object Drawing.Font('Segoe UI', 9)
+    $f.Controls.Add($texte)
+    $bouton = Bouton $f 'Terminer' 454 378 120 $true
+    $bouton.Visible = $false
+    $bouton.Add_Click({ $this.FindForm().Close() })
+    $f.Show()
+    Console-Visible $false
+    $script:FEN = @{ Form = $f; Etape = $etape; Barre = $barre; Detail = $detail; Texte = $texte; Bouton = $bouton }
+    Pomper
+}
+function Fenetre-Ligne($texte) {
+    $t = "$texte".Trim()
+    if (-not $t -or $t -match '^-{5,}$') { return }
+    try {
+        $FEN.Detail.Text = $t
+        $FEN.Texte.AppendText($t + "`r`n")
+    } catch {}
+    Pomper
+}
+function Fenetre-Etape($texte) {
+    $script:ETAPE++
+    try {
+        $FEN.Barre.Value = [Math]::Min($ETAPE, $NB_ETAPES)
+        $FEN.Etape.Text = $texte
+    } catch {}
+    Pomper
+}
+function Fenetre-Fin($titre) {
+    # La fenêtre reste ouverte : on lit « À retenir », puis on clique sur Terminer
+    try {
+        $FEN.Barre.Value = $NB_ETAPES
+        $FEN.Etape.Text = $titre
+        $FEN.Detail.Text = 'Lis « À RETENIR » ci-dessous, puis clique sur Terminer.'
+        $FEN.Bouton.Visible = $true
+        $FEN.Form.ControlBox = $true
+        $FEN.Form.AcceptButton = $FEN.Bouton
+        $FEN.Texte.SelectionStart = $FEN.Texte.Text.Length
+        $FEN.Texte.ScrollToCaret()
+        while ($FEN.Form.Visible) { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 80 }
+    } catch {}
+    $script:FEN = $null
+}
+function Fenetre-Erreur($message) {
+    if (-not (Fenetre-Possible)) { return }
+    try {
+        if ($FEN) { $FEN.Form.Hide() }
+        Console-Visible $true                   # la console montre aussi l'erreur, et attend une touche pour se fermer
+        [void][Windows.Forms.MessageBox]::Show(("L'installation s'est arrêtée :`n`n" + $message +
+            "`n`nTu peux relancer l'installateur : il reprendra sans rien casser.`nJournal : $JOURNAL"),
+            'Installer Jarvis', 'OK', 'Warning')
+    } catch {}
+    $script:FEN = $null
+}
+
 function Demander($question, $defaut, $variable) {
+    if ($variable -and $REPONSES.ContainsKey($variable)) {     # déjà répondu dans la fenêtre
+        $valeur = $REPONSES[$variable]
+        if ([string]::IsNullOrWhiteSpace($valeur)) { $valeur = $defaut }
+        Journal "$question -> (réponse de la fenêtre)"
+        return "$valeur"
+    }
     if ($AUTO) {
         $valeur = [Environment]::GetEnvironmentVariable($variable)
         if ([string]::IsNullOrWhiteSpace($valeur)) { $valeur = $defaut }
@@ -108,8 +362,12 @@ function Pip($env_py, $arguments, $quoi) {
          -RedirectStandardOutput $sortie -RedirectStandardError $erreurs
     $null = $p.Handle                                  # sans cela, le code de sortie peut rester vide
     $debut = Get-Date
-    while (-not $p.WaitForExit(30000)) {
+    $prochaine = 30
+    while (-not $p.WaitForExit(200)) {
+        Pomper
         $ecoule = (Get-Date) - $debut
+        if ($ecoule.TotalSeconds -lt $prochaine) { continue }
+        $prochaine += 30
         Dire ("  ... {0} : toujours en cours ({1} min {2:00} s)" -f $quoi, [int][math]::Floor($ecoule.TotalMinutes), $ecoule.Seconds)
     }
     $p.WaitForExit()
@@ -146,7 +404,9 @@ function Telecharger($adresse, $fichier, $quoi) {
             Start-Sleep -Seconds $attente
         }
         if (Test-Path -LiteralPath $fichier) { Remove-Item -LiteralPath $fichier -Force }
-        & curl.exe -L --fail --retry 2 --connect-timeout 30 -sS -o $fichier $adresse
+        $p = Start-Process -FilePath curl.exe -ArgumentList ('-L --fail --retry 2 --connect-timeout 30 -sS -o "' + $fichier + '" "' + $adresse + '"') -WindowStyle Hidden -PassThru
+        Patienter $p
+        $LASTEXITCODE = $p.ExitCode
         if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $fichier) -and (Get-Item -LiteralPath $fichier).Length -ge 1000) { return }
         Journal "Téléchargement raté (code curl $LASTEXITCODE) : $adresse"
     }
@@ -399,8 +659,13 @@ function Installer-Claude {
         Dire "  Installation de Claude Code (programme officiel d'Anthropic, environ 370 Mo : plusieurs minutes)..."
         # Les messages (en anglais) de l'installation officielle vont dans le journal : ils parlent de « PATH », ce qui
         # inquiétait pour rien (Jarvis trouve Claude tout seul)
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "`$ProgressPreference='SilentlyContinue'; irm https://claude.ai/install.ps1 | iex" 2>&1 |
-            ForEach-Object { Journal "claude | $_" }
+        $sortieClaude = Join-Path $TEMP 'claude-installation.txt'
+        $p = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference=''SilentlyContinue''; irm https://claude.ai/install.ps1 | iex"' `
+             -WindowStyle Hidden -PassThru -RedirectStandardOutput $sortieClaude -RedirectStandardError ($sortieClaude + '.err')
+        Patienter $p
+        foreach ($f in $sortieClaude, ($sortieClaude + '.err')) {
+            Get-Content -LiteralPath $f -Encoding UTF8 -ErrorAction SilentlyContinue | ForEach-Object { Journal "claude | $_" }
+        }
         if (-not (Test-Path -LiteralPath $CLAUDE_EXE)) {
             Attention "Claude Code n'a pas pu être installé. Jarvis fonctionnera avec les commandes immédiates. Tu pourras réessayer en relançant ce fichier (« Ajouter Claude »)."
             return
@@ -430,9 +695,19 @@ function Connecter-Claude {
     Dire "    3. Reviens dans cette fenêtre : la suite se fait toute seule."
     Dire "  Les messages en anglais qui vont s'afficher viennent du programme de Claude : c'est normal."
     Dire "  Si le navigateur ne s'ouvre pas, copie dans ton navigateur l'adresse qui va s'afficher."
-    Read-Host "  Appuie sur Entrée pour commencer" | Out-Null
     $ErrorActionPreference = 'Continue'
-    try { & $CLAUDE_EXE auth login --claudeai } catch { Journal "Connexion à Claude : $($_.Exception.Message)" }
+    if ($FEN) {
+        [void][Windows.Forms.MessageBox]::Show($FEN.Form, ("Dernière étape : la connexion à ton compte Claude.`n`n" +
+            "1. Clique sur OK : ton navigateur s'ouvre sur la page de connexion de Claude (une petite fenêtre noire " +
+            "de Claude s'ouvre aussi : laisse-la, elle se fermera toute seule).`n" +
+            "2. Connecte-toi au compte de ton abonnement, puis accepte l'autorisation.`n" +
+            "3. Reviens ici : la suite se fait toute seule."), 'Installer Jarvis', 'OK', 'Information')
+        try { $p = Start-Process -FilePath $CLAUDE_EXE -ArgumentList 'auth','login','--claudeai' -PassThru; Patienter $p }
+        catch { Journal "Connexion à Claude : $($_.Exception.Message)" }
+    } else {
+        Read-Host "  Appuie sur Entrée pour commencer" | Out-Null
+        try { & $CLAUDE_EXE auth login --claudeai } catch { Journal "Connexion à Claude : $($_.Exception.Message)" }
+    }
     try { $Host.UI.RawUI.WindowTitle = 'Installer Jarvis' } catch {}     # Claude renomme la fenêtre « claude »
     if (Claude-Connecte) { Bon "Claude est connecté à ton compte." }
     else { Attention "La connexion à Claude n'a pas abouti. Pour la refaire : relance ce fichier et choisis 3 (« Connecter Claude »)." }
@@ -446,7 +721,9 @@ function Essai-Python($env_py, $dossier, $instructions, $delai = 120) {
     try {
         $p = Start-Process -FilePath $env_py -ArgumentList ('-c "' + $instructions + '"') -WorkingDirectory $dossier -WindowStyle Hidden -PassThru -RedirectStandardOutput $sortie -RedirectStandardError $erreurs
         $null = $p.Handle                 # sans cela, Windows PowerShell ne renvoie pas le code de fin du programme
-        if (-not $p.WaitForExit($delai * 1000)) { try { $p.Kill() } catch {}; Journal "Essai trop long : $instructions"; return $null }
+        $limite = (Get-Date).AddSeconds($delai)
+        while (-not $p.WaitForExit(200) -and (Get-Date) -lt $limite) { Pomper }
+        if (-not $p.HasExited) { try { $p.Kill() } catch {}; Journal "Essai trop long : $instructions"; return $null }
         if ($p.ExitCode -ne 0) { Journal ("Essai en échec : $instructions | " + ((Get-Content -LiteralPath $erreurs -Encoding UTF8 -ErrorAction SilentlyContinue | Select-Object -Last 2) -join ' ')); return $null }
         $texte = (Get-Content -LiteralPath $sortie -Encoding UTF8 -ErrorAction SilentlyContinue | Select-Object -Last 1)
         if ($texte) { return "$texte" } else { return 'ok' }
@@ -475,9 +752,14 @@ function Verifier-Modules($env_py, $dossier) {
         $vus = -1
         while ($true) {
             $fini = $p.WaitForExit(1000)
+            Pomper
             # Seules les lignes « OK ... » ou « ECHEC ... » comptent (certains modules écrivent leur propre message)
             $lignes = @(Get-Content -LiteralPath $sortie -Encoding UTF8 -ErrorAction SilentlyContinue | Where-Object { $_ -match '^(OK|ECHEC) ' })
-            if ($lignes.Count -ne $vus) { $vus = $lignes.Count; Write-Host ("`r  Modules vérifiés : {0} sur {1}..." -f $vus, $modules.Count) -NoNewline }
+            if ($lignes.Count -ne $vus) {
+                $vus = $lignes.Count
+                Write-Host ("`r  Modules vérifiés : {0} sur {1}..." -f $vus, $modules.Count) -NoNewline
+                if ($FEN) { try { $FEN.Detail.Text = ("Vérification : {0} modules sur {1}..." -f $vus, $modules.Count) } catch {} }
+            }
             if ($fini -or ((Get-Date) - $debut).TotalSeconds -gt 900) { break }
         }
         Write-Host ''
@@ -603,6 +885,8 @@ function Installer($dossierExistant) {
         $avecClaude = Test-Path -LiteralPath $CLAUDE_EXE
         $prenom = ''; $ville = ''; $auDemarrage = Test-Path -LiteralPath (Chemins-Raccourcis).Demarrage
     } else {
+        $gardesVus = Fichiers-Gardes
+        if ((Fenetre-Possible) -and -not (Fenetre-Questions $gardesVus)) { Dire "  Installation annulée : rien n'a été installé."; return }
         Dire "  Bienvenue. Trois petites questions (ton prénom, ta ville, et Claude), puis l'installation se fait toute seule."
         Dire ''
         # Fichiers personnels gardés lors d'une désinstallation (dossier ou copie compressée sur le Bureau)
@@ -655,6 +939,7 @@ function Installer($dossierExistant) {
         if (-not (OuiNon "Lancer l'installation ?" $true 'JARVIS_OK')) { Dire "  Installation annulée : rien n'a été installé."; return }
     }
     New-Item -ItemType Directory -Path $TEMP -Force | Out-Null
+    Fenetre-Progression $(if ($maj) { 'Mise à jour de Jarvis' } else { 'Installation de Jarvis' })
     Arreter-Jarvis
 
     # 3. Python
@@ -744,7 +1029,10 @@ function Installer($dossierExistant) {
         Dire "  Jarvis démarre (le premier lancement prend une minute ou deux : il télécharge Whisper)." 'Green'
     }
     try { Copy-Item -LiteralPath $JOURNAL -Destination (Join-Path $dossier 'installation.log') -Force } catch {}
-    if (-not $AUTO) {                       # la fenêtre attend : on peut lire « À RETENIR » avant qu'elle se ferme
+    if ($FEN) {                             # la fenêtre attend : on lit « À RETENIR », puis Terminer
+        Fenetre-Fin $(if ($maj) { 'Mise à jour terminée !' } else { 'Installation terminée !' })
+        $script:FERMER = $true
+    } elseif (-not $AUTO) {                 # la console attend aussi, pour qu'on puisse lire « À RETENIR »
         Dire ''
         Read-Host "  Appuie sur Entrée pour fermer cette fenêtre" | Out-Null
         $script:FERMER = $true
@@ -835,10 +1123,15 @@ try {
             else { Dire "    3. Ajouter Claude (pour les questions libres ; demande un abonnement Claude)" }
         }
         Dire "    0. Ne rien faire"
+        if (Fenetre-Possible) { $script:REPONSES['JARVIS_ACTION'] = Fenetre-Choix (Version-Installee $existant) $existant $sansClaude $claudeInstalle }
         $choix = Demander "Ton choix, puis Entrée" '0' 'JARVIS_ACTION'
         if ($choix -eq '1') { Installer $existant }
         elseif ($choix -eq '2') { Desinstaller $existant }
-        elseif ($choix -eq '3' -and $sansClaude) { Ajouter-Claude $existant }
+        elseif ($choix -eq '3' -and $sansClaude) {
+            Fenetre-Progression 'Ajout de Claude'
+            Ajouter-Claude $existant
+            if ($FEN) { Fenetre-Fin 'Terminé !'; $script:FERMER = $true }
+        }
         else { Dire "  Rien n'a été modifié." }
     }
 } catch {
@@ -848,6 +1141,7 @@ try {
     Journal ("ERREUR : " + $_.Exception.Message + " | " + $_.ScriptStackTrace)
     Write-Host "  L'installation s'est arrêtée. Tu peux relancer ce fichier : il reprendra sans rien casser." -ForegroundColor Yellow
     Write-Host "  Journal : $JOURNAL" -ForegroundColor DarkGray
+    Fenetre-Erreur $_.Exception.Message
 } finally {
     try { if (Test-Path -LiteralPath $TEMP) { Remove-Item -LiteralPath $TEMP -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
 }

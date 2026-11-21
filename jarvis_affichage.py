@@ -23,6 +23,7 @@ Au lancement, le réacteur se forme ; à l'arrêt ou au redémarrage, il se refe
 import ctypes
 import ctypes.wintypes
 import math
+import json
 import os
 import random
 import re
@@ -1709,4 +1710,15 @@ class Affichage:
                 images = src.IMAGES_VEILLE
             else:
                 images = src.IMAGES_VEILLE_LONGUE
+            # Mode léger (PC lent, décidé par Jarvis) : animation plus sobre, pour laisser la carte graphique
+            # intégrée et le processeur à Whisper (vu sur un petit portable : carte graphique à 100 %)
+            if maintenant - getattr(self, "_leger_vu", 0) > 30:
+                self._leger_vu = maintenant
+                try:
+                    with open(os.path.join(src.DOSSIER, "mode_leger.json"), encoding="utf-8") as f:
+                        self._leger = bool(json.load(f).get("actif"))
+                except (OSError, ValueError):
+                    self._leger = False
+            if self._leger:
+                images = min(images, 20 if actif else 10)
             horloge.tick(images)

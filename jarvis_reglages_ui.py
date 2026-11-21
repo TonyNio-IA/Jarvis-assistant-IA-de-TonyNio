@@ -1044,6 +1044,44 @@ def _construire():
         tk.Label(page, text=jarvis_rapports_ui.DETAIL, bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
                  justify="left").pack(anchor="w", padx=22, pady=12)
 
+        # Les dernières demandes dites à voix haute sont gardées sur ce PC (jamais envoyées) pour régler l'écoute
+        section("Mes enregistrements de voix")
+        dossier_sons = jarvis_config.chemin("enregistrements")
+
+        def nombre_sons():
+            try:
+                return sum(1 for f in os.listdir(dossier_sons) if f.endswith(".wav"))
+            except OSError:
+                return 0
+
+        texte_sons = tk.StringVar()
+
+        def maj_sons():
+            n = nombre_sons()
+            texte_sons.set(f"Jarvis garde sur ce PC le son de vos dernières demandes ({n} en ce moment), avec ce qu'il "
+                           "a compris. Ils servent seulement à améliorer son écoute, ne quittent jamais ce PC, et les plus "
+                           "anciens s'effacent tout seuls.")
+
+        def effacer_sons():
+            if not messagebox.askyesno("Jarvis", "Effacer tous les enregistrements de vos demandes gardés sur ce PC ?",
+                                       parent=racine):
+                return
+            import shutil
+            shutil.rmtree(dossier_sons, ignore_errors=True)
+            try:
+                os.remove(jarvis_config.chemin("derniere_demande.wav"))
+            except OSError:
+                pass
+            maj_sons()
+            messagebox.showinfo("Jarvis", "C'est fait : les enregistrements sont effacés." if not nombre_sons() else
+                                "Une partie n'a pas pu être effacée (un fichier est en cours d'écriture). Réessayez.",
+                                parent=racine)
+        maj_sons()
+        cadre = ligne()
+        tk.Label(cadre, textvariable=texte_sons, wraplength=px(330), justify="left", bg=PANNEAU2, fg=TEXTE,
+                 font=POLICE).pack(side="left", padx=12, pady=9)
+        bouton(cadre, "Effacer mes enregistrements", effacer_sons).pack(side="right", padx=12, pady=8)
+
     pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
              ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("Rapports", page_rapports),
              ("À propos", page_a_propos)]

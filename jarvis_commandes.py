@@ -1436,11 +1436,24 @@ def mot_court(texte):
     return t in MOTS_COURTS or jarvis_pratique.rapide(t) or jarvis_web.rapide(t)
 
 
+MODE_LEGER = False      # PC lent (décidé par jarvis_claude) : plus de commandes prises sans Whisper
+# Sur un PC lent, Whisper coûte environ 7 s par phrase (mesuré sur un petit portable), et Vosk comprenait mieux que
+# lui ces commandes-là : « mets-toi à jour », « ma ville est Toulouse », « tu peux me tutoyer », « une voix d'homme »
+_COMMANDES_LEGER = re.compile(
+    r"\b(?:mets[- ]toi à jour|mise à jour|ma ville est|j'habite à|tutoie|tutoyer|vouvoie|vouvoyer|"
+    r"voix d'?\s?homme|voix de femme|change de voix|parle plus (?:vite|lentement|fort|doucement)|"
+    r"monte le son|baisse le son|coupe le son|remets le son|volume|mode nuit|mode enfant|"
+    r"quelle heure|quel jour|quelle date|météo|quel temps|minuteur|compte à rebours|rappelle[- ]moi|"
+    r"stop|arrête|pause|reprends|suivante?|précédente?|ouvre les réglages|ferme les réglages)\b")
+
+
 def sans_whisper(texte_vosk):
     """Vrai si la phrase entendue est une commande simple, comprise sans la
     retranscription précise (Whisper) : on gagne environ 2 secondes."""
     t = _propre(texte_vosk)
     if confirmation_en_attente():
+        return True
+    if MODE_LEGER and len(t.split()) <= 9 and _COMMANDES_LEGER.search(t) and not deux_demandes(t):
         return True
     if re.match(r"\W*(bonjour|bonsoir|salut|bonne nuit)\W*$", t):
         return True

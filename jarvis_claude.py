@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.35"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.36"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -109,6 +109,10 @@ DOSSIER_JARVIS = jarvis_config.DOSSIER
 CLAUDE_EXE = os.path.expanduser(r"~\.local\bin\claude.exe")
 DELAI_ECOUTE_DEMANDE = 8      # secondes pour commencer à parler après « Jarvis »
 SILENCE_FIN = 1.0             # secondes de silence qui marquent la fin de ta demande
+SILENCE_FIN_LIAISON = 1.8     # ... quand la phrase s'arrête sur « de », « sur », « les »… : la suite arrive
+                              # (vu sur un portable : une recherche YouTube coupée en deux demandes)
+_MOT_DE_LIAISON = re.compile(r"\b(?:de|du|des|d|le|la|les|l|un|une|sur|pour|avec|et|à|a|au|aux|en|dans|par|qui|que|"
+                             r"mets|cherche|ouvre|lance|joue|euh|heu)\W*$")
 DELAI_SUITE = 3               # secondes pour enchaîner une autre demande sans redire « Jarvis »
 MOTS_MINIMUM = 2              # une demande plus courte est considérée comme mal entendue
 DELAI_MAX_CLAUDE = 300        # secondes maximum pour une réponse de Claude
@@ -152,6 +156,7 @@ _durees_whisper = collections.deque(maxlen=3)
 def _appliquer_mode_leger():
     global WHISPER_FAISCEAU, WHISPER_TEMPERATURES
     WHISPER_FAISCEAU, WHISPER_TEMPERATURES = 1, (0.0,)
+    jarvis_commandes.MODE_LEGER = True    # les commandes connues sont prises telles que Vosk les a entendues
 
 
 def noter_duree_whisper(calcul):
@@ -194,7 +199,7 @@ VOCABULAIRE = ("Demandes à l'assistant vocal Jarvis : mets de la musique, mets 
                "Jarvis, " + (jarvis_config.PRENOM + ", " if jarvis_config.PRENOM else "")
                + jarvis_commandes.VILLE_DEFAUT[0] + ", "
                + (jarvis_commandes.LIEUX_CONNUS + ", " if jarvis_commandes.LIEUX_CONNUS else "")
-               + "".join(mot + ", " for mot in jarvis_config.VOCABULAIRE) + "Chrome, Claude"
+               + "".join(mot + ", " for mot in jarvis_config.VOCABULAIRE) + "GTA 6, PS5, YouTube Kids, Netflix, Spotify, Chrome, Claude"
                + "".join(", " + nom for nom in jarvis_commandes.noms_applications(10)
                          if nom not in ("Chrome", "Claude")) + ".")
 
@@ -395,16 +400,35 @@ def audio_callback(indata, frames, time_info, status):
         print("Audio :", status, file=sys.stderr)
         if status.input_overflow:
             sons_perdus += 1
+    # Le moins de travail possible ici : si ce rappel tarde (PC occupé au démarrage), le micro perd du son
+    # (« input overflow », vu sur un petit portable). Le niveau et le spectre du réacteur sont calculés à côté.
     octets = bytes(indata)
-    try:
-        bloc = np.frombuffer(octets, dtype=np.int16).astype(np.float32) / 32768.0
-        niveau_micro = float(np.abs(bloc).max())
-        bandes = jarvis_voix.bandes_spectre(bloc[None, :], SAMPLE_RATE)[0]
-        _crete_spectre = max(_crete_spectre * 0.97, float(bandes.max()), 4.0)
-        spectre_micro = np.clip((np.sqrt(bandes / _crete_spectre) - 0.15) / 0.85, 0, 1)
-    except Exception:
-        pass
     audio_queue.put(octets)
+    _pour_spectre[0] = octets
+
+
+_pour_spectre = [b""]
+
+
+def _calculer_spectre():
+    """Niveau et spectre du micro pour l'animation du réacteur, dix fois par seconde, hors du rappel du micro."""
+    global niveau_micro, spectre_micro, _crete_spectre
+    while True:
+        time.sleep(0.1)
+        octets, _pour_spectre[0] = _pour_spectre[0], b""
+        if not octets:
+            continue
+        try:
+            bloc = np.frombuffer(octets, dtype=np.int16).astype(np.float32) / 32768.0
+            niveau_micro = float(np.abs(bloc).max())
+            bandes = jarvis_voix.bandes_spectre(bloc[None, :], SAMPLE_RATE)[0]
+            _crete_spectre = max(_crete_spectre * 0.97, float(bandes.max()), 4.0)
+            spectre_micro = np.clip((np.sqrt(bandes / _crete_spectre) - 0.15) / 0.85, 0, 1)
+        except Exception:
+            pass
+
+
+threading.Thread(target=_calculer_spectre, daemon=True).start()
 
 
 def vider_audio():
@@ -594,13 +618,17 @@ def reparer_volumes():
 
 # ---------- Reconnaissance précise (Whisper) ----------
 
+LANCE_A = time.time()          # pour noter dans le journal le temps de démarrage (« prêt en … s »)
+
+
 def charger_whisper():
     global whisper
     try:
         from faster_whisper import WhisperModel
         whisper = WhisperModel(WHISPER_MODELE, device="cpu", compute_type="int8",
                                download_root=WHISPER_DOSSIER, cpu_threads=WHISPER_FILS)
-        print("Reconnaissance précise (Whisper) prête.")
+        print(f"Reconnaissance précise (Whisper) prête. Jarvis est prêt en {time.time() - LANCE_A:.0f} s "
+              f"(processeur : {os.cpu_count()} fils de calcul{', mode léger' if WHISPER_FAISCEAU == 1 else ''}).")
     except Exception as erreur:
         whisper = None
         print("Whisper indisponible, Vosk seul sera utilisé :", erreur)
@@ -857,7 +885,11 @@ def ecouter_demande(recognizer, delai_debut, silence_fin=SILENCE_FIN, bip_au_deb
         if maintenant - debut > DUREE_MAX_DEMANDE:
             break
         if dernier_son is not None and maintenant - dernier_son > silence_fin:
-            if morceaux or partiel:
+            en_cours = " ".join(morceaux + ([partiel] if partiel else []))
+            if (en_cours and maintenant - dernier_son <= max(silence_fin, SILENCE_FIN_LIAISON)
+                    and _MOT_DE_LIAISON.search(en_cours)):
+                pass                   # « cherche sur YouTube les… » : on laisse le temps de finir la phrase
+            elif morceaux or partiel:
                 break
             dernier_son = None         # ce n'était qu'un bruit (le bip, un claquement) : on attend encore
         try:

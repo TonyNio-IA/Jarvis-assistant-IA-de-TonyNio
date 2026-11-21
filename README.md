@@ -32,6 +32,12 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.36
+
+- **Installation sans fenêtre noire** : l'installateur s'ouvre maintenant comme un vrai programme, avec une fenêtre claire : tes trois petites questions, puis une barre de progression et un texte simple (plus de lignes de code qui défilent). La fenêtre attend à la fin pour lire « À RETENIR ». Si quelque chose se passe mal, un message explique quoi faire.
+- **Petits PC plus rapides** : en mode léger, les commandes courtes (heure, météo, minuteur, volume…) sont comprises sans passer par la reconnaissance lente ; Jarvis dit en combien de secondes il est prêt au démarrage (journal).
+- **Écoute** : « GTA 6 », « PS5 », « YouTube Kids », « Netflix », « Spotify » sont mieux reconnus ; Jarvis attend un peu plus longtemps après un mot comme « et », « puis », « mais » avant de considérer ta phrase terminée ; moins de faux réveils.
+- **Tes enregistrements de voix** : les réglages (page Rapports) expliquent à quoi ils servent et ont un bouton « Effacer mes enregistrements ».
 ## Nouveau en 1.35
 
 - **Mode léger pour les petits PC** : si Jarvis met longtemps à comprendre les phrases, il passe tout seul en mode léger et répond nettement plus vite.
@@ -418,6 +424,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.36 | Installateur en fenêtre (plus de console noire) ; commandes courtes plus rapides en mode léger ; GTA/PS5/YouTube mieux reconnus ; pause plus longue après « et », « puis » ; bouton « Effacer mes enregistrements » |
 | 1.35 | Mode léger automatique sur les petits PC ; installateur simplifié (ville demandée, sans lignes techniques, fenêtre qui attend, Contrôle intelligent des applications signalé) ; « quel heure » ; conversation à côté ignorée ; bonjour sans processeur |
 | 1.34 | Pare-feu réglé par l'installateur et « autorise les tablettes » ; étapes dessinées à côté du QR code ; application 1.17 qui dit pourquoi la tablette ne joint pas Jarvis ; mot « Jarvis » plus facile sur le PC ; fenêtre d'aide qui ne bloque plus l'écoute ; changement de profil confirmé deux fois |
 | 1.33 | Tablette : YouTube Kids ouvert même mal compris, retranscription plus rapide, double appui sur le rond, Claude averti après un atelier, atelier repris après un redémarrage ; PC : « tu peux me résumer ? » ; testeurs volontaires ; mises à jour importantes manquées installées ; demandes des tablettes dans les rapports |
