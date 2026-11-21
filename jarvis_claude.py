@@ -76,7 +76,7 @@ import jarvis_sources
 import jarvis_tablette
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
 
-VERSION = "1.28"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.29"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -302,6 +302,7 @@ derniere_erreur = False
 reveil_par_whisper = False
 derniere_reponse = ""         # pour « Jarvis, répète »
 niveau_micro = 0.0            # volume du micro à cet instant (0 à 1), lu par le réacteur
+micro_coupe = False           # « coupe le micro » : Jarvis n'écoute plus (le réacteur affiche un micro barré)
 derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la dernière demande
 rec_stop = None               # reconnaissance réduite aux mots « stop »
 rec_coupure = None            # reconnaissance complète, pour entendre « Jarvis » pendant qu'il parle
@@ -1803,9 +1804,11 @@ def main():
     bilan = jarvis_maj.bilan_au_demarrage()       # après une mise à jour lancée par Jarvis : a-t-elle réussi ?
     if bilan:
         point_pret.put((bilan, None))
-    reprise = jarvis_sante.phrase_reprise()      # relancé après un plantage ou une perte du micro ?
+    # Relancé après un plantage, une perte du micro ou un redémarrage forcé ? Jarvis ne le dit plus à voix haute :
+    # il écrit seulement « Je redémarre. » dans la fenêtre de discussion (la cause reste dans le journal)
+    reprise = jarvis_sante.phrase_reprise()
     if reprise:
-        point_pret.put((reprise, None))
+        print(f"(Relance : {reprise})")
     jarvis_maj.verifier_en_arriere_plan()        # une version plus récente est-elle publiée sur GitHub ?
 
     heure = time.localtime().tm_hour
@@ -1816,6 +1819,8 @@ def main():
 
     attendre_micro()
     etat("veille")
+    if reprise:
+        sous_titre("Je redémarre.", reponse=True)
     print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE (relié à Claude).")
     print("Dis : « Jarvis », puis ta demande.\n")
 
@@ -1871,6 +1876,13 @@ def main():
                 # Une demande écrite au clavier, dans la fenêtre de discussion
                 if not demandes_ecrites.empty():
                     traiter_ecrit(demandes_ecrites.get(), recognizer)
+                    tampon.clear()
+                    continue
+
+                # Micro coupé (« coupe le micro », ou le menu du réacteur) : rien n'est écouté ; les demandes écrites,
+                # les rappels et les alertes passent toujours
+                if micro_coupe:
+                    recognizer.Reset()
                     tampon.clear()
                     continue
 

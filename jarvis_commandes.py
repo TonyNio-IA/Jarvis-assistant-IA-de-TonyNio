@@ -1492,6 +1492,29 @@ def _fenetre_claire(t, seuil):
         return False
 
 
+_MICRO_COUPER = re.compile(r"^(?:coupe|couper|éteins|eteins|ferme|désactive|desactive|mets en pause)(?: le| ton| mon)? micro\b"
+                           r"|^(?:arrête|arrete) d'[ée]couter\b|^(?:ne m'|n')[ée]coute plus\b")
+_MICRO_RALLUMER = re.compile(r"^(?:rallume|allume|réactive|reactive|remets|active)(?: le| ton| mon)? micro\b"
+                             r"|^(?:recommence|reprends) (?:à|a) [ée]couter\b|^[ée]coute[- ]moi\W*$")
+
+
+def commande_micro(t):
+    """« Coupe le micro » : Jarvis n'écoute plus (un micro barré s'affiche sur le réacteur). Pour le rallumer :
+    clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
+    import jarvis_claude
+    if _MICRO_COUPER.search(t):
+        jarvis_claude.micro_coupe = True
+        print("(Micro coupé à la demande.)")
+        return ("D'accord, je coupe mon micro. Pour me rallumer, fais un clic droit sur le réacteur, puis "
+                "« Rallumer le micro », ou écris-le-moi.")
+    if _MICRO_RALLUMER.search(t):
+        deja = not jarvis_claude.micro_coupe
+        jarvis_claude.micro_coupe = False
+        print("(Micro rallumé.)")
+        return "Mon micro est déjà allumé, je t'écoute." if deja else "C'est fait, je t'écoute de nouveau."
+    return None
+
+
 def commande_instantanee(textes, annoncer=None):
     """
     textes   : les retranscriptions de la demande (Whisper et Vosk).
@@ -1527,7 +1550,8 @@ def commande_instantanee(textes, annoncer=None):
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: jarvis_famille.commande_reveil(t),
+            for commande in (lambda: commande_micro(t),
+                             lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
                              lambda: jarvis_corrections.commande(t),
                              lambda: jarvis_sante.commande(t),

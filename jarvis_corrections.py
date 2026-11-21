@@ -87,8 +87,23 @@ INTEGREES = (
     (r"^(\W*(?:jarvis\W+)?)(?:quelle?s?|qu'elle) (?:aurait|aurais|auraient|orée?)[- ]t?-?ils?(\W*)$", r"\1quelle heure est-il\2"),
     # « donne-moi la météo » entendu « donne-moi la MTA » (toute la demande)
     (r"^(\W*(?:jarvis\W+)?)((?:donne|dis)[- ]moi|c'est quoi|quelle est) la (?:mta|m\.t\.a\.?|méta|métao)(\W*)$", r"\1\2 la météo\3"),
+    # « GTA 6 » entendu « jeta 6 », « Jetta 6 », « j'ai t'as 6 »
+    (r"\b(?:jeta|jetta|jetah|j'ai t'as|j'ai ta|gé té a|g\. ?t\. ?a\.?)\s+(\d|six|cinq|quatre)\b", r"GTA \1"),
     # « connexion » écrit « connection »
     (r"\bconnection(s?)\b", r"connexion\1"),
+    # vu sur les tablettes : « mets un minuteur » entendu « mais, un minuteur » ou « mais un limiteur »
+    (r"^(\W*(?:jarvis\W+)?)mais,? (un|une|le) (?:minuteur|limiteur|minuteurs)\b", r"\1mets \2 minuteur"),
+    (r"\b(un|le|du) limiteur (de|d')", r"\1 minuteur \2"),
+    # vu sur le PC : « mets un compte à rebours » entendu « mais en compte à report »
+    (r"\bcompte à report\b", "compte à rebours"),
+    (r"^(\W*(?:jarvis\W+)?)mais,? (?:en|un) compte à rebours\b", r"\1mets un compte à rebours"),
+    # « quelle heure est-il » entendu « qu'est-leur il est » ; « trouve-moi » entendu « trouvement »
+    (r"^(\W*(?:jarvis\W+)?)qu'est[- ]leur il est(\W*)$", r"\1quelle heure est-il\2"),
+    (r"^(\W*(?:jarvis\W+)?)trouvement\b", r"\1trouve-moi"),
+    # « étape 3 » (recette) entendu « Hit Up 3 »
+    (r"^(\W*(?:jarvis\W+)?)(?:hit up|hit-up|et tape|hé tape)\s+(\d+|une?|deux|trois|quatre|cinq|six)(\W*)$", r"\1étape \2\3"),
+    # « Jarvis » dit seul, entendu « J'avise », « J'arvisse », « Jean-Vice », « Jarvisse » (toute la demande)
+    (r"^\W*(?:j'avise|j'arvisse?|jean-vice|jarvisse|jarvice|j'arvis)\W*$", "Jarvis"),
 )
 
 # seulement dans une phrase de minuteur

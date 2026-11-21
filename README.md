@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.28**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.29**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -23,7 +23,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 <img src="docs/reglages_aide.png" alt="Réglages : toutes les commandes, avec recherche" width="49%">
 </p>
 
-- **Apparence** : thèmes prêts à l'emploi (Vice City, Iron Man, Océan, Forêt...), reflets, suivi de la souris, danse sur la musique, mode discret, jauges, position et taille.
+- **Apparence** : thèmes prêts à l'emploi (Vice City, Iron Man, Océan, Forêt, Aurore, Galaxie...), aperçu du thème au simple survol, reflets, suivi de la souris, danse sur la musique, mode discret, jauges, position et taille.
 - **Son** : bips, voix d'homme ou de femme, vitesse, sensibilité du micro et du mot de réveil, vidéos des enfants en français seulement.
 - **Alertes, Profils, Historique** : alertes météo, les personnes du foyer, les dernières demandes et réponses.
 - **Aide** : toutes les commandes rangées par thème, avec une recherche.
@@ -31,9 +31,34 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
-## Nouveau en 1.28 : Jarvis sur la tablette
+## Nouveau en 1.29 : un nouveau look, et la tablette pour les enfants
 
-<p align="center"><img src="docs/tablette.png" alt="Jarvis sur une tablette : accueil, choix du profil, code, réglages, couleurs" width="90%"></p>
+<p align="center"><img src="docs/tablette.png" alt="Jarvis sur la tablette : veille, réponse, atelier de calcul, devine l'animal, réglages, thèmes" width="100%"></p>
+
+**Sur la tablette** (application 1.15) :
+- **Un réacteur redessiné**, proche de celui du PC, qui suit la voix de Jarvis quand il parle ; l'application se fait plus légère toute seule sur une tablette plus lente.
+- **On dit « Jarvis »**, un bip indique qu'il écoute, puis on parle (le rond à toucher marche toujours). Le réveil à la voix utilise le détecteur du mot d'appel du PC, s'il y en a un.
+- **Des ateliers pour les enfants** : calcul, « comment s'écrit… », dictée, devine l'animal, lire l'heure. Une étoile par bonne réponse, une récompense toutes les 10, et des questions qui s'adaptent : plus dures après une bonne série, plus faciles après deux ratés.
+- **Une voix d'enfant** pour Jarvis sur les profils enfants.
+- **Minuteurs, rappels et rendez-vous du calendrier** affichés avec un compte à rebours.
+- **Messages entre profils** (« dis à Léa que je rentre tard ») transmis aussi sur les tablettes, et « répète » pour réentendre la dernière réponse.
+- **Réglages rangés par rubriques**, nouveaux thèmes (Paillettes, Récré, Aurore, Galaxie) ou trois couleurs au choix, page « Que peux-tu me demander ? » avec des exemples.
+- **Un widget** pour l'écran d'accueil, aux couleurs du profil, et la batterie : « Pense à recharger ta tablette » à 15 %.
+- **Des réponses plus rapides** : les phrases déjà dites sont gardées en mémoire, et la voix commence avant la fin d'une longue réponse.
+
+**Sur le PC** :
+
+<p align="center">
+<img src="docs/pc_reacteur.png" alt="Le réacteur du PC : discussion, météo, heure et jauges avec leur historique" width="40%">
+<img src="docs/pc_menu.png" alt="Le nouveau menu du clic droit, aux couleurs du réacteur" width="40%">
+</p>
+
+- **Le panneau modernisé** : point d'état, météo et heure, jauges fines avec leur courbe des deux dernières minutes, et l'état des tablettes (batterie).
+- **Un nouveau menu du clic droit**, aux couleurs du réacteur, avec **« Couper le micro »** (aussi à la voix : « Jarvis, coupe le micro ») ; un badge le rappelle sur le réacteur.
+- **Le réacteur s'allume couche par couche** au démarrage ; un rappel qui sonne s'affiche dans une pastille ; après un redémarrage, Jarvis écrit simplement « Je redémarre. » sans le dire.
+- **Les réglages modernisés** : icônes, cartes, thèmes en dégradé, aperçu du réacteur avec ses filaments. Et une **nouvelle icône**.
+
+## Nouveau en 1.28 : Jarvis sur la tablette
 
 - **Une application Android** (Android 8 à 16) : la page du QR code la propose ; elle s'installe sans Play Store et se met à jour depuis la tablette (roue des réglages, « Mise à jour »).
 - **Écoute permanente** : dis « Jarvis, quelle heure est-il ? » sans toucher la tablette. Ta phrase s'affiche, puis la réponse la remplace, comme sur le PC. Elle se coupe dans la roue des réglages ; tant qu'elle est active, l'écran reste allumé.
@@ -297,7 +322,8 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
 | `jarvis_ps5.py`, `jarvis_associer_ps5.py` | La PlayStation 5 : état, allumage et mise en veille ; la fenêtre pour la relier une fois |
 | `jarvis_tablette.py` | Jarvis sur les tablettes de la maison : la page servie par le PC (HTTPS, clé secrète), profils, codes et couleurs, écoute permanente, applications et recherches sans Claude, historique |
-| `android/` | Le code de l'application Android (une fenêtre sur la page de Jarvis, avec le micro, l'ouverture des applications et les mises à jour) ; `construire.py` la fabrique sans Android Studio |
+| `jarvis_ateliers.py` | Les ateliers des enfants sur la tablette (calcul, mots, dictée, animaux, heure), les étoiles et le niveau qui s'adapte |
+| `android/` | Le code de l'application Android (une fenêtre sur la page de Jarvis, avec le micro, le mot d'appel, le widget, l'ouverture des applications et les mises à jour) ; `construire.py` la fabrique sans Android Studio, `dessin.py` dessine son icône et `icone_pc.py` celle du PC |
 | `docs/Jarvis-tablette.apk` | L'application Android toute faite, que le PC propose aux tablettes |
 | `requirements-ps5.txt` | Les modules de la PlayStation 5, installés à part par l'installateur (sans bloquer l'installation s'ils échouent) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Les fenêtres d'association (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |
@@ -345,6 +371,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.29 | Tablette (application 1.15) : réacteur redessiné, réveil par « Jarvis » avec un bip, ateliers pour les enfants (calcul, mots, dictée, animaux, heure) avec étoiles, récompenses et questions qui s'adaptent, voix d'enfant, minuteurs, rappels et rendez-vous avec compte à rebours, messages entre profils, « répète », réglages par rubriques, nouveaux thèmes, aide avec exemples, widget, alerte de batterie, réponses plus rapides ; PC : panneau modernisé (météo, heure, courbes des jauges, état des tablettes), nouveau menu du clic droit, micro coupé, démarrage du réacteur couche par couche, rappel en pastille, « Je redémarre » écrit sans voix, réglages modernisés, thèmes Aurore et Galaxie, nouvelle icône |
 | 1.28 | Jarvis sur la tablette : application Android (installée et mise à jour depuis la tablette), écoute permanente avec « Jarvis », un profil par personne avec ses couleurs, codes à 4 chiffres pour les adultes, « c'est Léo » pour changer de profil, dernier profil rouvert, applications de la tablette et recherches ouvertes sans Claude, historique des 1 000 dernières demandes par profil sur le PC ; sur le PC, une fenêtre de discussion au-dessus du réacteur, où l'on peut aussi écrire |
 | 1.27 | PlayStation 5 : l'allumage et la mise en veille à la voix sont disponibles pour tous, leurs modules s'installent tout seuls avec Jarvis (sans jamais bloquer l'installation) ; le modèle qui reconnaît qui parle (« apprends ma voix ») est lui aussi installé tout seul ; l'installateur vérifie à la fin que le pilotage de la PS5 marche |
 | 1.26 | Désinstallation complète depuis les réglages (garder ou non ses fichiers personnels, copie compressée, récapitulatif, mot « confirmer ») ; installateur 1.1 (ce qu'apporte l'abonnement Claude, trace de ce qu'il installe, reprise des fichiers gardés, encadré « À retenir ») ; plusieurs télés (« la télé de la chambre ») ; PlayStation 5 : allumée, en veille ou éteinte ; réveil plus rapide quand « Jarvis » est dit seul (avec le détecteur facultatif) ; « prochain rendez-vous » sans attendre Claude ; phrases mal entendues mieux comprises (« quelle aurait-il », « la connection Internet », « lis ce que j'ai copie ») ; une phrase qui parle de la télé ne lance plus de musique sur le PC ; « remets les couleurs Vice City » |

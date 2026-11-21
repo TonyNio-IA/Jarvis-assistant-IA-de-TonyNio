@@ -527,8 +527,10 @@ PALETTES = {
     "iron man": ("#ff3b2f", "#ffb52e", "#ffd75e"),
     "océan": ("#00b4d8", "#0077ff", "#48e5c2"),
     "forêt": ("#3ddc84", "#a3e635", "#14b8a6"),
+    "aurore": ("#3ddc84", "#00b4d8", "#9d4dff"),        # les mêmes que sur la tablette
+    "galaxie": ("#5b6cff", "#c77dff", "#ff5fb7"),
 }
-_COULEUR = re.compile(r"\b(vice city|iron man|oc[ée]an|for[êe]t|bleu|bleue|vert|verte|rouge|violet|violette|orange)\b")
+_COULEUR = re.compile(r"\b(vice city|iron man|oc[ée]an|for[êe]t|aurore|galaxie|bleu|bleue|vert|verte|rouge|violet|violette|orange)\b")
 
 
 def _reacteur():
@@ -577,7 +579,8 @@ def commande_couleur(t):
             r"je veux|je pr[ée]f[eè]re|en)\b", t):        # « remets les couleurs Vice City » aussi
         return None
     if re.search(r"\bquelles? couleurs?\b.*\b(possibles?|disponibles?|existe)", t):
-        return "Je peux prendre les couleurs Vice City, bleu, vert, rouge, violet ou orange."
+        return ("Je peux prendre les thèmes Vice City, Iron Man, Océan, Forêt, Aurore ou Galaxie, "
+                "ou les couleurs bleu, vert, rouge, violet ou orange.")
     nom = choisir_couleur(t)
     if not nom:
         return None

@@ -26,6 +26,7 @@ import math
 import os
 import random
 import re
+import threading
 import time
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -68,7 +69,7 @@ DUREE_VIGILANCE = 12.0   # secondes d'animation quand une alerte météo de Mét
 COULEURS_VIGILANCE = {2: (255, 214, 0), 3: (255, 128, 0), 4: (255, 30, 30)}     # jaune, orange, rouge
 ICONES_JAUGES = True     # petite icône entre le nom et la valeur de chaque jauge
 PANNEAU_COMPACT = True   # en mode discret, les jauges restent visibles dans un petit panneau (sinon il disparaît)
-DUREE_NAISSANCE = 1.4    # secondes que met le réacteur à se former au lancement
+DUREE_NAISSANCE = 2.4    # secondes que met le réacteur à se former au lancement
 DUREE_ALERTE = 5.0       # secondes d'animation quand un minuteur ou un rappel sonne
 DUREE_FERMETURE = 0.7    # secondes qu'il met à se refermer à l'arrêt
 HALO = True              # léger halo lumineux autour des filaments (False = dessin net, un peu plus rapide)
@@ -113,6 +114,11 @@ def _rgb(c):
 
 def _melange(c1, c2, t):
     return (c1[0] + (c2[0] - c1[0]) * t, c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t)
+
+
+def _melange_ent(c1, c2, t):
+    """Le même mélange, en nombres entiers (ce que pygame attend pour dessiner)."""
+    return tuple(int(v) for v in _melange(c1, c2, t))
 
 
 def _soleil(lat, lon, jour_annee, decalage_minutes):
@@ -255,6 +261,7 @@ class Affichage:
         self._masque.set_colorkey((255, 0, 255))
         self._polices()
         self._saisie = None                        # la demande en cours de frappe (None : on n'écrit pas)
+        self._menu_ouvert = None                   # menu du clic droit (None : fermé)
         self._saisie_touche = 0.0                  # moment de la dernière frappe
         self._zone_discussion = None               # rectangle de la fenêtre de discussion (pour le clic)
         self._fin_active = 0.0                     # dernier moment où Jarvis écoutait, réfléchissait ou parlait
@@ -269,6 +276,10 @@ class Affichage:
                            "v": random.uniform(0.6, 1.4), "p": random.uniform(0, 6.3)}
                           for _ in range(source.NB_POUSSIERE)]
 
+        self._historique = {}                       # jauge -> les valeurs des dernières minutes (petite courbe)
+        self._histo_quand = 0.0
+        self.meteo = None                           # (température, code du ciel) de la ville réglée
+        threading.Thread(target=self._suivre_meteo, daemon=True).start()
         self._zone_compacte = None                  # rectangle du petit panneau (pour le survol de la souris)
         self._cercle = getattr(pygame.draw, "aacircle", pygame.draw.circle)
         if migre:
@@ -285,7 +296,7 @@ class Affichage:
         # De haut en bas : la fenêtre de discussion, le réacteur, puis le panneau (état, heure et jauges)
         self.haut = int(HAUTEUR_DISCUSSION * s)
         self.yr = self.haut + self.m                       # haut du réacteur
-        self.h = self.haut + self.d + 2 * self.m + int((56 if source.AFFICHER_SYSTEME else 30) * s)
+        self.h = self.haut + self.d + 2 * self.m + int((66 if source.AFFICHER_SYSTEME else 30) * s)
 
     def _polices(self):
         s = self.s
@@ -367,18 +378,88 @@ class Affichage:
         user32.GetCursorPos(ctypes.byref(p))
         return p.x, p.y
 
-    def _menu(self):
-        menu = user32.CreatePopupMenu()
-        user32.AppendMenuW(menu, 0x1, 0, f"Jarvis version {jarvis_claude.VERSION}")
-        user32.AppendMenuW(menu, 0x800, 0, None)
-        user32.AppendMenuW(menu, 0, 3, "Réglages…")
-        user32.AppendMenuW(menu, 0, 1, "Nouvelle conversation")
-        user32.AppendMenuW(menu, 0x800, 0, None)
-        user32.AppendMenuW(menu, 0, 2, "Arrêter Jarvis")
-        x, y = self._curseur()
+    # ---------- Menu du clic droit, dessiné dans la fenêtre aux couleurs du réacteur ----------
+
+    def _entrees_menu(self):
+        coupe = jarvis_claude.micro_coupe
+        return [(3, "", "Réglages"),
+                (1, "", "Nouvelle conversation"),
+                (4, "" if coupe else "", "Rallumer le micro" if coupe else "Couper le micro"),
+                (None, None, None),
+                (2, "", "Arrêter Jarvis")]
+
+    def _ouvrir_menu(self, pos):
+        s = self.s
+        largeur, haut_ligne = 214 * s, 30 * s
+        hauteur = 34 * s + sum(9 * s if i is None else haut_ligne for i, _, _ in self._entrees_menu()) + 8 * s
+        x = max(4 * s, min(pos[0], self.w - largeur - 4 * s))
+        y = max(4 * s, min(pos[1], self.h - hauteur - 4 * s))
+        self._menu_ouvert = {"rect": pygame.Rect(int(x), int(y), int(largeur), int(hauteur)), "depuis": time.time(),
+                             "zones": []}
         user32.SetForegroundWindow(self.hwnd)
-        choix = user32.TrackPopupMenu(menu, 0x100 | 0x2, x, y, 0, self.hwnd, None)
-        user32.DestroyMenu(menu)
+
+    def _clic_menu(self, pos):
+        """Un clic pendant que le menu est ouvert : choisit une entrée, ou referme le menu."""
+        menu, self._menu_ouvert = self._menu_ouvert, None
+        for choix, zone in menu["zones"]:
+            if zone.collidepoint(pos):
+                self._menu(choix)
+                return
+
+    def _dessiner_menu(self, surf, teinte, blanc):
+        menu = getattr(self, "_menu_ouvert", None)
+        if menu is None:
+            return
+        s = self.s
+        # le menu se referme si on passe à une autre fenêtre
+        if (time.time() - menu["depuis"] > 0.4
+                and (user32.GetForegroundWindow() & 0xFFFFFFFF) != (self.hwnd & 0xFFFFFFFF)):
+            self._menu_ouvert = None
+            return
+        apparition = min(1.0, (time.time() - menu["depuis"]) / 0.15)
+        r = menu["rect"].copy()
+        r.y += int((1 - apparition) * 8 * s)
+        if not hasattr(self, "police_icone"):
+            self.police_icone = pygame.font.SysFont("segoemdl2assets", int(12 * s))
+            self.police_menu = pygame.font.SysFont("segoeui", int(11.5 * s))
+            self.police_menu_titre = pygame.font.SysFont("segoeui", int(9.5 * s), bold=True)
+        arrondi = int(10 * s)
+        pygame.draw.rect(surf, tuple(int(c) for c in _melange(self.fond, (0, 0, 0), 0.3)), r.move(0, int(3 * s)),
+                         border_radius=arrondi)                                          # ombre
+        pygame.draw.rect(surf, self.fond, r, border_radius=arrondi)
+        pygame.draw.rect(surf, teinte(0.45), r, max(1, int(1.2 * s)), border_radius=arrondi)
+        # en-tête : « JARVIS » et la version, avec un petit trait lumineux
+        titre = self._texte(self.police_menu_titre, f"JARVIS  ·  VERSION {jarvis_claude.VERSION}", teinte(0.75))
+        surf.blit(titre, (r.x + 14 * s, r.y + 10 * s))
+        pygame.draw.line(surf, teinte(0.9), (r.x + 14 * s, r.y + 27 * s), (r.x + 44 * s, r.y + 27 * s), max(1, int(2 * s)))
+        pygame.draw.line(surf, teinte(0.18), (r.x + 46 * s, r.y + 27 * s), (r.right - 14 * s, r.y + 27 * s), 1)
+        souris = pygame.mouse.get_pos()
+        y = r.y + 34 * s
+        zones = []
+        for choix, icone, libelle in self._entrees_menu():
+            if choix is None:
+                pygame.draw.line(surf, teinte(0.18), (r.x + 14 * s, y + 4 * s), (r.right - 14 * s, y + 4 * s), 1)
+                y += 9 * s
+                continue
+            zone = pygame.Rect(int(r.x + 6 * s), int(y), int(r.width - 12 * s), int(30 * s))
+            zones.append((choix, zone))
+            survol = zone.collidepoint(souris)
+            rouge = choix == 2
+            if survol:
+                fond_survol = (120, 30, 40) if rouge else teinte(0.22)
+                pygame.draw.rect(surf, fond_survol, zone, border_radius=int(6 * s))
+                pygame.draw.line(surf, (255, 90, 90) if rouge else teinte(1.0), (zone.x + 2 * s, zone.y + 8 * s),
+                                 (zone.x + 2 * s, zone.bottom - 8 * s), max(2, int(2.5 * s)))
+            couleur = (255, 130, 130) if rouge else (blanc if survol else teinte(0.85, blanc))
+            ic = self._texte(self.police_icone, icone, (255, 110, 110) if rouge else teinte(1.0 if survol else 0.8))
+            surf.blit(ic, ic.get_rect(center=(zone.x + 20 * s, zone.centery)))
+            lib = self._texte(self.police_menu, libelle, couleur)
+            surf.blit(lib, lib.get_rect(midleft=(zone.x + 38 * s, zone.centery)))
+            y += 30 * s
+        menu["zones"] = zones
+
+    def _menu(self, choix):
+        """Ce qu'on a choisi dans le menu du clic droit."""
         if choix == 3:
             try:
                 import jarvis_reglages_ui
@@ -387,6 +468,9 @@ class Affichage:
                 print("Réglages indisponibles :", erreur)
         elif choix == 1:
             jarvis_claude.oublier_conversation()
+        elif choix == 4:
+            jarvis_claude.micro_coupe = not jarvis_claude.micro_coupe
+            print("(Micro coupé par le menu du réacteur.)" if jarvis_claude.micro_coupe else "(Micro rallumé par le menu.)")
         elif choix == 2:
             print("(Arrêt demandé par le menu du réacteur.)")
             try:
@@ -466,6 +550,10 @@ class Affichage:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 os._exit(0)
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1 and getattr(self, "_menu_ouvert", None):
+                self._clic_menu(ev.pos)                    # menu ouvert : on choisit, ou on le referme
+            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE and getattr(self, "_menu_ouvert", None):
+                self._menu_ouvert = None
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 zone = self._zone_discussion
                 if zone is not None and zone.collidepoint(ev.pos):
@@ -478,7 +566,7 @@ class Affichage:
                 self.glisse = None
                 self.enregistrer_position()   # la position est retenue pour les prochains démarrages
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 3:
-                self._menu()
+                self._ouvrir_menu(ev.pos)
             elif ev.type == pygame.TEXTINPUT and self._saisie is not None:
                 self._saisie = (self._saisie + ev.text)[:LONGUEUR_SAISIE]
                 self._saisie_touche = time.time()
@@ -562,6 +650,9 @@ class Affichage:
             cible = COULEURS_VIGILANCE.get(vigilance[1], cible)
             if e in ("veille", "pause"):
                 titre = "Alerte météo"
+        self._micro_coupe = bool(getattr(jarvis_claude, "micro_coupe", False)) and e in ("veille", "pause")
+        if self._micro_coupe:
+            titre = "Micro coupé"
         self.couleur = _melange(self.couleur, cible, 1 - math.exp(-dt * 4))
         base = self.couleur
         if e == "erreur":
@@ -635,6 +726,7 @@ class Affichage:
         en_fete = self._fete is not None and maintenant - self._fete[0] < DUREE_FETE
         actif = (e not in ("veille", "pause") or self.glisse is not None or alerte < DUREE_ALERTE or en_fete
                  or self._vigilance is not None or ecrit
+                 or getattr(self, "_menu_ouvert", None) is not None
                  or self._reste_texte > 0)
         if actif:
             self._dernier_eveil = maintenant
@@ -643,7 +735,19 @@ class Affichage:
         self._forme += ((1.0 if deploye else 0.0) - self._forme) * (1 - math.exp(-dt * (9 if deploye else 4)))
         k = TAILLE_DISCRETE + (1 - TAILLE_DISCRETE) * self._forme
         naissance = min(1.0, t / DUREE_NAISSANCE)
-        k *= 1 - (1 - naissance) ** 3                      # au lancement, le réacteur se forme
+        # Au lancement, le réacteur prend vite sa taille, puis s'allume couche par couche :
+        # la couronne, le disque, les filaments du bord, ceux de l'intérieur, et enfin le cœur
+        k *= 1 - (1 - min(1.0, t / (DUREE_NAISSANCE * 0.35))) ** 3
+
+        def couche(debut, fin):
+            if naissance >= 1:
+                return 1.0
+            x = max(0.0, min(1.0, (naissance - debut) / (fin - debut)))
+            return x * x * (3 - 2 * x)
+        self._naissance_couronne = couche(0.0, 0.35)
+        if naissance < 1 and naissance >= 0.72 and not getattr(self, "_coeur_allume", False):
+            self._coeur_allume = True
+            self._onde = maintenant                        # le cœur s'allume : une onde part vers le bord
         if self._fermeture is not None:                    # à l'arrêt, il se referme
             k *= max(0.0, 1 - (maintenant - self._fermeture) / DUREE_FERMETURE) ** 2
         self._naissance = naissance
@@ -670,25 +774,27 @@ class Affichage:
         ondulation = 0.022 + amplitude * 0.12
         contour = self._filament(cx, cy, R * 0.975, ondulation,
                                  [(4, 0.6, ph * 0.7), (7, 0.4, -ph * 1.1)])
-        pygame.draw.polygon(surf, teinte(0.03), contour)
-        aaligne(surf, teinte(0.22 * eclat), True, contour)
+        c_fond, c_bord = couche(0.12, 0.4), couche(0.3, 0.55)
+        c_fil, c_coeur = couche(0.45, 0.75), couche(0.68, 0.95)
+        pygame.draw.polygon(surf, teinte(0.03 * c_fond), contour)
+        aaligne(surf, teinte(0.22 * eclat * c_fond), True, contour)
         for k in range(1, 7):
-            pygame.draw.circle(surf, teinte(0.03 + k * 0.022 * eclat), (cx, cy), R * (7 - k) / 7)
+            pygame.draw.circle(surf, teinte((0.03 + k * 0.022 * eclat) * c_fond), (cx, cy), R * (7 - k) / 7)
 
         # Anneau extérieur : fins filaments qui ondulent au bord du cercle
-        for f in range(src.NB_FILAMENTS_BORD):
+        for f in range(src.NB_FILAMENTS_BORD if c_bord > 0 else 0):
             phi = f * 2.2
             pts = self._filament(cx, cy, R * (0.925 - 0.014 * f), ondulation,
                                  [(4, 0.6, ph * 0.7 + phi), (7, 0.4, -ph * 1.1 + 2 * phi)])
-            ligne(surf, teinte(0.12 * eclat), True, pts[::fin], max(2, int(3 * s)))
-            aaligne(surf, teinte((0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat), True, pts[::fin])
+            ligne(surf, teinte(0.12 * eclat * c_bord), True, pts[::fin], max(2, int(3 * s)))
+            aaligne(surf, teinte((0.35 + 0.2 * math.sin(t * 0.8 + phi)) * eclat * c_bord), True, pts[::fin])
 
         # Filaments intérieurs, qui tournent en sens inverse
-        for f in range(src.NB_FILAMENTS_INT):
+        for f in range(src.NB_FILAMENTS_INT if c_fil > 0 else 0):
             phi = f * 1.9
             pts = self._filament(cx + gx * 0.5, cy + gy * 0.5, R0 * (0.50 + 0.03 * f), amplitude * 0.8,
                                  [(2, 0.6, -ph * 0.8 + phi), (4, 0.4, ph * 0.5 + 2 * phi)])
-            force = (0.35 + 0.15 * math.sin(t * 0.9 + phi)) * eclat
+            force = (0.35 + 0.15 * math.sin(t * 0.9 + phi)) * eclat * c_fil
             ligne(surf, teinte(0.3 * force), True, pts[::fin], max(2, int(3 * s)))
             aaligne(surf, teinte(force), True, pts[::fin])
 
@@ -710,7 +816,7 @@ class Affichage:
                 q["a"] += 0.15 * q["v"] * dt
             scint = 0.5 + 0.5 * math.sin(t * 3 * q["v"] + q["p"])
             bord = min(1.0, (0.55 - q["r"]) / 0.1, (q["r"] - 0.1) / 0.06)
-            force = max(0.0, scint * bord) * eclat
+            force = max(0.0, scint * bord) * eclat * c_coeur
             if force > 0.1:
                 r = q["r"] * R0
                 cercle(surf, teinte(force * 0.9, blanc),
@@ -720,10 +826,11 @@ class Affichage:
         # Cœur lumineux
         rc = R * (0.10 + 0.05 * voix) if e == "reponse" else R * (0.10 + 0.01 * math.sin(t * 3))
         rc *= 1 + 0.45 * self._musique                     # il bat au rythme de la musique
+        rc *= 0.3 + 0.7 * c_coeur                          # au lancement, le cœur grossit en s'allumant
         xc, yc = cx + gx, cy + gy
         for k, force in ((1.6, 0.10), (1.25, 0.2), (1.0, 0.32)):
-            cercle(surf, teinte(force * eclat), (xc, yc), rc * k)
-        cercle(surf, teinte(0.8 * eclat), (xc, yc), rc, max(1, int(1.2 * s)))
+            cercle(surf, teinte(force * eclat * c_coeur), (xc, yc), rc * k)
+        cercle(surf, teinte(0.8 * eclat * c_coeur), (xc, yc), rc, max(1, int(1.2 * s)))
         if e == "traitement":
             r = rc * 0.65
             for i in range(3):
@@ -731,12 +838,13 @@ class Affichage:
                 pygame.draw.arc(surf, teinte(1.0, blanc), (xc - r, yc - r, 2 * r, 2 * r),
                                 debut, debut + math.pi / 3, max(2, int(2 * s)))
         else:
-            cercle(surf, teinte(0.9 * eclat, blanc), (xc, yc), rc * 0.28)
+            cercle(surf, teinte(0.9 * eclat * c_coeur, blanc), (xc, yc), rc * 0.28)
 
-        # Anneau principal de filaments, avec ses particules
-        for f in range(src.NB_FILAMENTS):
+        # Anneau principal de filaments, avec ses particules (au lancement, ils apparaissent l'un après l'autre)
+        for f in range(src.NB_FILAMENTS if c_fil > 0 else 0):
             phi = f * 2.399
-            force = (0.6 + 0.4 * (0.5 + 0.5 * math.sin(t * 0.7 + phi))) * eclat
+            un_par_un = 1.0 if c_fil >= 1 else max(0.0, min(1.0, c_fil * src.NB_FILAMENTS - f))
+            force = (0.6 + 0.4 * (0.5 + 0.5 * math.sin(t * 0.7 + phi))) * eclat * un_par_un
             amp_f = amplitude * (0.6 + 0.8 * ((f * 0.37) % 1))
             decal = 0.05 * math.sin(phi * 1.7 + t * 0.5)
             pts = self._filament(cx, cy, R0 * (1 + decal), amp_f,
@@ -808,13 +916,50 @@ class Affichage:
             self._reflet(surf, teinte, blanc, contour, time.time(), tour_fixe=TOUR_REFLET_REACTEUR)
 
         self._couronne(surf, teinte, blanc, eclat, e, t, dt, cx, cy, Rext)
+        if getattr(self, "_micro_coupe", False) and naissance >= 1:
+            self._badge_micro(surf, teinte, blanc, cx + R * 0.62, cy + R * 0.62, max(7.0, R * 0.16))
+        if self._en_alerte and naissance >= 1 and self._k > 0.6:
+            self._bandeau_rappel(surf, teinte, blanc, cx, cy + R * 0.58, R * 1.5)
         self._zone_compacte = None
-        if self._forme > 0.75 and naissance >= 1 and self._fermeture is None:
-            self._panneau(surf, teinte, blanc, eclat, titre, cx, dt)
-            self._discussion(surf, teinte, blanc, eclat, cx, maintenant)
+        if self._forme > 0.5 and naissance >= 1 and self._fermeture is None:
+            # le panneau et la discussion apparaissent en fondu pendant que le réacteur s'agrandit
+            revele = min(1.0, (self._forme - 0.5) / 0.4)
+            self._panneau(surf, teinte, blanc, eclat * revele, titre, cx, dt)
+            self._discussion(surf, teinte, blanc, eclat * revele, cx, maintenant)
         elif PANNEAU_COMPACT and src.AFFICHER_SYSTEME and naissance >= 1 and self._fermeture is None:
             # mode discret : un petit panneau juste sous le réacteur, avec seulement les jauges
             self._panneau_compact(surf, teinte, blanc, e, t, cx, cy + Rext + 5 * self.s, dt)
+        self._dessiner_menu(surf, teinte, blanc)
+
+    def _badge_micro(self, surf, teinte, blanc, x, y, r):
+        """Micro coupé : une petite pastille avec un micro barré, posée sur le bord du réacteur."""
+        pygame.draw.circle(surf, self.fond, (int(x), int(y)), int(r + 2))
+        pygame.draw.circle(surf, teinte(0.9), (int(x), int(y)), int(r), max(1, int(r / 6)))
+        ep = max(1, int(r / 6))
+        lc, hc = r * 0.42, r * 0.78
+        pygame.draw.rect(surf, blanc, pygame.Rect(int(x - lc / 2), int(y - r * 0.62), int(lc), int(hc)),
+                         border_radius=int(lc / 2))
+        pygame.draw.arc(surf, blanc, pygame.Rect(int(x - r * 0.5), int(y - r * 0.45), int(r * 1.0), int(r * 0.85)),
+                        math.pi, 2 * math.pi, ep)
+        pygame.draw.line(surf, blanc, (x, y + r * 0.4), (x, y + r * 0.62), ep)
+        pygame.draw.line(surf, blanc, (x - r * 0.25, y + r * 0.62), (x + r * 0.25, y + r * 0.62), ep)
+        pygame.draw.line(surf, (235, 80, 80), (x - r * 0.55, y - r * 0.55), (x + r * 0.55, y + r * 0.55), ep + 1)
+
+    def _bandeau_rappel(self, surf, teinte, blanc, cx, cy, largeur_max):
+        """Pendant qu'un rappel sonne : une pastille avec son texte, posée sur le bas du réacteur."""
+        texte = (getattr(self.src, "texte_actuel", "") or "").strip()
+        if not texte:
+            return
+        police = self.police_titre
+        while len(texte) > 4 and police.size(texte)[0] > largeur_max - 20 * self.s:
+            texte = texte[:-2].rstrip() + "…" if not texte.endswith("…") else texte[:-3].rstrip() + "…"
+        image = self._texte(police, texte, blanc)
+        lw, lh = image.get_width() + 18 * self.s, image.get_height() + 6 * self.s
+        boite = pygame.Rect(int(cx - lw / 2), int(cy - lh / 2), int(lw), int(lh))
+        clignote = 0.6 + 0.4 * math.sin(time.time() * 5)
+        pygame.draw.rect(surf, self.fond, boite, border_radius=int(lh / 2))
+        pygame.draw.rect(surf, teinte(clignote), boite, max(1, int(1.5 * self.s)), border_radius=int(lh / 2))
+        surf.blit(image, image.get_rect(center=boite.center))
 
     @staticmethod
     def _symbole_meteo(surf, phenomene, cx, cy, r, couleur, s):
@@ -971,7 +1116,7 @@ class Affichage:
         epais = max(1, int(1.6 * s))
         forces = np.minimum(1.0, 0.50 + 0.60 * niveaux) * (0.75 + 0.25 * eclat)
         trait = pygame.draw.line
-        visibles = n if self._naissance >= 1 else int(n * self._naissance)   # au lancement, elles apparaissent une à une
+        visibles = n if self._naissance >= 1 else int(n * getattr(self, "_naissance_couronne", self._naissance))   # au lancement, elles apparaissent une à une
         palette = getattr(self.src, "COULEURS_VEILLE", None) if e == "veille" else None
         if palette:                                    # veille : dégradé des couleurs tout autour de la couronne
             couleurs = [_rgb(c) for c in palette]
@@ -991,6 +1136,37 @@ class Affichage:
             angles = a0 + np.linspace(0, etendue, 14)
             pts = np.column_stack((cx + ra * np.cos(angles), cy + ra * np.sin(angles)))
             pygame.draw.aalines(surf, teinte(0.75 * eclat), False, pts)
+
+    def _suivre_meteo(self):
+        """La température et le ciel de la ville réglée, relus tous les quarts d'heure (Open-Meteo, sans clé)."""
+        time.sleep(20)
+        while True:
+            try:
+                import jarvis_commandes as c
+                _, lat, lon = c.VILLE_DEFAUT
+                d = c._json(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+                            "&current=temperature_2m,weather_code&timezone=auto")["current"]
+                self.meteo = (round(d["temperature_2m"]), int(d["weather_code"]))
+            except Exception:
+                pass                                 # pas de connexion : la météo ne s'affiche pas, rien de plus
+            time.sleep(900)
+
+    @staticmethod
+    def _icone_ciel(surf, code, x, y, r, couleur, blanc):
+        """Un petit pictogramme : soleil (ciel clair), nuage, nuage et pluie, ou nuage et neige."""
+        if code <= 1:
+            pygame.draw.circle(surf, couleur, (x, y), r * 0.5)
+            for i in range(8):
+                a = i * math.pi / 4
+                pygame.draw.line(surf, couleur, (x + r * 0.72 * math.cos(a), y + r * 0.72 * math.sin(a)),
+                                 (x + r * math.cos(a), y + r * math.sin(a)), max(1, int(r * 0.14)))
+            return
+        for dx, dy, rr in ((-0.42, 0.12, 0.38), (0.0, -0.12, 0.5), (0.45, 0.12, 0.36)):
+            pygame.draw.circle(surf, blanc, (x + dx * r, y + dy * r), rr * r)
+        pygame.draw.rect(surf, blanc, (x - 0.8 * r, y + 0.05 * r, 1.6 * r, 0.45 * r))
+        if code >= 51:                                  # pluie, averses, neige, orages : quelques traits dessous
+            for dx in (-0.45, 0.0, 0.45):
+                pygame.draw.line(surf, couleur, (x + dx * r, y + 0.7 * r), (x + (dx - 0.15) * r, y + 1.1 * r), max(1, int(r * 0.14)))
 
     def _panneau(self, surf, teinte, blanc, eclat, titre, cx, dt=0.05):
         src, s = self.src, self.s
@@ -1012,44 +1188,92 @@ class Affichage:
 
         image = self._texte(self.police_titre, titre.upper(), teinte(1.0))
         yt = yb + 17 * s
-        surf.blit(image, image.get_rect(center=(cx, yt)))
+        decal = 6 * s                                   # le titre se décale un peu : un point lumineux le précède
+        surf.blit(image, image.get_rect(center=(cx + decal, yt)))
+        # Le point d'état : il clignote quand Jarvis écoute ou réfléchit
+        battement = 1.0
+        if self.src.etat_actuel in ("ecoute", "traitement"):
+            battement = 0.35 + 0.65 * abs(math.sin(time.time() * (4 if self.src.etat_actuel == "ecoute" else 6)))
+        xp = cx + decal - image.get_width() / 2 - 9 * s
+        pygame.draw.circle(surf, teinte(0.35 * battement), (xp, yt), 5.5 * s)
+        pygame.draw.circle(surf, teinte(battement, blanc), (xp, yt), 3 * s)
         demi = image.get_width() / 2 + 10 * s
-        # L'heure, à droite du titre quand il reste de la place
+        gauche_titre = xp - 9 * s
+        # À droite : la météo, puis l'heure, quand il reste de la place
         heure = self._texte(self.police_jauge, time.strftime("%H:%M"), teinte(0.6))
         fin_ligne = x1 - 12 * s
-        if cx + demi + heure.get_width() + 22 * s < x1:
+        if cx + decal + demi + heure.get_width() + 22 * s < x1:
             surf.blit(heure, heure.get_rect(midright=(x1 - 10 * s, yt)))
             fin_ligne = x1 - 16 * s - heure.get_width()
-        if cx - demi > x0 + k + 6 * s:
-            pygame.draw.line(surf, teinte(0.45), (x0 + k + 4 * s, yt), (cx - demi, yt))
-            pygame.draw.line(surf, teinte(0.45), (cx + demi, yt), (fin_ligne, yt))
+            if self.meteo is not None:
+                temp = self._texte(self.police_jauge, f"{self.meteo[0]}°", teinte(0.75, blanc))
+                if cx + decal + demi + heure.get_width() + temp.get_width() + 46 * s < x1:
+                    surf.blit(temp, temp.get_rect(midright=(fin_ligne - 2 * s, yt)))
+                    self._icone_ciel(surf, self.meteo[1], fin_ligne - temp.get_width() - 12 * s, yt - 1 * s, 5.5 * s,
+                                     teinte(0.9), teinte(0.7, blanc))
+                    fin_ligne -= temp.get_width() + 26 * s
+        # À gauche : un voyant par tablette (allumé si elle est en ligne), avec l'initiale et la batterie
+        debut_ligne = x0 + k + 4 * s
+        try:
+            import jarvis_tablette
+            tablettes = jarvis_tablette.tablettes_en_ligne()
+        except Exception:
+            tablettes = []
+        for prenom, en_ligne, pile in tablettes[:3]:
+            etiquette = prenom[:1].upper() + (f" {pile}%" if en_ligne and pile is not None else "")
+            img = self._texte(self.police_compacte, etiquette, teinte(0.75 if en_ligne else 0.35, blanc))
+            if debut_ligne + 12 * s + img.get_width() > gauche_titre - 6 * s:
+                break
+            couleur = (61, 220, 132) if en_ligne else teinte(0.3)
+            if en_ligne and pile is not None and pile <= 15:
+                couleur = (255, 140, 66)
+            pygame.draw.circle(surf, couleur, (debut_ligne + 3 * s, yt), 3 * s)
+            surf.blit(img, img.get_rect(midleft=(debut_ligne + 9 * s, yt)))
+            debut_ligne += 15 * s + img.get_width()
+        if gauche_titre > debut_ligne + 6 * s:
+            pygame.draw.line(surf, teinte(0.45), (debut_ligne, yt), (gauche_titre, yt))
+        if fin_ligne > cx + decal + demi:
+            pygame.draw.line(surf, teinte(0.45), (cx + decal + demi, yt), (fin_ligne, yt))
 
         if src.AFFICHER_SYSTEME:
             jauges = self._mesures()
             colonne = (x1 - x0 - 14 * s) / len(jauges)
-            nb = 12 if len(jauges) <= 2 else 8
-            ecart = 1.5 * s
-            large = (colonne * 0.84 - (nb - 1) * ecart) / nb
-            eteint = teinte(0.16)
+            eteint = teinte(0.14)
             couleurs_veille = self._couleurs_jauges(len(jauges))
+            maintenant = time.time()
+            garder = maintenant - self._histo_quand >= 3          # un point de courbe toutes les 3 secondes
+            if garder:
+                self._histo_quand = maintenant
             for i, (nom, valeur, unite) in enumerate(jauges):
                 xc = x0 + 7 * s + colonne * (i + 0.5)
                 couleur = ((255, 77, 77) if valeur >= 90 else (255, 165, 58) if valeur >= 75
                            else couleurs_veille[i] if couleurs_veille else teinte(0.95))
                 police = self.police_jauge if len(jauges) <= 4 else self.police_jauge_petite
                 self._etiquette(surf, police, nom, valeur, unite, couleur, xc, yb + 36 * s)
-                # Les segments glissent vers la nouvelle valeur au lieu de sauter
+                # Une barre fine et arrondie, qui glisse vers la nouvelle valeur au lieu de sauter
                 lisse = self._jauges.get(nom, valeur)
                 lisse += (valeur - lisse) * (1 - math.exp(-dt * 6))
                 self._jauges[nom] = lisse
-                allumes = math.ceil(lisse / 100 * nb - 0.001) if lisse >= 1 else 0
-                xa = xc - (nb * large + (nb - 1) * ecart) / 2
-                ya, yz = yb + 44.5 * s, yb + 50 * s
-                for j in range(nb):
-                    xj = xa + j * (large + ecart)
-                    pygame.draw.polygon(surf, couleur if j < allumes else eteint,
-                                        [(xj + 1.5 * s, ya), (xj + large + 1.5 * s, ya),
-                                         (xj + large, yz), (xj, yz)])
+                large = colonne * 0.82
+                xa, ya, haut = xc - large / 2, yb + 44 * s, max(3, int(4 * s))
+                rayon = haut // 2
+                pygame.draw.rect(surf, eteint, (xa, ya, large, haut), border_radius=rayon)
+                plein = large * max(0.0, min(100.0, lisse)) / 100
+                if plein >= 2:
+                    pygame.draw.rect(surf, couleur, (xa, ya, plein, haut), border_radius=rayon)
+                    pygame.draw.circle(surf, _melange_ent(couleur, (255, 255, 255), 0.6), (xa + plein - rayon, ya + haut / 2), rayon)
+                # ... et dessous, la courbe des dernières minutes
+                histo = self._historique.setdefault(nom, [])
+                if garder:
+                    histo.append(min(100.0, max(0.0, float(valeur))))
+                    del histo[:-40]
+                if len(histo) >= 2:
+                    y_bas, h_courbe = yb + 59 * s, 9 * s
+                    pas = large / 39
+                    depart = xa + large - pas * (len(histo) - 1)
+                    pts = [(depart + j * pas, y_bas - v / 100 * h_courbe) for j, v in enumerate(histo)]
+                    pygame.draw.polygon(surf, _melange_ent(self.fond, couleur, 0.16), pts + [(pts[-1][0], y_bas), (pts[0][0], y_bas)])
+                    pygame.draw.aalines(surf, _melange_ent(self.fond, couleur, 0.85), False, pts)
 
     # ---------- Fenêtre de discussion (au-dessus du réacteur) ----------
 
@@ -1104,6 +1328,13 @@ class Affichage:
         k = 9 * s
         contour = [(x0 + k, y0), (x1, y0), (x1, y1 - k), (x1 - k, y1), (x0, y1), (x0, y0 + k)]
         pygame.draw.polygon(surf, self.fond, contour)
+        # Un léger dégradé, plus clair en haut, aux couleurs du moment (une ligne sur deux suffit, l'œil lisse le reste)
+        haut_fenetre = y1 - y0
+        for yy in range(int(y0) + 1, int(y1), 2):
+            p = (yy - y0) / haut_fenetre
+            xg = x0 + max(0.0, k - (yy - y0)) + 1
+            xd = x1 - max(0.0, (yy - y0) - (haut_fenetre - k)) - 1
+            pygame.draw.line(surf, teinte(0.09 * (1 - p) * eclat), (xg, yy), (xd, yy), 2)
         ecrit = self._saisie is not None
         pygame.draw.aalines(surf, teinte((0.6 if ecrit else 0.28) * eclat), True, contour)
         e, ep = 14 * s, max(2, int(2 * s))
@@ -1143,10 +1374,18 @@ class Affichage:
             couleur = teinte(0.7, blanc) if rappel else teinte(0.5)
         pas = self.police_discussion.get_linesize()
         y = (y0 + y1) / 2 - pas * (len(lignes) - 1) / 2
+        haut_texte = y - pas / 2
+        plus_large = 0
         for ligne in lignes:
             image = self._texte(self.police_discussion, ligne, couleur)
             surf.blit(image, image.get_rect(center=(cx, y)))
+            plus_large = max(plus_large, image.get_width())
             y += pas
+        # La réponse de Jarvis : un trait de couleur devant le texte, pour la distinguer de ta demande
+        if src.texte_actuel and not ecrit and getattr(src, "texte_reponse", False) and plus_large:
+            xb = max(x0 + 8 * s, cx - plus_large / 2 - 9 * s)
+            pygame.draw.line(surf, teinte(0.95 * max(0.0, min(1.0, self._reste_texte / 2))), (xb, haut_texte + 2 * s),
+                             (xb, y - pas / 2 - 2 * s), max(2, int(2.5 * s)))
 
     def _couleurs_jauges(self, nombre):
         """En veille avec les couleurs Vice City : une teinte du dégradé par jauge (sinon None)."""
@@ -1354,6 +1593,7 @@ class Affichage:
                      or maintenant - self._alerte < DUREE_ALERTE
                      or self.glisse is not None or maintenant - src.texte_depuis < 1
                      or self._saisie is not None           # on écrit : les lettres suivent la frappe
+                     or getattr(self, "_menu_ouvert", None) is not None   # le menu suit la souris
                      or maintenant - self.t0 < DUREE_NAISSANCE + 0.5 or self._fermeture is not None
                      or 0.02 < self._forme < 0.98)          # pendant qu'il change de taille
             if actif:

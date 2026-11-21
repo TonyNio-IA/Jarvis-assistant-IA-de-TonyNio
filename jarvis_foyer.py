@@ -325,6 +325,12 @@ def surveiller_calendrier(annoncer):
     threading.Thread(target=boucle, daemon=True).start()
 
 
+def evenements_a_venir(ident, duree=86400):
+    """Les événements du calendrier familial de ce profil ("" = principal) dans les prochaines 24 heures :
+    [{"quand", "quoi"}] (pour l'écran de la tablette)."""
+    return [{"quand": e["quand"], "quoi": e["quoi"]} for e in _evenements(time.time(), time.time() + duree, ident)]
+
+
 def evenements_du_jour(decalage=0):
     """Pour « Jarvis, bonjour » : les événements du jour de la personne en cours."""
     debut = datetime.datetime.combine(datetime.date.today() + datetime.timedelta(days=decalage), datetime.time()).timestamp()
@@ -339,29 +345,33 @@ _MESSAGE = re.compile(r"^\W*(?:jarvis\W+)?(?:dis|dites|r[ée]p[eè]te)[- ](?:à|
                       r"(?:pour (?:lui )?dire (?:que |qu')?)?(?P<texte2>.+)$")
 
 
-def commande_message(t):
+def commande_message(t, moi=None):
+    """« dis à Léa que je rentre tard ». moi : qui laisse le message ("" = le profil principal) ; par défaut, la
+    personne qui parle au PC (la tablette donne son propre profil)."""
     m = _MESSAGE.match(t.replace("’", "'"))
     if not m:
         return None
     nom, texte = (m.group("nom"), m.group("texte")) if m.group("nom") else (m.group("nom2"), m.group("texte2"))
-    ident = _qui(nom)
+    moi_id = (jarvis_profils.actif() or "") if moi is None else moi
+    ident = moi_id if re.fullmatch(r"(?:je|j|moi|j'ai)", (nom or "").strip().lower()) else _qui(nom)
     if ident is None:
         return None                          # « dis à Google que... » : pas un membre du foyer
-    if ident == (jarvis_profils.actif() or ""):
+    if ident == moi_id:
         return "C'est toi ! Je ne peux pas te laisser un message à toi-même. Pour t'en souvenir, demande-moi un rappel."
     texte = texte.strip(" .!?")
     if not texte:
         return None
+    de = (jarvis_profils.prenom_actif() or "") if moi is None else _prenom(moi)
     with _verrou:
         messages = _lire(FICHIER_MESSAGES, [])
-        messages.append({"pour": ident, "de": jarvis_profils.prenom_actif() or "", "texte": texte, "quand": time.time()})
+        messages.append({"pour": ident, "de": de, "texte": texte, "quand": time.time()})
         _ecrire(FICHIER_MESSAGES, messages[-50:])
     return f"D'accord, je le dirai à {_prenom(ident)} dès que je l'entendrai."
 
 
-def messages_en_attente():
-    """Les messages pour la personne en cours, à dire avant la réponse (ils sont ensuite effacés)."""
-    ident = jarvis_profils.actif() or ""
+def messages_en_attente(ident=None):
+    """Les messages pour la personne en cours (ou pour ident), à dire avant la réponse (ils sont ensuite effacés)."""
+    ident = (jarvis_profils.actif() or "") if ident is None else ident
     with _verrou:
         messages = _lire(FICHIER_MESSAGES, [])
         pour_moi = [x for x in messages if x.get("pour") == ident]

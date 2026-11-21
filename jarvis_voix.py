@@ -145,20 +145,43 @@ _cache = {}         # phrase -> son déjà prêt
 VARIATION_VOIX = True    # chaque phrase prend un ton et un rythme très légèrement différents : plus naturel
 
 
+# En mode enfant, Jarvis parle avec une voix d'enfant : Eloise, une petite fille (hauteur mesurée vers 314 Hz,
+# contre 205 Hz pour Denise et 130 Hz pour Henri). Il n'y a pas de voix de petit garçon en français.
+VOIX_ENFANT = "fr-FR-EloiseNeural"
+VOIX_ENFANT_ACTIVE = True       # False : le mode enfant garde la voix habituelle
+
+
+def voix_enfant_active():
+    """Vrai quand le mode enfant est en marche sur le PC (et que la voix d'enfant n'a pas été coupée)."""
+    if not VOIX_ENFANT_ACTIVE:
+        return False
+    try:
+        import jarvis_enfant
+        return jarvis_enfant.actif()
+    except Exception:
+        return False
+
+
+def voix_du_moment():
+    return VOIX_ENFANT if voix_enfant_active() else VOIX
+
+
 async def _generer(texte, fichier, varier=False, voix=None):
     vitesse, hauteur = VITESSE, "+0Hz"
     if varier and VARIATION_VOIX:
         vitesse = f"{int(VITESSE.rstrip('%')) + random.choice((-3, 0, 0, 3)):+d}%"
         hauteur = random.choice(("-2Hz", "+0Hz", "+0Hz", "+2Hz"))
-    await edge_tts.Communicate(texte, voix or VOIX, rate=vitesse, pitch=hauteur).save(fichier)
+    await edge_tts.Communicate(texte, voix or voix_du_moment(), rate=vitesse, pitch=hauteur).save(fichier)
 
 
 # ----- Histoires à deux voix : les répliques écrites entre ⟨ et ⟩ sont dites avec l'autre voix -----
 OUVRE_AUTRE_VOIX, FERME_AUTRE_VOIX = "⟨", "⟩"
 
 
-def autre_voix():
-    """La voix de l'autre personnage : Denise si Jarvis parle avec Henri, Henri sinon."""
+def autre_voix(enfant=None):
+    """La voix de l'autre personnage : Denise si Jarvis parle avec Henri, Henri sinon (et Henri face à la voix d'enfant)."""
+    if voix_enfant_active() if enfant is None else enfant:
+        return VOIXS["henri"]
     return VOIXS["denise"] if VOIX == VOIXS["henri"] else VOIXS["henri"]
 
 
@@ -365,7 +388,7 @@ def speak(texte, interruption=None, toujours=False):
     if av is None or sd is None:
         voix_windows(texte)
         return False
-    if texte in _cache:
+    if texte in _cache and not voix_enfant_active():   # les phrases préparées sont dans la voix habituelle
         try:
             return _jouer_echantillons(_cache[texte], interruption=interruption)
         except Exception as erreur:

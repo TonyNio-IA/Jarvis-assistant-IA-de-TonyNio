@@ -45,6 +45,37 @@ ANDROID = trouver(os.path.join(OUTILS, "platforms", "android-*", "android.jar"),
 ENV = dict(os.environ, JAVA_HOME=JDK, PATH=os.path.join(JDK, "bin") + os.pathsep + os.environ.get("PATH", ""))
 
 
+# Le moteur qui fait tourner le détecteur du mot « Jarvis » dans la tablette (ONNX Runtime, licence MIT), pris une fois
+# sur Maven Central et gardé dans android-tools\onnx. Seules les tablettes ARM sont servies (32 et 64 bits).
+ONNX_VERSION = "1.22.0"
+ONNX_ADRESSE = ("https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/"
+                f"{ONNX_VERSION}/onnxruntime-android-{ONNX_VERSION}.aar")
+ONNX = os.path.join(OUTILS, "onnx", "ort-android.aar")
+PROCESSEURS = ("arm64-v8a", "armeabi-v7a")
+
+
+def moteur_onnx():
+    """Renvoie (classes.jar du moteur, [(nom dans l'application, octets)] de ses bibliothèques)."""
+    if not os.path.exists(ONNX):
+        import urllib.request
+        os.makedirs(os.path.dirname(ONNX), exist_ok=True)
+        print("Téléchargement d'ONNX Runtime", ONNX_VERSION, "…")
+        urllib.request.urlretrieve(ONNX_ADRESSE, ONNX + ".recu")
+        os.replace(ONNX + ".recu", ONNX)
+    bibliotheques = []
+    with zipfile.ZipFile(ONNX) as archive:
+        classes = os.path.join(TRAVAIL, "onnx-classes.jar")
+        with open(classes, "wb") as f:
+            f.write(archive.read("classes.jar"))
+        for nom in archive.namelist():
+            morceaux = nom.split("/")
+            if len(morceaux) == 3 and morceaux[0] == "jni" and morceaux[1] in PROCESSEURS and nom.endswith(".so"):
+                bibliotheques.append((f"lib/{morceaux[1]}/{morceaux[2]}", archive.read(nom)))
+    if len(bibliotheques) < 2 * len(PROCESSEURS):
+        sys.exit("ONNX Runtime : bibliothèques introuvables dans " + ONNX)
+    return classes, bibliotheques
+
+
 def lancer(*commande):
     resultat = subprocess.run(list(commande), env=ENV, capture_output=True, text=True, encoding="utf-8", errors="replace")
     sortie = (resultat.stdout + resultat.stderr).strip()
@@ -65,23 +96,6 @@ def png(pixels):
             + bloc(b"IDAT", zlib.compress(lignes, 9)) + bloc(b"IEND", b""))
 
 
-def icone(taille, echelle, fond):
-    """Le réacteur de Jarvis. echelle : place prise par l'anneau ; fond : avec le fond sombre, ou transparent."""
-    import numpy as np
-    y, x = np.mgrid[0:taille, 0:taille]
-    d = np.hypot(x - taille / 2 + 0.5, y - taille / 2 + 0.5) / (taille / 2) / echelle
-    force = (np.clip(1 - np.abs(d - 0.62) / 0.07, 0, 1) + np.clip(1 - d / 0.2, 0, 1)
-             + 0.25 * np.clip(1 - np.abs(d - 0.62) / 0.25, 0, 1))
-    force = np.clip(force, 0, 1)[..., None]
-    if fond:
-        couleur = np.array((5, 9, 14)) * (1 - force) + np.array((79, 242, 220)) * force
-        alpha = np.full((taille, taille, 1), 255.0)
-    else:
-        couleur = np.broadcast_to(np.array((79.0, 242.0, 220.0)), (taille, taille, 3))
-        alpha = force * 255
-    return png(np.concatenate((couleur, alpha), axis=2).astype(np.uint8))
-
-
 def main():
     with open(os.path.join(ICI, "version.json"), encoding="utf-8") as f:
         version = json.load(f)
@@ -92,11 +106,17 @@ def main():
     # 1. Les ressources (avec l'icône, dessinée ici) et le manifeste
     res = os.path.join(TRAVAIL, "res")
     shutil.copytree(os.path.join(ICI, "res"), res)
+    import dessin                                     # le réacteur dessiné (android\dessin.py)
     os.makedirs(os.path.join(res, "mipmap-xxxhdpi"))
     with open(os.path.join(res, "mipmap-xxxhdpi", "ic_avant.png"), "wb") as f:
-        f.write(icone(432, 0.58, fond=False))         # l'anneau tient dans la zone toujours visible de l'icône
+        f.write(png(dessin.octets(dessin.reacteur(432, 0.6))))     # tient dans la zone toujours visible de l'icône
+    with open(os.path.join(res, "mipmap-xxxhdpi", "ic_fond.png"), "wb") as f:
+        f.write(png(dessin.octets(dessin.fond_icone(432))))
     with open(os.path.join(res, "mipmap-xxxhdpi", "ic_launcher.png"), "wb") as f:
-        f.write(icone(192, 1.0, fond=True))
+        f.write(png(dessin.octets(dessin.reacteur(192, 0.82, "disque"))))
+    os.makedirs(os.path.join(res, "drawable-nodpi"))
+    with open(os.path.join(res, "drawable-nodpi", "widget_rond.png"), "wb") as f:
+        f.write(png(dessin.octets(dessin.reacteur(512, 0.82, "disque"))))
     with open(os.path.join(ICI, "AndroidManifest.xml"), encoding="utf-8") as f:
         manifeste = f.read().replace("@CODE@", code).replace("@NOM@", nom)
     chemin_manifeste = os.path.join(TRAVAIL, "AndroidManifest.xml")
@@ -113,13 +133,14 @@ def main():
         + glob.glob(os.path.join(TRAVAIL, "gen", "**", "*.java"), recursive=True)
     classes = os.path.join(TRAVAIL, "classes")
     os.makedirs(classes)
+    onnx_classes, bibliotheques = moteur_onnx()
     avis = lancer(os.path.join(JDK, "bin", "javac.exe"), "-encoding", "UTF-8", "-source", "11", "-target", "11",
-                  "-Xlint:-options", "-classpath", ANDROID, "-d", classes, *sources)
+                  "-Xlint:-options", "-classpath", ANDROID + os.pathsep + onnx_classes, "-d", classes, *sources)
     if avis:
         print(avis)
     lancer(os.path.join(JDK, "bin", "jar.exe"), "cf", os.path.join(TRAVAIL, "classes.jar"), "-C", classes, ".")
     lancer(os.path.join(OUTILS_SDK, "d8.bat"), "--release", "--lib", ANDROID, "--min-api", MIN_SDK,
-           "--output", TRAVAIL, os.path.join(TRAVAIL, "classes.jar"))
+           "--output", TRAVAIL, os.path.join(TRAVAIL, "classes.jar"), onnx_classes)
 
     # 3. L'assemblage : les ressources telles qu'aapt2 les a rangées, plus le code
     brut = os.path.join(TRAVAIL, "brut.apk")
@@ -127,6 +148,8 @@ def main():
         for element in entree.infolist():
             sortie.writestr(element, entree.read(element.filename), compress_type=element.compress_type)
         sortie.write(os.path.join(TRAVAIL, "classes.dex"), "classes.dex", compress_type=zipfile.ZIP_DEFLATED)
+        for place, octets in bibliotheques:           # compressées : Android les déballe à l'installation
+            sortie.writestr(place, octets, compress_type=zipfile.ZIP_DEFLATED)
     aligne = os.path.join(TRAVAIL, "aligne.apk")
     lancer(os.path.join(OUTILS_SDK, "zipalign.exe"), "-f", "-p", "4", brut, aligne)
 

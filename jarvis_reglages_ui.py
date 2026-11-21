@@ -331,7 +331,7 @@ AIDE = [
     ("Mémoire", "« retiens que… », « qu'est-ce que tu as retenu ? », « oublie que… »", ""),
     ("Modes", "« active le mode nuit »", "Réponses écrites, sans voix ni bip (les rappels sonnent)."),
     ("Modes", "« active le mode cinéma », « active le mode invité »", ""),
-    ("Modes", "« mets le réacteur en bleu »", "Thèmes : Vice City, Iron Man, Océan, Forêt, bleu, vert, rouge, violet, orange."),
+    ("Modes", "« mets le réacteur en bleu »", "Thèmes : Vice City, Iron Man, Océan, Forêt, Aurore, Galaxie, bleu, vert, rouge, violet, orange."),
     ("Voix", "« prends une voix de femme », « parle plus vite »", ""),
     ("Mails", "« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails »", "Sur le profil principal."),
     ("Mails", "« envoie un mail à Marie pour lui dire que… », « envoie-moi un mail pour me rappeler de… »",
@@ -468,6 +468,7 @@ def _construire():
         pass
 
     accent = {"c": _couleurs_theme()[0]}
+    survol = {"p": None, "nom": ""}       # thème survolé : l'aperçu le montre avant qu'on clique
 
     # --- En-tête : titre et ligne lumineuse animée ---
     entete = tk.Canvas(racine, height=px(74), bg=FOND, highlightthickness=0)
@@ -519,7 +520,8 @@ def _construire():
         tk.Label(page, text=texte.upper(), bg=PANNEAU, fg=accent["c"], font=("Segoe UI Semibold", 9)).pack(anchor="w", padx=22, pady=(16, 4))
 
     def ligne():
-        cadre = tk.Frame(page, bg=PANNEAU2, highlightthickness=0)
+        # chaque réglage est une petite carte, avec un fin contour
+        cadre = tk.Frame(page, bg=PANNEAU2, highlightthickness=1, highlightbackground="#1b2838")
         cadre.pack(fill="x", padx=18, pady=3)
         return cadre
 
@@ -610,17 +612,31 @@ def _construire():
             theme_actuel = "vice city"
         for i, (nom, palette) in enumerate(jarvis_extras.PALETTES.items()):
             tuile = tk.Canvas(cadre, width=px(112), height=px(58), bg=PANNEAU, highlightthickness=0, cursor="hand2")
-            for j, couleur in enumerate(palette):
-                tuile.create_rectangle(px(6 + j * 33), px(6), px(6 + (j + 1) * 33), px(36), fill=couleur, outline="")
+            # une bande arrondie en dégradé, qui passe par les couleurs du thème
+            x0, x1, y0, y1, rb = px(6), px(106), px(6), px(36), px(8)
+            cols = [_rgb(c) for c in palette]
+            for x in range(x0, x1):
+                p = (x - x0) / max(1, x1 - x0 - 1) * (len(cols) - 1)
+                a, b = cols[int(p)], cols[min(len(cols) - 1, int(p) + 1)]
+                coupe = 0
+                if x < x0 + rb:
+                    coupe = rb - math.sqrt(max(0.0, rb * rb - (x0 + rb - x) ** 2))
+                elif x > x1 - rb:
+                    coupe = rb - math.sqrt(max(0.0, rb * rb - (x - (x1 - rb)) ** 2))
+                tuile.create_line(x, y0 + coupe, x, y1 - coupe, fill=_hex(_melange(a, b, p - int(p))))
             tuile.create_text(px(56), px(47), text=nom.title(), fill=TEXTE if nom != theme_actuel else palette[0], font=("Segoe UI", 9))
             if nom == theme_actuel:
                 tuile.create_rectangle(px(2), px(2), px(110), px(56), outline=palette[0], width=2)
 
             def choisir(_=None, n=nom):
+                survol["p"] = None
                 jarvis_extras.choisir_couleur(n)
                 accent["c"] = _couleurs_theme()[0]
                 page_apparence()
             tuile.bind("<Button-1>", choisir)
+            # au survol, l'aperçu à droite prend ce thème (sans rien changer tant qu'on ne clique pas)
+            tuile.bind("<Enter>", lambda e, p=palette, n=nom: survol.update(p=list(p), nom=n))
+            tuile.bind("<Leave>", lambda e: survol.update(p=None))
             tuile.grid(row=i // 4, column=i % 4, padx=4, pady=4)
         for groupe, cles in (("Couleurs", ("cycle",)),
                              ("Reflets lumineux", ("vitesse_reflet", "longueur_reflet", "nb_reflets", "reflet_reacteur", "tour_reacteur")),
@@ -975,16 +991,32 @@ def _construire():
              ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("À propos", page_a_propos)]
     onglets = {}
 
+    # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
+    icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
+              "Historique": "", "Santé": "", "Système": "", "À propos": ""}
+
     def montrer(nom, fonction):
-        for n, b in onglets.items():
-            b.configure(fg=TEXTE if n == nom else DISCRET, bg=PANNEAU2 if n == nom else FOND)
+        for n, (ligne_menu, trait, ic, lib) in onglets.items():
+            actif = n == nom
+            fond = PANNEAU2 if actif else FOND
+            for w in (ligne_menu, ic, lib):
+                w.configure(bg=fond)
+            trait.configure(bg=accent["c"] if actif else FOND)
+            ic.configure(fg=accent["c"] if actif else DISCRET)
+            lib.configure(fg=TEXTE if actif else DISCRET)
         fonction()
     for nom, fonction in pages:
-        b = tk.Label(menu, text="   " + nom, anchor="w", bg=FOND, fg=DISCRET, font=("Segoe UI", 11), padx=8, pady=8,
-                     cursor="hand2", width=14)
-        b.bind("<Button-1>", lambda e, n=nom, f=fonction: montrer(n, f))
-        b.pack(fill="x", pady=1)
-        onglets[nom] = b
+        ligne_menu = tk.Frame(menu, bg=FOND, cursor="hand2")
+        trait = tk.Frame(ligne_menu, bg=FOND, width=px(3))
+        trait.pack(side="left", fill="y")
+        ic = tk.Label(ligne_menu, text=icones.get(nom, ""), bg=FOND, fg=DISCRET, font=("Segoe MDL2 Assets", 12), width=2, pady=8)
+        ic.pack(side="left", padx=(10, 4))
+        lib = tk.Label(ligne_menu, text=nom, anchor="w", bg=FOND, fg=DISCRET, font=("Segoe UI", 11), width=11, pady=8)
+        lib.pack(side="left", fill="x", expand=True)
+        for w in (ligne_menu, ic, lib):
+            w.bind("<Button-1>", lambda e, n=nom, f=fonction: montrer(n, f))
+        ligne_menu.pack(fill="x", pady=1)
+        onglets[nom] = (ligne_menu, trait, ic, lib)
 
     # --- Animation : ligne lumineuse de l'en-tête et aperçu du réacteur ---
     debut = time.time()
@@ -996,7 +1028,7 @@ def _construire():
             racine.lift()
             racine.focus_force()
         t = time.time() - debut
-        palette = _couleurs_theme()
+        palette = survol["p"] or _couleurs_theme()
         m = _module("reacteur")
         cycle = max(1.0, float(getattr(m, "CYCLE_VEILLE", 12) if m else 12))
         couleur = _degrade(palette, t / cycle)
@@ -1020,9 +1052,21 @@ def _construire():
             c = _hex(_melange((5, 9, 14), _degrade(palette, t / cycle + k / 36 * len(palette)), 0.35 + 0.5 * niveau))
             apercu.create_line(cx + (r + px(14)) * math.cos(ang), cy + (r + px(14)) * math.sin(ang),
                                cx + (r + px(18 + 8 * niveau)) * math.cos(ang), cy + (r + px(18 + 8 * niveau)) * math.sin(ang), fill=c, width=2)
-        for i in range(5):
-            rr = r * (0.55 + 0.1 * i) * (1 + 0.03 * math.sin(t * 2 + i))
-            apercu.create_oval(cx - rr, cy - rr, cx + rr, cy + rr, outline=_hex(_melange((5, 9, 14), couleur, 0.35 + 0.12 * i)), width=1)
+        # le disque sombre, puis des filaments qui ondulent comme sur le vrai réacteur
+        apercu.create_oval(cx - r, cy - r, cx + r, cy + r, fill=_hex(_melange((5, 9, 14), couleur, 0.12)), outline="")
+        for i in range(6):
+            base = r * (0.72 + 0.045 * i)
+            pts = []
+            for k in range(73):
+                ang = k * math.pi / 36
+                rr = base * (1 + 0.035 * math.sin(3 * ang + t * (0.8 + 0.15 * i) + i)
+                             + 0.025 * math.sin(5 * ang - t * (0.6 + 0.1 * i) + 2 * i))
+                pts += [cx + rr * math.cos(ang), cy + rr * math.sin(ang)]
+            c_fil = _degrade(palette, t / cycle + i / 6 * len(palette))
+            apercu.create_line(*pts, fill=_hex(_melange((5, 9, 14), c_fil, 0.45 + 0.08 * i)), width=1, smooth=True)
+        for i in range(3):
+            rr = r * (0.3 + 0.1 * i) * (1 + 0.03 * math.sin(t * 2 + i))
+            apercu.create_oval(cx - rr, cy - rr, cx + rr, cy + rr, outline=_hex(_melange((5, 9, 14), couleur, 0.25 + 0.1 * i)), width=1)
         apercu.create_oval(cx - r, cy - r, cx + r, cy + r, outline=_hex(_melange((5, 9, 14), couleur, 0.6)), width=2)
         nb = int(getattr(a, "NB_REFLETS", 2)) if a else 2
         tour = float(getattr(a, "TOUR_REFLET_REACTEUR", 7.0)) if a else 7.0
@@ -1032,8 +1076,9 @@ def _construire():
                 apercu.create_arc(cx - r, cy - r, cx + r, cy + r, start=-depart, extent=45, style="arc",
                                   outline=_hex(_melange(couleur, (255, 255, 255), 0.55)), width=3)
         apercu.create_oval(cx - px(16), cy - px(16), cx + px(16), cy + px(16), fill=_hex(_melange((5, 9, 14), couleur, 0.85)), outline="")
-        apercu.create_text(px(115), px(260), text=" · ".join(n.title() for n, p in jarvis_extras.PALETTES.items() if list(p) == palette) or "",
-                           fill=DISCRET, font=("Segoe UI", 9))
+        nom_theme = (survol["nom"].title() + " (survol)") if survol["p"] else \
+            " · ".join(n.title() for n, p in jarvis_extras.PALETTES.items() if [c.lower() for c in p] == [c.lower() for c in palette])
+        apercu.create_text(px(115), px(260), text=nom_theme or "", fill=DISCRET, font=("Segoe UI", 9))
         racine.after(40, animer)
 
     montrer("Apparence", page_apparence)

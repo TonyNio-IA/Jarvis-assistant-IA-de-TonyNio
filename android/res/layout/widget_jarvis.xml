@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le rond du réacteur, qui prend toute la place de la case (sans se déformer) ; redessiné aux couleurs du profil -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_jarvis"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="Jarvis"
+        android:scaleType="fitCenter"
+        android:src="@drawable/widget_rond" />
+</FrameLayout>

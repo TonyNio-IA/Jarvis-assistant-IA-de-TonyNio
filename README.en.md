@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.28**
+**Français : [README.md](README.md)** · **Current version: 1.29**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -23,7 +23,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 <img src="docs/reglages_aide.png" alt="Settings: every command, with search" width="49%">
 </p>
 
-- **Apparence** (appearance): ready-made themes (Vice City, Iron Man, Ocean, Forest...), reflections, mouse tracking, dancing to music, compact mode, gauges, position and size.
+- **Apparence** (appearance): ready-made themes (Vice City, Iron Man, Ocean, Forest, Aurora, Galaxy...), a preview of a theme just by hovering it, reflections, mouse tracking, dancing to music, compact mode, gauges, position and size.
 - **Son** (sound): beeps, male or female voice, speed, microphone and wake-word sensitivity, French-only videos for kids.
 - **Alertes, Profils, Historique**: weather alerts, household members, the latest requests and answers.
 - **Aide** (help): every command by theme, with search.
@@ -31,9 +31,34 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
-## New in 1.28: Jarvis on the tablet
+## New in 1.29: a new look, and the tablet for children
 
-<p align="center"><img src="docs/tablette.png" alt="Jarvis on a tablet: home, choosing a profile, code, settings, colours" width="90%"></p>
+<p align="center"><img src="docs/tablette.png" alt="Jarvis on the tablet: standby, answer, sums workshop, guess the animal, settings, themes" width="100%"></p>
+
+**On the tablet** (app 1.15):
+- **A redesigned reactor**, close to the PC one, that follows Jarvis's voice while he speaks; the app lightens itself automatically on a slower tablet.
+- **Say "Jarvis"**, a beep shows he is listening, then speak (tapping the circle still works). Voice wake-up uses the PC's wake-word detector, if there is one.
+- **Workshops for children**: sums, "how do you spell…", dictation, guess the animal, telling the time. One star per right answer, a reward every 10, and questions that adapt: harder after a good streak, easier after two misses.
+- **A child's voice** for Jarvis on children's profiles.
+- **Timers, reminders and calendar events** shown with a countdown.
+- **Messages between profiles** ("tell Léa I'll be late") also delivered on the tablets, and "répète" to hear the last answer again.
+- **Settings sorted into sections**, new themes (Paillettes, Récré, Aurora, Galaxy) or three colours of your choice, and a "What can I ask?" page with examples.
+- **A home-screen widget** in the profile's colours, and the battery: "Pense à recharger ta tablette" at 15 %.
+- **Faster answers**: sentences already spoken are kept, and the voice starts before the end of a long answer.
+
+**On the PC**:
+
+<p align="center">
+<img src="docs/pc_reacteur.png" alt="The PC reactor: chat, weather, time and gauges with their history" width="40%">
+<img src="docs/pc_menu.png" alt="The new right-click menu, in the reactor's colours" width="40%">
+</p>
+
+- **A modernised panel**: status dot, weather and time, slim gauges with a two-minute history curve, and the tablets' status (battery).
+- **A new right-click menu** in the reactor's colours, with **"Couper le micro"** (mute the microphone, also by voice: "Jarvis, coupe le micro"); a badge on the reactor shows it.
+- **The reactor lights up layer by layer** at start-up; a ringing reminder shows in a pill; after a restart, Jarvis simply writes "Je redémarre." without saying it.
+- **Modernised settings**: icons, cards, gradient themes, a reactor preview with its filaments. And a **new icon**.
+
+## New in 1.28: Jarvis on the tablet
 
 - **An Android app** (Android 8 to 16): the QR-code page offers it; it installs without the Play Store and updates from the tablet (settings wheel, « Mise à jour »).
 - **Always listening**: say « Jarvis, quelle heure est-il ? » without touching the tablet. Your sentence is shown, then replaced by the answer, as on the PC. It can be turned off in the settings wheel; while it is on, the screen stays on.
@@ -265,7 +290,8 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |
 | `jarvis_ps5.py`, `jarvis_associer_ps5.py` | The PlayStation 5: status, turning on and rest mode; the window to link it once |
 | `jarvis_tablette.py` | Jarvis on the home tablets: the page served by the PC (HTTPS, secret key), profiles, codes and colours, always-on listening, apps and searches without Claude, history |
-| `android/` | The Android app source (a window on Jarvis's page, with the microphone, opening apps and updates); `construire.py` builds it without Android Studio |
+| `jarvis_ateliers.py` | The children's workshops on the tablet (sums, words, dictation, animals, time), stars and the adaptive level |
+| `android/` | The Android app source (a window on Jarvis's page, with the microphone, the wake word, the widget, opening apps and updates); `construire.py` builds it without Android Studio, `dessin.py` draws its icon and `icone_pc.py` the PC one |
 | `docs/Jarvis-tablette.apk` | The ready-made Android app the PC offers to tablets |
 | `requirements-ps5.txt` | The PlayStation 5 modules, installed separately by the installer (setup goes on if they fail) |
 | `jarvis_associer_tele.py`, `jarvis_associer_appletv.py`, `jarvis_ajouter_camera.py` | Pairing windows (« associe la télé », « associe l'Apple TV », « ajoute les caméras ») |

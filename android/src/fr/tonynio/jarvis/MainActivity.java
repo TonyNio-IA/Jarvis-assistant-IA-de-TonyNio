@@ -8,9 +8,11 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.net.Uri;
 import android.net.http.SslCertificate;
@@ -107,6 +109,19 @@ public class MainActivity extends Activity {
     private volatile double facteurVoix = 4, seuilMini = 0.004;
     private volatile boolean bilans;         // pendant un réglage du micro : les niveaux mesurés sont envoyés au journal du PC
     private volatile int silenceVeille = 800, silenceRond = 1000;
+    // Le mot « Jarvis » reconnu par la tablette elle-même (modèles pris sur le PC relié). Sans lui : le PC décide, phrase par phrase
+    private volatile MotAppel detecteur;
+    private volatile float seuilMot = 0.5f;
+    private volatile boolean chargementMot;
+    private volatile String empreinteMot = "";
+    private volatile long echecMot;
+    private volatile long sourdJusqua;       // pendant le bip de réveil : ce n'est pas une voix
+    private volatile int volumeSons = 100;   // le volume réglé dans la page (0 à 100)
+    private volatile boolean sonsCoupes;     // mode silencieux ou mode nuit : pas de bip
+    private short[] sonReveil, sonFin, sonSonnerie;
+    private volatile boolean parole;         // Jarvis parle : « Jarvis » lui coupe la parole (le reste n'est pas écouté)
+    // Pendant qu'il parle, sa propre voix couvre la tienne : un seuil un peu plus haut qu'au repos (0,8 était trop exigeant)
+    private static final float SEUIL_PAROLE = 0.7f;
 
     private final Runnable nouvelEssai = new Runnable() {
         @Override
@@ -573,8 +588,141 @@ public class MainActivity extends Activity {
         }
         ordre = 0;
         debutDirect = System.currentTimeMillis();
+        sourdJusqua = debutDirect + DUREE_BIP;
+        sonner(true);                                         // comme sur le PC : un bip, et Jarvis écoute
         direct = true;
         reglerEcoute();
+    }
+
+    // ---------- Les deux petits sons du PC : le bip de réveil (deux notes qui montent) et « j'ai entendu » (deux notes qui descendent) ----------
+
+    // Le bip (0,22 s), le temps qu'Android le lance et son écho dans la pièce : pendant ce temps, le son est gardé
+    // (le début d'une demande dite aussitôt n'est pas perdu) mais ne compte pas comme une voix
+    private static final int DUREE_BIP = 450;
+
+    private static short[] notes(double[][] partition, double volume, boolean eteint) {
+        int total = 0;
+        for (double[] note : partition) {
+            total += (int) (44100 * note[1]);
+        }
+        short[] son = new short[total + 2205];                // un peu de silence à la fin : le son n'est pas coupé net
+        int place = 0;
+        for (double[] note : partition) {
+            int nombre = (int) (44100 * note[1]);
+            for (int i = 0; i < nombre; i++) {
+                double t = i / 44100.0;
+                double enveloppe = eteint ? Math.min(1, t / 0.005) * Math.exp(-t * 22)
+                        : Math.min(1, Math.min(t / 0.008, (note[1] - t) / 0.03));
+                son[place++] = (short) (32767 * volume * Math.sin(2 * Math.PI * note[0] * t) * enveloppe);
+            }
+        }
+        return son;
+    }
+
+    private void sonner(boolean reveil) {
+        if (sonsCoupes || volumeSons <= 0) {
+            return;
+        }
+        jouer(reveil ? 0 : 1, volumeSons);
+    }
+
+    /** genre : 0 le bip de réveil, 1 « j'ai entendu », 2 la sonnerie d'un minuteur (elle sonne même en mode silencieux). */
+    private void jouer(int genre, int volume) {
+        try {
+            if (sonReveil == null) {                          // les mêmes notes et le même volume que sur le PC
+                sonReveil = notes(new double[][]{{880, 0.09}, {1320, 0.13}}, 0.4, false);
+                sonFin = notes(new double[][]{{988, 0.05}, {659, 0.09}}, 0.4 * 0.56, true);
+                sonSonnerie = notes(new double[][]{{1319, 0.13}, {1047, 0.13}, {1319, 0.13}, {1047, 0.13}, {1319, 0.13}, {1047, 0.2}}, 0.5, false);
+            }
+            short[] son = genre == 0 ? sonReveil : genre == 1 ? sonFin : sonSonnerie;
+            final int volumeSons = volume;
+            final AudioTrack piste = new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                    .setAudioFormat(new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(44100).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setBufferSizeInBytes(son.length * 2).setTransferMode(AudioTrack.MODE_STATIC).build();
+            piste.write(son, 0, son.length);
+            piste.setVolume(Math.min(1f, volumeSons / 100f));
+            piste.play();
+            mains.postDelayed(piste::release, 600 + son.length / 44);
+        } catch (Exception erreur) {
+            // pas de son : l'animation du rond suffit
+        }
+    }
+
+    // ---------- Le mot « Jarvis » : les modèles sont pris sur le PC relié, puis la tablette écoute seule ----------
+
+    private HttpsURLConnection liaison(String chemin) throws Exception {
+        HttpsURLConnection liaison = (HttpsURLConnection) new URL("https://" + hote() + chemin).openConnection();
+        liaison.setSSLSocketFactory(liaisonSure());
+        liaison.setHostnameVerifier(new HostnameVerifier() {
+            @Override
+            public boolean verify(String nom, SSLSession s) {
+                return true;                                  // le PC est reconnu à sa clé (liaisonSure), pas à son nom
+            }
+        });
+        liaison.setRequestProperty("X-Jarvis-Cle", reglages.getString("cle", ""));
+        liaison.setConnectTimeout(10000);
+        liaison.setReadTimeout(30000);
+        return liaison;
+    }
+
+    private void recevoirFichier(String chemin, File fichier) throws Exception {
+        File provisoire = new File(fichier.getPath() + ".recu");
+        HttpsURLConnection liaison = liaison(chemin);
+        try (InputStream entree = liaison.getInputStream(); OutputStream sortie = new FileOutputStream(provisoire)) {
+            byte[] tampon = new byte[65536];
+            int lus;
+            while ((lus = entree.read(tampon)) > 0) {
+                sortie.write(tampon, 0, lus);
+            }
+        }
+        if (provisoire.length() < 1000 || !provisoire.renameTo(fichier)) {
+            throw new java.io.IOException("fichier incomplet");
+        }
+    }
+
+    /** voulue : l'empreinte des modèles du PC (vide : ce PC n'a pas de détecteur, la tablette fait sans). */
+    private void preparerMot(final String voulue) {
+        if (voulue.isEmpty()) {
+            detecteur = null;
+            empreinteMot = "";
+            return;
+        }
+        if (chargementMot || (detecteur != null && voulue.equals(empreinteMot))
+                || (voulue.equals(empreinteMot) && System.currentTimeMillis() - echecMot < 600000)) {
+            return;                                           // déjà prêt, en cours, ou raté il y a moins de dix minutes
+        }
+        chargementMot = true;
+        empreinteMot = voulue;
+        new Thread(() -> {
+            try {
+                File dossier = new File(getFilesDir(), "mot_appel");
+                boolean complet = voulue.equals(reglages.getString("mot_appel", ""));
+                for (String nom : MotAppel.FICHIERS) {
+                    complet &= new File(dossier, nom).length() > 1000;
+                }
+                if (!complet) {
+                    dossier.mkdirs();
+                    for (String nom : MotAppel.FICHIERS) {
+                        recevoirFichier("/motappel/" + nom, new File(dossier, nom));
+                    }
+                    reglages.edit().putString("mot_appel", voulue).apply();
+                }
+                long debut = System.currentTimeMillis();
+                detecteur = new MotAppel(dossier);            // l'ancien, s'il y en avait un, est laissé au ramasse-miettes
+                echecMot = 0;
+                noter("mot d'appel : détecteur prêt dans la tablette (" + (System.currentTimeMillis() - debut) + " ms)");
+            } catch (Throwable erreur) {
+                detecteur = null;
+                echecMot = System.currentTimeMillis();
+                reglages.edit().remove("mot_appel").apply();
+                noter("mot d'appel : indisponible dans la tablette (" + erreur + ")");
+            } finally {
+                chargementMot = false;
+            }
+        }).start();
     }
 
     private void arreterEcoute(boolean envoyer) {
@@ -605,6 +753,7 @@ public class MainActivity extends Activity {
     private class Ecoute extends Thread {
         volatile boolean tourne = true, fini;
         private boolean panne;
+        private android.media.audiofx.AcousticEchoCanceler antiEcho;
 
         @Override
         public void run() {
@@ -625,6 +774,19 @@ public class MainActivity extends Activity {
                 } catch (Exception erreur) {
                     gain = "gain automatique impossible";
                 }
+                try {                                                        // l'anti-écho retire du micro la voix de Jarvis lui-même :
+                    if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {   // on l'entend mieux dire « Jarvis » pendant qu'il parle
+                        antiEcho = android.media.audiofx.AcousticEchoCanceler.create(micro.getAudioSessionId());
+                        if (antiEcho != null) {
+                            antiEcho.setEnabled(true);
+                            gain += ", anti-écho " + (antiEcho.getEnabled() ? "activé" : "refusé");
+                        }
+                    } else {
+                        gain += ", pas d'anti-écho";
+                    }
+                } catch (Exception erreur) {
+                    gain += ", anti-écho impossible";
+                }
                 micro.startRecording();
                 noter(gain);
                 noter("micro ouvert (source " + sourceMicro + ", état " + micro.getState() + ", enregistrement " + micro.getRecordingState() + ")");
@@ -638,6 +800,15 @@ public class MainActivity extends Activity {
                 int deSuite = 0;
                 long dernierSon = 0, debutPhrase = 0, voixCumulee = 0;
                 boolean etaitDirect = false;
+                MotAppel motVu = null;                                       // le détecteur de « Jarvis » en service
+                boolean motPret = false, tempsDit = false;
+                long tempsMot = 0;
+                int blocsMot = 0;
+                float noteHaute = 0;
+                long dernierBruit = 0;
+                boolean enCoupure = false;
+                float noteParole = 0;
+                java.util.ArrayDeque<short[]> calme = new java.util.ArrayDeque<>();   // le son d'avant le premier bruit
                 while (tourne && (veille || direct)) {
                     int lus = micro.read(bloc, 0, bloc.length);
                     if (lus <= 0) {
@@ -658,27 +829,105 @@ public class MainActivity extends Activity {
                         phrase = null;                                       // on vient de toucher le rond : on repart de zéro
                     }
                     etaitDirect = enDirect;
-                    if (phrase == null && (enDirect || attentif)) {
+                    boolean sourd = enDirect && maintenant < sourdJusqua;    // le bip de réveil sonne : ce n'est pas quelqu'un qui parle
+                    if (enDirect) {
+                        motPret = false;
+                    }
+                    if (phrase == null && (enDirect || attentif) && !sourd) {
                         plancher = plancher < 0 || niveau < plancher ? niveau : plancher * 0.98 + niveau * 0.02;   // bruit de la pièce
                     }
                     // le micro d'une tablette est faible : le seuil suit surtout le bruit de la pièce
                     double seuil = Math.max(seuilMini, plancher * facteurVoix);
-                    boolean voix = niveau > seuil;
+                    boolean voix = niveau > seuil && !sourd;
                     plusFort = Math.max(plusFort, niveau);
                     if (maintenant - dernierBilan > 15000) {
-                        if (bilans) noter(String.format(java.util.Locale.US, "micro : niveau le plus fort %.4f, bruit %.4f, seuil %.4f, phrases envoyées %d",
-                                plusFort, plancher, seuil, envoyees));
+                        if (bilans) noter(String.format(java.util.Locale.US, "micro : niveau le plus fort %.4f, bruit %.4f, seuil %.4f, phrases envoyées %d"
+                                        + (motVu == null ? ", sans détecteur" : ", mot d'appel : note la plus haute %.2f, %.1f ms par bloc"),
+                                plusFort, plancher, seuil, envoyees, noteHaute, blocsMot == 0 ? 0.0 : tempsMot / 1e6 / blocsMot));
                         plusFort = 0;
+                        noteHaute = 0;
                         dernierBilan = maintenant;
                     }
                     if (enDirect) {
                         final double montre = Math.min(1.0, niveau * 8);
                         mains.post(() -> vue.evaluateJavascript("window.jarvisNiveau&&window.jarvisNiveau(" + montre + ")", null));
                     }
-                    if (!enDirect && (!attentif || maintenant - attentifDepuis < 400)) {
+                    MotAppel mot = detecteur;
+                    boolean coupure = parole && !attentif && mot != null;    // Jarvis parle : seul « Jarvis » est guetté, pour lui couper la parole
+                    if (enCoupure && !coupure) {                             // fin de sa réponse : la note la plus haute, pour régler le seuil
+                        noter(String.format(java.util.Locale.US, "mot d'appel pendant la réponse : note la plus haute %.2f (seuil %.2f)",
+                                noteParole, Math.max(seuilMot, SEUIL_PAROLE)));
+                    }
+                    if (coupure && !enCoupure) {
+                        noteParole = 0;
+                    }
+                    enCoupure = coupure;
+                    if (!enDirect && !coupure && (!attentif || maintenant - attentifDepuis < 400)) {
                         phrase = null;                                       // Jarvis parle : on n'écoute pas sa propre voix
                         avant.clear();
                         deSuite = 0;
+                        motPret = false;
+                        calme.clear();
+                        continue;
+                    }
+                    if (!enDirect && mot != null) {
+                        // En veille, comme sur le PC : la tablette guette le mot « Jarvis » elle-même. Rien n'est gardé, rien n'est envoyé.
+                        phrase = null;
+                        avant.clear();
+                        deSuite = 0;
+                        // Pièce silencieuse : aucun calcul (la tablette chauffe moins, la batterie dure plus). Au premier bruit,
+                        // le détecteur repart avec les 0,6 seconde d'avant, puis il suit tant qu'il y a du bruit
+                        if (niveau > Math.max(seuilMini * 0.5, plancher * 2) || coupure) {
+                            dernierBruit = maintenant;
+                        }
+                        if (maintenant - dernierBruit > 1500) {
+                            motPret = false;
+                            calme.addLast(java.util.Arrays.copyOf(bloc, lus));
+                            if (calme.size() > 8) {
+                                calme.removeFirst();
+                            }
+                            continue;
+                        }
+                        float note = 0;
+                        try {
+                            if (!motPret || mot != motVu) {
+                                mot.reinitialiser();
+                                motPret = true;
+                                motVu = mot;
+                                for (short[] ancien : calme) {
+                                    mot.ecouter(ancien, ancien.length);
+                                }
+                            }
+                            calme.clear();
+                            long depart = System.nanoTime();
+                            note = mot.ecouter(bloc, lus);
+                            tempsMot += System.nanoTime() - depart;
+                            blocsMot++;
+                        } catch (Throwable erreur) {
+                            detecteur = null;                                // sans détecteur, le PC reprend la main
+                            motVu = null;
+                            noter("mot d'appel : en panne dans la tablette (" + erreur + ")");
+                            continue;
+                        }
+                        noteHaute = Math.max(noteHaute, note);
+                        if (coupure) {
+                            noteParole = Math.max(noteParole, note);
+                        }
+                        if (!tempsDit && blocsMot >= 250) {                  // une fois, après 20 secondes : la tablette suit-elle le rythme ?
+                            tempsDit = true;
+                            noter(String.format(java.util.Locale.US, "mot d'appel : %.1f ms de calcul par bloc de 80 ms", tempsMot / 1e6 / blocsMot));
+                        }
+                        // pendant que Jarvis parle, le seuil est plus haut : sa propre voix ne doit pas le réveiller
+                        if (note >= (coupure ? Math.max(seuilMot, SEUIL_PAROLE) : seuilMot) && veille) {    // on a dit « Jarvis » : le bip, et la demande est écoutée
+                            motPret = false;
+                            noter(String.format(java.util.Locale.US, "mot d'appel : réveil (note %.2f)", note));
+                            ordre = 0;
+                            debutDirect = maintenant;
+                            sourdJusqua = maintenant + DUREE_BIP;
+                            direct = true;
+                            sonner(true);
+                            mains.post(() -> vue.evaluateJavascript("window.jarvisReveil&&window.jarvisReveil()", null));
+                        }
                         continue;
                     }
                     int recu = ordre;
@@ -721,9 +970,15 @@ public class MainActivity extends Activity {
                         byte[] pcm = phrase.toByteArray();
                         phrase = null;
                         if (enDirect) {
+                            if (voixCumulee < 300 && recu != 1 && maintenant - debutDirect < 7000) {
+                                continue;                                    // un petit bruit, ou la fin du bip : la demande est toujours attendue
+                            }
                             ordre = 0;
                             direct = false;
-                            noter("demande au rond : " + voixCumulee + " ms de voix, " + duree + " ms en tout");
+                            noter("demande : " + voixCumulee + " ms de voix, " + duree + " ms en tout");
+                            if (voixCumulee >= 300) {
+                                sonner(false);                               // « j'ai entendu », comme sur le PC
+                            }
                             donner(voixCumulee >= 300 ? pcm : null, true);
                         } else if (voixCumulee >= 500 && veille) {           // un simple bruit n'est pas envoyé
                             envoyees++;
@@ -746,6 +1001,9 @@ public class MainActivity extends Activity {
                         // pas démarré
                     }
                     micro.release();                                         // le micro est rendu
+                    if (antiEcho != null) {
+                        antiEcho.release();
+                    }
                 }
                 final boolean attendre = panne;
                 mains.postDelayed(() -> {                                    // relancé si on en a encore besoin
@@ -767,6 +1025,15 @@ public class MainActivity extends Activity {
             } catch (Exception erreur) {
                 return "0";
             }
+        }
+
+        /** Les trois couleurs du profil ouvert : le widget de l'écran d'accueil se redessine avec elles. */
+        @JavascriptInterface
+        public void couleurs(String c1, String c2, String c3) {
+            String valeur = c1 + "," + c2 + "," + c3;
+            if (valeur.equals(reglages.getString("couleurs_widget", ""))) return;
+            reglages.edit().putString("couleurs_widget", valeur).apply();
+            Widget.toutRedessiner(getApplicationContext());
         }
 
         /** Les applications que l'on peut lancer sur cette tablette : [{"nom", "paquet"}]. */
@@ -840,6 +1107,9 @@ public class MainActivity extends Activity {
                     silenceVeille = Math.max(400, Math.min(3000, r.optInt("silence", silenceVeille)));
                     silenceRond = Math.max(400, Math.min(3000, r.optInt("silence_rond", silenceRond)));
                     bilans = r.optBoolean("bilan", false);
+                    JSONObject mot = r.optJSONObject("mot");                 // le détecteur de « Jarvis » du PC, s'il en a un
+                    seuilMot = (float) Math.max(0.1, Math.min(0.99, mot == null ? 0.5 : mot.optDouble("seuil", 0.5)));
+                    preparerMot(mot == null ? "" : mot.optString("empreinte", ""));
                     if (source != sourceMicro && source >= 0 && source <= 10) {
                         sourceMicro = source;
                         if (ecouteur != null) {               // le micro sera rouvert avec la nouvelle source
@@ -850,6 +1120,45 @@ public class MainActivity extends Activity {
                     // réglage illisible : on garde l'actuel
                 }
             });
+        }
+
+        /** Le volume réglé dans la page (0 à 100), et les modes sans bip (silencieux, nuit). */
+        @JavascriptInterface
+        public void reglerSons(final int volume, final boolean coupes) {
+            volumeSons = Math.max(0, Math.min(100, volume));
+            sonsCoupes = coupes;
+        }
+
+        /** Jarvis parle-t-il ? Pendant sa réponse, dire « Jarvis » lui coupe la parole. */
+        @JavascriptInterface
+        public void parole(final boolean oui) {
+            parole = oui;
+        }
+
+        /** La sonnerie d'un minuteur arrivé au bout. */
+        @JavascriptInterface
+        public void sonnerie() {
+            jouer(2, Math.max(volumeSons, 50));
+        }
+
+        /** La batterie de la tablette : {"niveau": 0 à 100, "charge": branchée ?}. */
+        @JavascriptInterface
+        public String batterie() {
+            try {
+                Intent etat = registerReceiver(null, new android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                int niveau = etat.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
+                int echelle = etat.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100);
+                boolean charge = etat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0;
+                return "{\"niveau\":" + (niveau < 0 ? -1 : Math.round(niveau * 100f / Math.max(1, echelle))) + ",\"charge\":" + charge + "}";
+            } catch (Exception erreur) {
+                return "{\"niveau\":-1,\"charge\":false}";
+            }
+        }
+
+        /** Le mot « Jarvis » est-il reconnu par la tablette elle-même ? (« oui », « bientôt » pendant le chargement, « non ») */
+        @JavascriptInterface
+        public String motAppel() {
+            return detecteur != null ? "oui" : chargementMot ? "bientôt" : "non";
         }
 
         /** Le droit d'utiliser le micro est-il accordé ? */

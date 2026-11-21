@@ -307,10 +307,12 @@ def consigne_deux_voix():
     import jarvis_voix
     if not DEUX_VOIX:
         return ""
-    qui = ("féminins (une fille, une maman, une reine, une renarde...)" if jarvis_voix.VOIX == jarvis_voix.VOIXS["henri"]
+    feminins = jarvis_voix.autre_voix() == jarvis_voix.VOIXS["denise"]      # l'autre voix est celle de Denise
+    qui = ("féminins (une fille, une maman, une reine, une renarde...)" if feminins
            else "masculins (un garçon, un papa, un roi, un renard...)")
     return ("Deux voix lisent l'histoire : écris les paroles des personnages " + qui + " entre ⟨ et ⟩, seulement "
-            "leurs paroles, par exemple : ⟨Viens vite !⟩ cria la petite renarde. Le reste du texte, et les paroles "
+            "leurs paroles, par exemple : ⟨Viens vite !⟩ cria " + ("la petite renarde" if feminins else "le petit renard")
+            + ". Le reste du texte, et les paroles "
             "des autres personnages, s'écrivent normalement. ")
 
 

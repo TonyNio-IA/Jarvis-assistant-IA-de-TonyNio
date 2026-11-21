@@ -23,6 +23,7 @@
 
     <application
         android:allowBackup="false"
+        android:extractNativeLibs="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Jarvis"
@@ -47,6 +48,19 @@
                 <data android:host="relier" android:scheme="jarvis" />
             </intent-filter>
         </activity>
+
+        <!-- le widget Jarvis de l'écran d'accueil, que l'on peut agrandir -->
+        <receiver
+            android:name=".Widget"
+            android:exported="true"
+            android:label="Jarvis">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/jarvis_widget" />
+        </receiver>
 
         <!-- prête à l'installateur d'Android le fichier de la mise à jour téléchargée -->
         <provider
