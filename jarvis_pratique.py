@@ -712,7 +712,9 @@ def commande_avance(t):
     else:
         # Ailleurs, les flèches gauche et droite : 5 secondes dans la plupart des lecteurs (YouTube, Netflix...)
         _plus_tard(0x25 if en_arriere else 0x27, repetitions=max(1, round(secondes / 5)))
-    return ("Je recule" if en_arriere else "J'avance") + f" de {_duree_chrono(secondes)}."
+    duree = _duree_chrono(secondes)
+    duree = "d'une minute" if duree == "1 minute" else "de " + duree        # « je recule d'une minute »
+    return ("Je recule " if en_arriere else "J'avance ") + duree + "."
 
 
 # ---------- Volume d'une seule application ----------

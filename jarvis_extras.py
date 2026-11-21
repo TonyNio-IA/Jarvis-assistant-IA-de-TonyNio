@@ -574,7 +574,9 @@ def choisir_couleur(texte):
 
 
 def commande_couleur(t):
-    if not re.search(r"\br[ée]acteur\b|\b(tes|ta) couleurs?\b|\bcouleurs? vice city\b", t) or not re.search(
+    # « mets les couleurs Aurore », « prends le thème Galaxie » : sans ce test, la phrase partait en musique
+    if not re.search(r"\br[ée]acteur\b|\b(tes|ta) couleurs?\b|\b(?:couleurs?|th[èe]me) (?:vice city|iron man|oc[ée]an|"
+                     r"for[êe]t|aurore|galaxie)\b", t) or not re.search(
             r"\b(mets|met|remets|remet|change|passe|repasse|choisis|prends|reprends|reviens|retourne|"
             r"je veux|je pr[ée]f[eè]re|en)\b", t):        # « remets les couleurs Vice City » aussi
         return None
