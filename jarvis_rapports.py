@@ -289,17 +289,21 @@ def demande(texte):
         noter("refaite", demande=anonymiser(texte, 160), apres_s=round(ecart, 1))
 
 
-def reponse(texte_demande, par, duree, erreur=False, etape=""):
-    """Une réponse donnée : par « local » (commande instantanée) ou « claude »."""
+def reponse(texte_demande, par, duree, erreur=False, etape="", origine="pc", enfant=False):
+    """Une réponse donnée : par « local » (commande instantanée), « atelier » ou « claude » ;
+    origine : « pc » ou « tablette ». Pour un profil enfant, jamais le texte de la demande : seulement sa catégorie."""
     cat = categorie(texte_demande)
     infos = {"categorie": cat, "par": par, "duree_s": round(duree, 2)}
+    if origine != "pc":
+        infos["origine"] = origine
     if etape:
         infos["etape"] = etape
     if erreur:
         infos["erreur"] = True
     noter("reponse", **infos)
-    if par == "claude":
-        noter("demande_claude", demande=anonymiser(texte_demande, 200), categorie=cat)
+    if par == "claude" and not enfant:
+        noter("demande_claude", demande=anonymiser(texte_demande, 200), categorie=cat,
+              **({"origine": origine} if origine != "pc" else {}))
 
 
 def incompris(texte, raison="trop court"):
@@ -540,7 +544,8 @@ def construire_rapport():
         "periode": {"debut": min((e["t"] for e in ev), default=None), "fin": max((e["t"] for e in ev), default=None)},
         "materiel": _materiel(), "reglages": _reglages(), "appareils": _appareils(), "micro": _micro(),
         "statistiques": {"demandes": len(reponses), "locales": len(local), "claude": len(claude),
-                         "par_categorie": dict(collections.Counter(e.get("categorie") for e in reponses))},
+                         "par_categorie": dict(collections.Counter(e.get("categorie") for e in reponses)),
+                         "par_origine": dict(collections.Counter(e.get("origine", "pc") for e in reponses))},
         "temps": {"local_median_s": _mediane(local), "claude_median_s": _mediane(claude),
                   "claude_max_s": max(claude) if claude else None,
                   "plus_lents": [{k: e.get(k) for k in ("categorie", "par", "duree_s", "etape")} for e in lents]},

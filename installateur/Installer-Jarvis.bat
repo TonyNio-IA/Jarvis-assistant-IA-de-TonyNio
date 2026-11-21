@@ -228,7 +228,9 @@ function Copier-Programme($dossier) {
             $client = New-Object Net.WebClient
             $client.Headers['User-Agent'] = 'Jarvis-Installateur'
             $client.Encoding = [Text.Encoding]::UTF8
-            $etiquette = ($client.DownloadString("https://api.github.com/repos/$DEPOT/releases/latest") | ConvertFrom-Json).tag_name
+            # JARVIS_ETIQUETTE : la version voulue (une pre-version pour un testeur volontaire) ; sinon la derniere publiee
+            if ($env:JARVIS_ETIQUETTE) { $etiquette = $env:JARVIS_ETIQUETTE }
+            else { $etiquette = ($client.DownloadString("https://api.github.com/repos/$DEPOT/releases/latest") | ConvertFrom-Json).tag_name }
         } catch { Journal "Dernière version introuvable par l'API GitHub : $($_.Exception.Message)" }
         $adresse = if ($etiquette -eq 'main') { "https://github.com/$DEPOT/archive/refs/heads/main.zip" } else { "https://github.com/$DEPOT/archive/refs/tags/$etiquette.zip" }
         $zip = Join-Path $TEMP 'jarvis.zip'

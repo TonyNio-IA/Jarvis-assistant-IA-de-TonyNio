@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.32**
+**Français : [README.md](README.md)** · **Current version: 1.33**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +30,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.33
+
+- **Tablet**: "YouTube Kids" opens even when the rest of the sentence is misheard; unclear voices (a cold, shouting) are transcribed faster; a double tap on the circle no longer stops listening; after a workshop, Claude knows it is over; a workshop in progress resumes after Jarvis restarts.
+- **PC**: "est-ce que tu peux me résumer ?" summarises the page open in the browser.
+- **Volunteer testers**: tick "Je veux tester les nouvelles versions en avance" (Settings, Rapports) to get test versions before everyone else.
+- **Missed important updates**: a PC that was off during an important update installs it as soon as it is back, even if a newer version came out in between.
+- **Reports**: requests made on tablets are counted (for a child, never what they say: only the kind of request and the response time).
 
 ## New in 1.32
 

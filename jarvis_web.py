@@ -449,7 +449,12 @@ def texte_principal(texte):
 _LIRE_PAGE = re.compile(r"^\W*(?:jarvis\W+)?(?:lis|lis-moi|lit|lire|relis)(?:-moi| moi)?\s+(?:cette |la |l'|cet )"
                         r"(?:page|article|site|texte de la page)\W*$")
 PAGE_POUR_CLAUDE = re.compile(r"\b(?:résume|resume|résumer|résument|résumé|resumé|explique|traduis|traduire|analyse|que dit|de quoi parle|"
-                              r"c'est quoi|qu'est-ce que dit)\b.*\b(?:cette page|la page|cet article|l'article|ce site)\b")
+                              r"c'est quoi|qu'est-ce que dit)\b.*\b(?:cette page|la page|cet article|l'article|ce site)\b"
+                              # « j'ai ouvert la page, tu peux me la résumer ? » : la page est nommée avant le verbe
+                              r"|\b(?:cette page|la page|cet article|l'article|ce site)\b.*\b(?:r[ée]sum|explique|traduis)"
+                              # « est-ce que tu peux me résumer ? », « résume-la » : rien d'autre n'est nommé
+                              r"|^(?:est-ce que )?(?:tu peux|tu pourrais|peux-tu|pourrais-tu) me (?:le |la |l')?r[ée]sumer\W*$"
+                              r"|^r[ée]sume(?:-la|-le|-moi [çc]a| [çc]a)\W*$")
 
 
 def commande_lire_page(t):

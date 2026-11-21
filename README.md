@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.32**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.33**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +31,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.33
+
+- **Tablette** : « YouTube Kids » s'ouvre même quand le reste de la phrase est mal compris ; les voix peu claires (rhume, cris) sont retranscrites plus vite ; un double appui sur le rond ne coupe plus l'écoute ; après un atelier, Claude sait que l'atelier est fini ; un atelier en cours reprend où il en était après un redémarrage de Jarvis.
+- **PC** : « est-ce que tu peux me résumer ? » résume la page ouverte dans le navigateur.
+- **Testeurs volontaires** : en cochant « Je veux tester les nouvelles versions en avance » (Réglages, Rapports), tu reçois les versions d'essai avant tout le monde.
+- **Mises à jour importantes manquées** : un PC resté éteint pendant une mise à jour importante l'installe dès qu'il revient, même si une version plus récente est sortie entre-temps.
+- **Rapports** : les demandes faites sur les tablettes sont comptées (pour un enfant, jamais ce qu'il dit : seulement le genre de demande et le temps de réponse).
 
 ## Nouveau en 1.32
 
@@ -395,6 +403,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.33 | Tablette : YouTube Kids ouvert même mal compris, retranscription plus rapide, double appui sur le rond, Claude averti après un atelier, atelier repris après un redémarrage ; PC : « tu peux me résumer ? » ; testeurs volontaires ; mises à jour importantes manquées installées ; demandes des tablettes dans les rapports |
 | 1.32 | Mise à jour importante installée après une minute de calme (cinq minutes après une demande d'une tablette) |
 | 1.31 | Mises à jour importantes installées tout de suite, en veille ; nouvelle version cherchée toutes les 15 minutes ; rapports : département et villes voisines cachés |
 | 1.30 | Rapports d'amélioration avec accord (rien, technique ou complet), « Signaler un problème », « Proposer une amélioration », questionnaire, « Effacer mes données » ; micro rallumé à la voix ; réacteur sur le Bureau ; idées de demandes ; Jarvis se tait quand le PC joue un son |

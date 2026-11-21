@@ -24,6 +24,7 @@ import jarvis_config
 
 DEPOT = "TonyNio-IA/Jarvis-assistant-IA-de-TonyNio"
 API_DERNIERE = f"https://api.github.com/repos/{DEPOT}/releases/latest"
+API_VERSIONS = f"https://api.github.com/repos/{DEPOT}/releases?per_page=10"   # avec les pré-versions (testeurs)
 INSTALLATEUR = f"https://github.com/{DEPOT}/releases/latest/download/Installer-Jarvis.exe"
 FICHIER_SUIVI = jarvis_config.chemin("mise_a_jour.json")     # reste sur ce PC
 ATTENTE_AVANT_INSTALLATION = 8          # secondes : le temps que Jarvis finisse sa phrase
@@ -33,6 +34,17 @@ forcee = False           # la version disponible est une mise à jour forcée : 
 MARQUE_FORCEE = "<!-- jarvis:mise-a-jour-forcee -->"     # dans les notes de la version sur GitHub (invisible sur la page)
 INTERVALLE_FORCEES = 15 * 60                              # secondes entre deux coups d'œil à GitHub
 _forcee_lancee = False
+_installateur = None     # l'installateur de la version trouvée (une pré-version, pour un testeur)
+_etiquette = None        # son étiquette sur GitHub (« v1.33 ») : l'installateur prend exactement cette version
+
+
+def _testeur():
+    """Vrai si l'utilisateur s'est porté testeur volontaire (Réglages, Rapports) : il reçoit les pré-versions."""
+    try:
+        import jarvis_rapports
+        return bool(jarvis_rapports.valeur("testeur"))
+    except Exception:
+        return False
 _annoncee = False
 _verrou = threading.Lock()
 
@@ -55,21 +67,45 @@ def _nombres(version):
 def verifier():
     """Interroge GitHub. Renvoie (version, titre) si une version plus récente est publiée, sinon None."""
     global disponible, forcee
-    requete = urllib.request.Request(API_DERNIERE, headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+    testeur = _testeur()
+    requete = urllib.request.Request(API_VERSIONS if testeur else API_DERNIERE,
+                                     headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(requete, timeout=10) as r:
         derniere = json.load(r)
-    if derniere.get("draft") or derniere.get("prerelease"):
+    if testeur and isinstance(derniere, list):   # testeur volontaire : la plus récente, pré-version comprise (jamais un brouillon)
+        publiees = [v for v in derniere if not v.get("draft")]
+        publiees.sort(key=lambda v: _nombres(str(v.get("tag_name", ""))), reverse=True)
+        derniere = publiees[0] if publiees else {}
+    if derniere.get("draft") or (derniere.get("prerelease") and not testeur):
         return None
+    global _installateur, _etiquette
+    _etiquette = str(derniere.get("tag_name") or "") or None
+    _installateur = next((a.get("browser_download_url") for a in derniere.get("assets", [])
+                          if a.get("name") == "Installer-Jarvis.exe"), None) or INSTALLATEUR
     version = str(derniere.get("tag_name", "")).lstrip("vV")
     with _verrou:
         if _nombres(version) > _nombres(version_actuelle()):
             titre = str(derniere.get("name") or "").split(":", 1)[-1].strip()
             disponible = (version, titre)
-            forcee = MARQUE_FORCEE in str(derniere.get("body") or "")
+            forcee = MARQUE_FORCEE in str(derniere.get("body") or "") or _forcee_entre(version_actuelle(), version)
         else:
             disponible = None
             forcee = False
         return disponible
+
+
+def _forcee_entre(actuelle, derniere):
+    """PC resté éteint pendant plusieurs versions : si l'une de celles qu'il a manquées était forcée, la dernière
+    version est installée d'office elle aussi (elle contient toutes les corrections d'avant)."""
+    try:
+        requete = urllib.request.Request(API_VERSIONS, headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(requete, timeout=10) as r:
+            versions = json.load(r)
+        return any(isinstance(v, dict) and not v.get("draft") and MARQUE_FORCEE in str(v.get("body") or "")
+                   and _nombres(actuelle) < _nombres(str(v.get("tag_name", ""))) <= _nombres(derniere)
+                   for v in versions)
+    except Exception:
+        return False
 
 
 def verifier_en_arriere_plan():
@@ -143,7 +179,7 @@ def installer():
     os.makedirs(dossier, exist_ok=True)
     programme = os.path.join(dossier, "Installer-Jarvis.exe")
     try:
-        requete = urllib.request.Request(INSTALLATEUR, headers={"User-Agent": "Jarvis"})
+        requete = urllib.request.Request(_installateur or INSTALLATEUR, headers={"User-Agent": "Jarvis"})
         with urllib.request.urlopen(requete, timeout=60) as r, open(programme, "wb") as f:
             f.write(r.read())
         with open(programme, "rb") as f:
@@ -162,6 +198,8 @@ def installer():
     environnement.update(JARVIS_AUTO="1", JARVIS_ACTION="1", JARVIS_OK="o", JARVIS_SANS_VOIX="1")
     if source_essai:
         environnement["JARVIS_SOURCE"] = source_essai
+    if _etiquette:
+        environnement["JARVIS_ETIQUETTE"] = _etiquette
 
     def lancer():
         # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance

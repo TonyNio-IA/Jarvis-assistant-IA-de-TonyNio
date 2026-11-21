@@ -131,3 +131,166 @@ function installer() {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('nettoyer').timeBased().everyDays(1).atHour(4).create();
 }
+
+
+// =============================================================================================
+//  Exploitation des rapports (tâches automatiques, aucun accès de l'extérieur)
+//   - rangerMessages : chaque jour, les problèmes et idées reçus sont recopiés dans l'onglet
+//                      « Idées et problèmes » du tableau ; la colonne « Fait dans la version » se
+//                      remplit quand c'est corrigé, pour « Vous l'avez demandé, on l'a fait ».
+//   - alerteVersions : chaque jour, un mail si les erreurs montent nettement après une nouvelle version.
+//   - resumeHebdo    : chaque lundi matin, un mail avec le résumé de la semaine.
+// =============================================================================================
+
+function destinataire() { return Session.getEffectiveUser().getEmail(); }
+function dateFr(d) { return Utilities.formatDate(d, 'Europe/Paris', 'dd/MM/yyyy HH:mm'); }
+function court(id) { return String(id || '').slice(0, 6); }
+
+/** Les fichiers JSON d'un sous-dossier reçus depuis une date, du plus ancien au plus récent. */
+function fichiersDepuis(nomDossier, depuis) {
+  var res = [], it = sousDossier(nomDossier).getFiles();
+  while (it.hasNext()) {
+    var f = it.next();
+    if (f.getDateCreated() < depuis) continue;
+    try { res.push({nom: f.getName(), date: f.getDateCreated(), d: JSON.parse(f.getBlob().getDataAsString())}); } catch (e) {}
+  }
+  res.sort(function (a, b) { return a.date - b.date; });
+  return res;
+}
+
+function compter(liste) {
+  var c = {};
+  liste.forEach(function (x) { if (x === undefined || x === null || x === '') return; c[x] = (c[x] || 0) + 1; });
+  return c;
+}
+
+function premiers(c, n) {
+  return Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }).slice(0, n)
+    .map(function (k) { return k + (c[k] > 1 ? ' (' + c[k] + ' fois)' : ''); });
+}
+
+function comparerVersions(a, b) {
+  var x = String(a).split(/\D+/).map(Number), y = String(b).split(/\D+/).map(Number);
+  for (var i = 0; i < Math.max(x.length, y.length); i++) {
+    var d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+/** Par version : nombre de rapports, de demandes et d'erreurs. */
+function parVersion(rapports) {
+  var pv = {};
+  rapports.forEach(function (r) {
+    var d = r.d, s = d.statistiques || {}, v = String(d.version || '?');
+    pv[v] = pv[v] || {rapports: 0, demandes: 0, erreurs: 0, pc: {}};
+    pv[v].rapports++;
+    pv[v].demandes += s.demandes || 0;
+    pv[v].erreurs += (d.erreurs || []).length;
+    pv[v].pc[d.id] = true;
+  });
+  return pv;
+}
+
+/** Recopie les problèmes et idées reçus dans l'onglet « Idées et problèmes » du tableau. */
+function rangerMessages() {
+  var ss = tableau();
+  var f = ss.getSheetByName('Idées et problèmes');
+  if (!f) {
+    f = ss.insertSheet('Idées et problèmes');
+    f.appendRow(['Reçu le', 'Genre', 'Version', 'PC', 'Message', 'Fait dans la version', 'Fichier']);
+    f.setFrozenRows(1);
+    f.setColumnWidth(5, 520);
+  }
+  var deja = {};
+  f.getRange('G:G').getValues().forEach(function (l) { deja[l[0]] = true; });
+  var depuis = new Date(Date.now() - CONSERVATION_JOURS * 86400000);
+  [['Problèmes', 'Problème'], ['Idées', 'Idée']].forEach(function (g) {
+    fichiersDepuis(g[0], depuis).forEach(function (m) {
+      if (deja[m.nom]) return;
+      f.appendRow([m.date, g[1], String(m.d.version || ''), court(m.d.id), String(m.d.texte || '').slice(0, 2000), '', m.nom]);
+    });
+  });
+}
+
+/** Un mail si, sur 7 jours, la dernière version fait nettement plus d'erreurs que la précédente. */
+function alerteVersions() {
+  var pv = parVersion(fichiersDepuis('Rapports', new Date(Date.now() - 7 * 86400000)));
+  var vs = Object.keys(pv).filter(function (v) { return v !== '?'; }).sort(comparerVersions);
+  if (vs.length < 2) return;
+  var nv = vs[vs.length - 1], av = vs[vs.length - 2], n = pv[nv], a = pv[av];
+  var tn = n.erreurs / Math.max(n.demandes, 1), ta = a.erreurs / Math.max(a.demandes, 1);
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('alerte_' + nv) || n.rapports < 3 || n.erreurs < 3 || tn <= 2 * ta) return;
+  props.setProperty('alerte_' + nv, dateFr(new Date()));
+  MailApp.sendEmail(destinataire(), 'Jarvis : plus d\'erreurs depuis la version ' + nv,
+    'Depuis la version ' + nv + ', les PC qui envoient des rapports font plus d\'erreurs :\n\n' +
+    '- version ' + nv + ' : ' + n.erreurs + ' erreur(s) pour ' + n.demandes + ' demandes (' + Object.keys(n.pc).length + ' PC)\n' +
+    '- version ' + av + ' : ' + a.erreurs + ' erreur(s) pour ' + a.demandes + ' demandes (' + Object.keys(a.pc).length + ' PC)\n\n' +
+    'Le détail des erreurs est dans les rapports du dossier « ' + DOSSIER_RACINE + ' » de ton Google Drive.\n' +
+    'Demande à Claude de les regarder pour trouver la cause.');
+}
+
+/** Chaque lundi matin : le résumé de la semaine, par mail. */
+function resumeHebdo() {
+  rangerMessages();
+  var depuis = new Date(Date.now() - 7 * 86400000);
+  var pc = tableau().getSheetByName('PC').getDataRange().getValues().slice(1);
+  var actifs = pc.filter(function (r) { return r[2] instanceof Date && r[2] >= depuis; });
+  var nouveaux = pc.filter(function (r) { return r[1] instanceof Date && r[1] >= depuis; }).length;
+  var rapports = fichiersDepuis('Rapports', depuis), problemes = fichiersDepuis('Problèmes', depuis);
+  var idees = fichiersDepuis('Idées', depuis), questions = fichiersDepuis('Questionnaires', depuis);
+  var demandes = 0, claude = 0, tablette = 0, faux = 0, incompris = [], erreurs = [], ateliers = [];
+  rapports.forEach(function (r) {
+    var d = r.d, s = d.statistiques || {};
+    demandes += s.demandes || 0;
+    claude += s.claude || 0;
+    tablette += (s.par_origine || {}).tablette || 0;
+    faux += (d.faux_reveils || {}).nombre || 0;
+    (d.incompris || []).forEach(function (x) { incompris.push(x.texte); });
+    (d.erreurs || []).forEach(function (x) {
+      erreurs.push((x.type || x.source || '?') + ' : ' + String(x.message || '').slice(0, 90) + (x.ou ? ' [' + x.ou.join(', ') + ']' : ''));
+    });
+    (d.ateliers || []).forEach(function (x) { ateliers.push(x.nom + ' : ' + x.fin); });
+  });
+  var pv = parVersion(rapports), L = [];
+  function liste(titre, elements, vide) {
+    L.push('', titre);
+    if (!elements.length) L.push('- ' + vide);
+    elements.forEach(function (x) { L.push('- ' + x); });
+  }
+  L.push('Résumé de la semaine de Jarvis, du ' + dateFr(depuis) + ' au ' + dateFr(new Date()) + '.');
+  liste('UTILISATEURS', ['PC installés en tout : ' + pc.length, 'Actifs cette semaine : ' + actifs.length + ' (dont ' + nouveaux + ' nouveaux)',
+    'Versions des PC actifs : ' + (premiers(compter(actifs.map(function (r) { return String(r[3]); })), 10).join(', ') || 'aucune')], '');
+  liste('RAPPORTS REÇUS : ' + rapports.length, ['Demandes : ' + demandes + ' (dont ' + claude + ' envoyées à Claude, ' + tablette + ' faites sur une tablette)',
+    'Faux réveils : ' + faux].concat(Object.keys(pv).sort(comparerVersions).map(function (v) {
+      return 'Version ' + v + ' : ' + pv[v].rapports + ' rapport(s) de ' + Object.keys(pv[v].pc).length + ' PC, ' + pv[v].erreurs + ' erreur(s) pour ' + pv[v].demandes + ' demandes';
+    })), '');
+  liste('ERREURS LES PLUS FRÉQUENTES', premiers(compter(erreurs), 10), 'aucune');
+  liste('PHRASES MAL COMPRISES', premiers(compter(incompris), 15), 'aucune');
+  liste('ATELIERS DES ENFANTS ARRÊTÉS', premiers(compter(ateliers), 10), 'aucun');
+  liste('PROBLÈMES SIGNALÉS : ' + problemes.length, problemes.map(function (m) {
+    return dateFr(m.date) + ', version ' + (m.d.version || '?') + ', PC ' + court(m.d.id) + ' : ' + String(m.d.texte || '').slice(0, 600);
+  }), 'aucun');
+  liste('IDÉES PROPOSÉES : ' + idees.length, idees.map(function (m) {
+    return dateFr(m.date) + ', version ' + (m.d.version || '?') + ', PC ' + court(m.d.id) + ' : ' + String(m.d.texte || '').slice(0, 600);
+  }), 'aucune');
+  liste('QUESTIONNAIRES : ' + questions.length, questions.map(function (q) {
+    var c = {};
+    Object.keys(q.d).forEach(function (k) { if (['id', 'genre', 'windows', 'niveau'].indexOf(k) < 0) c[k] = q.d[k]; });
+    return JSON.stringify(c).slice(0, 600);
+  }), 'aucun');
+  L.push('', 'Les idées et problèmes sont aussi rangés dans l\'onglet « Idées et problèmes » du tableau « Utilisateurs de Jarvis ».',
+    'Tout le détail est dans le dossier « ' + DOSSIER_RACINE + ' » de ton Google Drive.');
+  MailApp.sendEmail(destinataire(), 'Jarvis : résumé de la semaine', L.join('\n'));
+}
+
+/** À lancer une fois à la main : met en place les tâches automatiques (et garde le nettoyage). */
+function installerTaches() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('nettoyer').timeBased().everyDays(1).atHour(4).create();
+  ScriptApp.newTrigger('rangerMessages').timeBased().everyHours(6).create();
+  ScriptApp.newTrigger('alerteVersions').timeBased().everyDays(1).atHour(9).create();
+  ScriptApp.newTrigger('resumeHebdo').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).create();
+  rangerMessages();
+}

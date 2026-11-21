@@ -23,8 +23,38 @@ import time
 import unicodedata
 
 DUREE_JEU = 15 * 60              # secondes sans réponse : l'atelier est oublié
-_jeux = {}                       # profil -> l'atelier en cours (en mémoire seulement)
+_jeux = {}                       # profil -> l'atelier en cours (gardé aussi sur le disque : voir _sauver)
+try:
+    import jarvis_config as _config
+    FICHIER_EN_COURS = _config.chemin("ateliers_en_cours.json")
+except Exception:
+    FICHIER_EN_COURS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ateliers_en_cours.json")
+
+
+def _charger():
+    """Au lancement de Jarvis : les ateliers en cours avant un redémarrage reprennent où ils en étaient."""
+    try:
+        with open(FICHIER_EN_COURS, encoding="utf-8") as f:
+            jeux = json.load(f)
+        for ident, jeu in jeux.items():
+            if isinstance(jeu, dict) and time.time() - jeu.get("quand", 0) <= DUREE_JEU:
+                _jeux[ident] = jeu
+    except (OSError, ValueError):
+        pass
+
+
+def _sauver():
+    try:
+        with _verrou:
+            contenu = json.dumps(_jeux, ensure_ascii=False)
+        provisoire = FICHIER_EN_COURS + ".tmp"
+        with open(provisoire, "w", encoding="utf-8") as f:
+            f.write(contenu)
+        os.replace(provisoire, FICHIER_EN_COURS)
+    except (OSError, TypeError, ValueError) as erreur:
+        print("Ateliers : sauvegarde impossible :", erreur)
 _verrou = threading.Lock()
+_charger()                       # les ateliers en cours avant un redémarrage
 _etoiles_essai = {}              # pendant un mode essai : les étoiles ne sont pas gardées sur le disque
 
 BRAVO = ("Bravo !", "Super !", "Génial !", "C'est ça !", "Bien joué !", "Excellent !", "Parfait !", "Trop fort !")
@@ -567,6 +597,14 @@ def _vue_question(jeu, q):
 
 
 def traiter(texte, profil, dossier, essai=False, parle=True):
+    """Voir _traiter. L'atelier en cours est ensuite gardé sur le disque (il survit à un redémarrage de Jarvis)."""
+    resultat = _traiter(texte, profil, dossier, essai, parle)
+    if not essai:
+        _sauver()
+    return resultat
+
+
+def _traiter(texte, profil, dossier, essai=False, parle=True):
     """La réponse de l'atelier ({"reponse", "suite", "atelier"}), ou None si la phrase ne le concerne pas.
     profil : {"id", "enfant", ...} ; dossier : où garder les étoiles ; essai : ne rien garder sur le disque ;
     parle : la phrase a été dite (et non écrite ou touchée à l'écran)."""
@@ -769,3 +807,4 @@ def en_cours(ident):
 def arreter(ident):
     with _verrou:
         _jeux.pop(ident, None)
+    _sauver()

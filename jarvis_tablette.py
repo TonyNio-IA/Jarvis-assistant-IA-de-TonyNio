@@ -717,15 +717,21 @@ def _transcrire(audio, amorce=""):
     if crete < 0.5:
         audio = audio * (0.7 / crete)               # voix trop faible : on l'amplifie
     audio = np.concatenate((np.zeros(8000, dtype=np.float32), audio.astype(np.float32)))
+    attente = time.time()
     with j.verrou_whisper:
-        if amorce:
-            try:
-                segments, _ = j.whisper.transcribe(audio, language="fr", beam_size=j.WHISPER_FAISCEAU, initial_prompt=amorce)
-            except TypeError:
-                segments, _ = j.whisper.transcribe(audio, language="fr", beam_size=j.WHISPER_FAISCEAU)
-        else:
+        depart = time.time()
+        # Deux essais au plus (au lieu de six) quand la voix est peu claire (enfant enrhumé, cris) : Whisper
+        # recommençait jusqu'à six fois, et une simple demande pouvait attendre plus de 15 secondes
+        options = {"language": "fr", "beam_size": j.WHISPER_FAISCEAU, "temperature": (0.0, 0.4)}
+        try:
+            segments, _ = j.whisper.transcribe(audio, **options, **({"initial_prompt": amorce} if amorce else {}))
+        except TypeError:
             segments, _ = j.whisper.transcribe(audio, language="fr", beam_size=j.WHISPER_FAISCEAU)
         texte = " ".join(s.text for s in segments).strip()
+    fin = time.time()
+    if fin - attente > 4:                            # lent : on note pourquoi (attente du PC, ou calcul de Whisper)
+        print(f"Tablette (note) : retranscription lente : {depart - attente:.1f} s d'attente (le PC retranscrivait), "
+              f"{fin - depart:.1f} s de calcul pour {len(audio) / 16000 - 0.5:.1f} s de son.")
     if not texte or re.search(r"amara|sous-titr", texte, re.I) or j._repetitif(texte):
         return ""                                    # phrases que Whisper invente sur du bruit
     return texte
@@ -904,6 +910,13 @@ def _router(texte, profil, tablette=""):
             return f"Je ne trouve pas l'application {m.group('nom')} sur cette tablette.", None
     elif m and m.group("appli"):
         return "Je ne connais pas encore les applications de cette tablette. Ferme et rouvre Jarvis, puis redemande-moi.", None
+    # « YouTube Kids » entendu dans une phrase mal comprise (« oh, men YouTube kids ! ») : on ouvre l'application,
+    # sauf si c'est une recherche (« mets des dinosaures sur YouTube Kids »)
+    if (applis and len(t) <= 60 and re.search(r"\byou ?tube\W{0,3}kids?\b", t) and not _YOUTUBE.match(t)
+            and not re.search(r"\b(?:cherche|recherche|trouve|montre|vid[ée]os? d[eu])\b", t)):
+        trouvee = _trouver_appli("youtube kids", applis)
+        if trouvee:
+            return f"J'ouvre {trouvee['nom']}.", {"type": "appli", "paquet": trouvee["paquet"], "nom": trouvee["nom"]}
     if enfant and re.search(SITES_INTERDITS, t):
         return None, None
 
@@ -1486,10 +1499,26 @@ _AIDE = re.compile(r"^(?:qu'est-ce que |qu'est ce que )?(?:tu sais|sais-tu|tu pe
                    r"|^que sais-tu faire|^(?:de l')?aide\W*$|^aide-moi\W*$|^comment (?:on |je )?(?:t'utilise|me sers de toi)"
                    r"|^qu'est-ce que je peux te demander|^(?:donne-moi|montre-moi) des (?:idées|exemples)")
 _dernieres = {}                  # la dernière réponse de chaque profil, pour « répète »
+_apres_atelier = {}              # profil -> (moment, dernière phrase d'un atelier) : note pour Claude juste après
 _REPETE = re.compile(r"^\W*(?:jarvis\W*)?(?:est-ce que |tu peux |peux-tu |tu pourrais |pourrais-tu )?(?:me |nous )?(?:le |la )?"
                      r"(?:r[ée]p[éè]t\w*|redi[st]\w*|redire)\b(?!\s+(?:à|a|au|aux)\s)"     # « répète à Léa que… » : un message
                      r"|j'ai (?:pas|rien) (?:compris|entendu)|je n'ai (?:pas|rien) (?:compris|entendu)"
                      r"|qu'est-ce que tu (?:as|a) dit|^\W*(?:quoi|pardon|hein)\W*$", re.I)
+
+
+def _rapport_tablette(texte, par, debut, profil, erreur=False, reponse=""):
+    """Rapports d'amélioration (seulement si l'utilisateur les a acceptés) : les demandes faites sur les tablettes.
+    Pour un enfant, jamais ce qu'il a dit : seulement la catégorie, qui a répondu et le temps de réponse."""
+    try:
+        if mode_essai():                             # un adulte essaie le profil d'un enfant : rien n'est noté
+            return
+        import jarvis_rapports
+        enfant = bool(profil.get("enfant"))
+        jarvis_rapports.reponse(texte, par, time.time() - debut, erreur=erreur, origine="tablette", enfant=enfant)
+        if reponse and par == "claude" and not enfant:
+            jarvis_rapports.conversation(texte, reponse)
+    except Exception as e:
+        print("Tablette (rapports) :", e)
 
 
 def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=None):
@@ -1519,9 +1548,11 @@ def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=N
             fait = None
     etape = None if fait else _etape_recette(texte, profil["id"])
     ecrit = None                                     # texte de l'écran, quand il diffère de ce qui est dit (dictée)
+    par = "atelier" if fait and not derniere else "local"   # pour les rapports : qui a répondu
     if fait:
         reponse, suite, atelier = fait["reponse"], fait.get("suite", False), fait.get("atelier")
         ecrit = fait.get("ecrit")
+        _apres_atelier[profil["id"]] = (time.time(), ecrit or reponse)   # pour la note donnée ensuite à Claude
     elif etape:
         reponse, suite = etape
     elif _AIDE.search(_net(texte)):                  # « qu'est-ce que tu sais faire ? » : des exemples à l'écran
@@ -1535,10 +1566,21 @@ def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=N
     if not reponse:
         if _claude is None:
             return {"entendu": texte, "erreur": "Je ne peux pas répondre pour le moment."}
+        par = "claude"
         guidee = _recette_demandee(texte)
-        reponse, erreur = _conversation(profil["id"]).demander((CONSIGNE_RECETTE if guidee else "") + texte, delai=DELAI_CLAUDE)
+        # Claude ne voit pas les ateliers : juste après l'un d'eux, une note lui dit où on en est (sinon il croit
+        # qu'on répond encore à sa devinette d'avant)
+        note_atelier = ""
+        vu = _apres_atelier.pop(profil["id"], None)
+        if vu and time.time() - vu[0] < 15 * 60:
+            note_atelier = (f"(Note : vous venez de jouer à un atelier de Jarvis, qui n'est plus en cours. Sa dernière phrase "
+                            f"était : « {vu[1][:200]} ». La demande qui suit y répond peut-être. Les devinettes ou jeux "
+                            "dont vous parliez avant sont terminés.) ")
+        reponse, erreur = _conversation(profil["id"]).demander(note_atelier + (CONSIGNE_RECETTE if guidee else "") + texte,
+                                                              delai=DELAI_CLAUDE)
         if erreur:                                   # le détail (limite atteinte, Claude absent...) reste dans le journal du PC
             print("Tablette, Claude n'a pas répondu :", reponse)
+            _rapport_tablette(texte, "claude", debut, profil, erreur=True)
             _garder(profil["id"], texte, "", son, genre, "voix" if son else "écrit", reconnue)
             return {"entendu": texte, "erreur": "Je n'arrive pas à réfléchir pour le moment. Réessaie un peu plus tard."}
         if guidee:
@@ -1555,6 +1597,7 @@ def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=N
         except Exception as erreur:
             print("Tablette (messages) :", erreur)
     print(f"Tablette, réponse ({time.time() - debut:.1f} s) :", reponse[:300])
+    _rapport_tablette(texte, par, debut, profil, reponse=reponse)
     _dernieres[profil["id"]] = {"reponse": reponse, "suite": suite, "atelier": atelier, "ecrit": ecrit}
     resultat_ = {"entendu": texte, "reponse": ecrit or reponse, "voix": None, "minuteurs": minuteurs_de(tablette, profil)}
     if action:
@@ -3277,7 +3320,9 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
       })
       .catch(function () { enVol = false; enAttente = null; });
   }
+  var ecouteDepuis = 0;                           // moment où l'écoute a commencé (double appui d'un enfant)
   function ecouter(pourquoi) {
+    ecouteDepuis = Date.now();
     seTaire();
     origine = natif() && pourquoi ? pourquoi : "";
     if (natif()) {
@@ -3314,6 +3359,8 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   rond.addEventListener("click", function () {
     debloquer();
     if (!profil) { return; }
+    // un deuxième appui juste après le premier (les enfants tapent deux fois) ne coupe pas l'écoute qui commence
+    if (mode === "ecoute" && Date.now() - ecouteDepuis < 1500) { return; }
     if (mode === "ecoute") { return arreter(); }
     if (mode === "repond") { return seTaire(); }  // on lui coupe la parole ; un nouvel appui, et il écoute
     if (mode === "reflechit") { return annuler(); }

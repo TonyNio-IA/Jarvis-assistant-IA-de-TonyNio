@@ -46,12 +46,15 @@ Avant l'envoi, les textes sont nettoyés : les prénoms des profils et des voix 
 
 Ils sont déposés dans un dossier Google Drive privé du créateur de Jarvis, qui est seul à les lire (avec l'aide de Claude pour les analyser). Ils sont effacés automatiquement au bout de 12 mois.
 
+Les demandes faites sur les tablettes sont comptées comme celles du PC. Pour un profil enfant, ce qu'il dit n'est jamais envoyé : seulement le genre de demande, qui a répondu et le temps de réponse.
+
 ## Vos choix
 
 Dans les réglages de Jarvis, rubrique **« Rapports »** :
 
 - changer le niveau (rien, technique, complet) à tout moment ;
 - couper le compteur anonyme ;
+- **« Je veux tester les nouvelles versions en avance »** : vous recevez les versions d'essai avant tout le monde (votre numéro anonyme est alors marqué « testeur ») ;
 - **« Voir ce qui partirait »** : le prochain rapport s'ouvre, tel qu'il serait envoyé ;
 - **« Effacer mes données »** : tout ce qui a été envoyé depuis votre PC est supprimé, et un nouveau numéro anonyme est tiré.
 
