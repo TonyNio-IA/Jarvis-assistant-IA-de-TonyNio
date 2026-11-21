@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.31"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.32"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -305,7 +305,13 @@ def sous_titre(texte, en_direct=False, reponse=False):
         pass
 
 
+derniere_activite = time.time()   # dernier moment où Jarvis n'était pas en veille (mise à jour forcée : 1 min de calme)
+
+
 def etat(nom):
+    global derniere_activite
+    if nom != "veille":
+        derniere_activite = time.time()
     try:
         afficher_etat(nom)
     except Exception:
@@ -1896,8 +1902,10 @@ def main():
                     raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
                 claude.entretenir()
 
-                # Mise à jour forcée publiée sur GitHub : installée tout de suite, Jarvis étant en veille
-                if jarvis_maj.forcee_a_installer():
+                # Mise à jour forcée publiée sur GitHub : installée sans question, après une minute de veille
+                # (personne ne parle à Jarvis, aucune demande en cours)
+                if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.CALME_AVANT_FORCEE
+                        and demandes_ecrites.empty() and point_pret.empty() and jarvis_maj.forcee_a_installer()):
                     etat("reponse")
                     sous_titre("Mise à jour importante : je m'installe.", reponse=True)
                     parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "

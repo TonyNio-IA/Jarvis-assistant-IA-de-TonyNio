@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.31**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.32**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +31,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.32
+
+- **Les mises à jour importantes attendent un moment calme** : Jarvis les installe après une minute de veille sans aucune demande (cinq minutes après une demande faite sur une tablette, pour ne pas couper un atelier ou une histoire).
 
 ## Nouveau en 1.31 : mises à jour importantes installées tout de suite
 
@@ -389,6 +393,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.32 | Mise à jour importante installée après une minute de calme (cinq minutes après une demande d'une tablette) |
 | 1.31 | Mises à jour importantes installées tout de suite, en veille ; nouvelle version cherchée toutes les 15 minutes ; rapports : département et villes voisines cachés |
 | 1.30 | Rapports d'amélioration avec accord (rien, technique ou complet), « Signaler un problème », « Proposer une amélioration », questionnaire, « Effacer mes données » ; micro rallumé à la voix ; réacteur sur le Bureau ; idées de demandes ; Jarvis se tait quand le PC joue un son |
 | 1.29 | Tablette (application 1.15) : réacteur redessiné, réveil par « Jarvis » avec un bip, ateliers pour les enfants (calcul, mots, dictée, animaux, heure) avec étoiles, récompenses et questions qui s'adaptent, voix d'enfant, minuteurs, rappels et rendez-vous avec compte à rebours, messages entre profils, « répète », réglages par rubriques, nouveaux thèmes, aide avec exemples, widget, alerte de batterie, réponses plus rapides ; PC : panneau modernisé (météo, heure, courbes des jauges, état des tablettes), nouveau menu du clic droit, micro coupé, démarrage du réacteur couche par couche, rappel en pastille, « Je redémarre » écrit sans voix, réglages modernisés, thèmes Aurore et Galaxie, nouvelle icône |

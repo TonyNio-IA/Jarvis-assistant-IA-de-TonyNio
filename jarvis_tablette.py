@@ -1494,6 +1494,11 @@ _REPETE = re.compile(r"^\W*(?:jarvis\W*)?(?:est-ce que |tu peux |peux-tu |tu pou
 
 def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=None):
     """La réponse à une demande comprise : commande immédiate, action sur la tablette, ou Claude."""
+    try:
+        import jarvis_maj
+        jarvis_maj.signaler_activite()               # une tablette parle à Jarvis : pas de mise à jour forcée maintenant
+    except Exception:
+        pass
     action, suite, atelier = None, False, None       # suite : après sa réponse, Jarvis écoute encore (recette, atelier)
     derniere = _dernieres.get(profil["id"]) if len(texte or "") < 45 and _REPETE.search(texte or "") else None
     if derniere:

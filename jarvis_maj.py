@@ -94,6 +94,21 @@ def verifier_en_arriere_plan():
     threading.Thread(target=tache, daemon=True).start()
 
 
+CALME_AVANT_FORCEE = 60      # secondes de veille, sans demande, avant d'installer une mise à jour forcée
+CALME_TABLETTE = 5 * 60      # après une demande d'une tablette (atelier, histoire...), on attend plus longtemps
+_activite_tablette = 0.0
+
+
+def signaler_activite():
+    global _activite_tablette
+    _activite_tablette = time.time()
+
+
+def forcee_en_attente():
+    return bool(disponible and forcee and not _forcee_lancee
+                and time.time() - _activite_tablette >= CALME_TABLETTE)
+
+
 def forcee_a_installer():
     """Vrai une seule fois quand une mise à jour forcée attend : Jarvis l'installe alors aussitôt."""
     global _forcee_lancee
