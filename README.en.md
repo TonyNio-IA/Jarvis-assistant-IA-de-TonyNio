@@ -300,7 +300,9 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_corrections.py` | Fixes for mishearings (built-in and taught by voice) |
 | `jarvis_sante.py` | Self-check and crash report |
 | `jarvis_accueil.py` | Guided first run for new users |
-| `jarvis_maj.py` | Updates: checks the latest version on GitHub at startup and installs it once you agree |
+| `jarvis_maj.py` | Updates: checks the latest version on GitHub (at startup, then every 15 minutes) and installs it once you agree; an important update installs by itself after one quiet minute |
+| `jarvis_rapports.py` | Improvement reports, only with your consent: local log, anonymised texts, daily sending, "Effacer mes données" (erase my data) |
+| `jarvis_rapports_ui.py` | The report windows: consent, "Signaler un problème", "Proposer une amélioration", survey |
 | `jarvis_desinstaller.py` | The full uninstall: personal files choice, summary and last confirmation |
 | `jarvis_infos.py` | Fuel prices, school holidays, bank holidays, "on this day", bin days |
 | `jarvis_agenda.py` | The iCloud calendar (public link) and the evening-before reminder |

@@ -242,7 +242,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Diagnostic : « Jarvis, fais un diagnostic » vérifie le micro, le haut-parleur, la reconnaissance vocale, Claude, la connexion et le disque (aussi dans l'onglet Santé des réglages). Après un plantage, il dit au redémarrage ce qui s'est passé.
 - Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Son.
 - Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
-- Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ».
+- Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ». Seules les mises à jour importantes s'installent sans question, après une minute sans aucune demande (cinq minutes après une demande d'une tablette) : Jarvis le dit à voix haute, puis redémarre.
 - Carburants : « combien coûte le gazole ? », « le prix du sans-plomb 98 » : la station la moins chère près de ta ville (prix officiels). « Mon carburant, c'est le gazole » pour ne plus le préciser.
 - Vacances et jours fériés : « c'est quand les prochaines vacances ? », « c'est quand la rentrée ? », « est-ce que demain est férié ? » (la zone scolaire est retrouvée à partir de ta ville).
 - Éphéméride : « qu'est-ce qui s'est passé un jour comme aujourd'hui ? ».
@@ -333,7 +333,9 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_corrections.py` | Les corrections d'écoute (intégrées et apprises à la voix) |
 | `jarvis_sante.py` | Le diagnostic et le compte rendu après un plantage |
 | `jarvis_accueil.py` | Les premiers pas d'un nouvel utilisateur (une question à la fois) |
-| `jarvis_maj.py` | Les mises à jour : vérifie la dernière version sur GitHub au démarrage et l'installe après ton accord |
+| `jarvis_maj.py` | Les mises à jour : cherche la dernière version sur GitHub (au démarrage, puis toutes les 15 minutes) et l'installe après ton accord ; une mise à jour importante s'installe seule après une minute de calme |
+| `jarvis_rapports.py` | Les rapports d'amélioration, seulement avec ton accord : journal sur le PC, textes rendus anonymes, envoi quotidien, « Effacer mes données » |
+| `jarvis_rapports_ui.py` | Les fenêtres des rapports : accord, « Signaler un problème », « Proposer une amélioration », questionnaire |
 | `jarvis_desinstaller.py` | La désinstallation complète : choix des fichiers personnels, récapitulatif et dernière confirmation |
 | `jarvis_infos.py` | Carburants, vacances scolaires, jours fériés, éphéméride, jours des poubelles |
 | `jarvis_agenda.py` | L'agenda iCloud (lien public) et le rappel de la veille |

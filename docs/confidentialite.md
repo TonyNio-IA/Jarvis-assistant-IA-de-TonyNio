@@ -40,7 +40,7 @@ Le rapport technique, plus vos conversations avec Jarvis (ce que vous avez deman
 - vos mails, votre agenda, vos contacts, vos notes, votre mémoire Jarvis ;
 - tout ce qui se passe en mode invité.
 
-Avant l'envoi, les textes sont nettoyés : les prénoms des profils, la ville, les adresses mail, les numéros de téléphone, les codes et les chemins de dossiers sont remplacés.
+Avant l'envoi, les textes sont nettoyés : les prénoms des profils et des voix apprises, la ville, le département et les villes voisines, les adresses mail, les numéros de téléphone, les codes et les chemins de dossiers sont remplacés.
 
 ## Où vont les rapports, et combien de temps
 
