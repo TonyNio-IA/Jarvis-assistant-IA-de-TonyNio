@@ -77,6 +77,7 @@ REGLAGES = [
     ("nb_reflets", "Apparence", "Nombre de reflets", "nombre", "jarvis_affichage", "NB_REFLETS", (1, 4, 1, "")),
     ("tour_reacteur", "Apparence", "Tour du reflet autour du cercle (secondes)", "nombre", "jarvis_affichage", "TOUR_REFLET_REACTEUR", (2, 20, 0.5, "s")),
     ("reflet_reacteur", "Apparence", "Reflet autour du cercle du réacteur", "bool", "jarvis_affichage", "REFLET_REACTEUR", None),
+    ("devant", "Apparence", "Réacteur toujours au premier plan (sinon il reste sur le Bureau)", "bool", "jarvis_affichage", "TOUJOURS_DEVANT", None),
     ("regard", "Apparence", "Le cœur suit la souris", "bool", "jarvis_affichage", "REGARD_SOURIS", None),
     ("force_regard", "Apparence", "Intensité du suivi de la souris", "nombre", "jarvis_affichage", "FORCE_REGARD", (0.05, 0.35, 0.005, "")),
     ("danse", "Apparence", "Le réacteur danse avec la musique", "bool", "jarvis_affichage", "DANSE_MUSIQUE", None),
@@ -643,7 +644,7 @@ def _construire():
                              ("Vie du réacteur", ("regard", "force_regard", "danse", "force_danse", "fetes", "halo")),
                              ("La nuit", ("doux_nuit", "douceur_nuit")),
                              ("Mode discret", ("discret", "delai_discret", "taille_discrete", "panneau_compact")),
-                             ("Taille", ("taille",))):
+                             ("Taille et place", ("taille", "devant"))):
             section(groupe)
             for c, onglet, libelle, genre, _, _, options in REGLAGES:
                 if c in cles:
@@ -987,13 +988,70 @@ def _construire():
                 messagebox.showerror("Jarvis", f"La fenêtre de désinstallation n'a pas pu s'ouvrir : {erreur}", parent=racine)
         bouton(cadre, "Désinstaller Jarvis…", desinstaller).pack(side="right", padx=12, pady=5)
 
+    def page_rapports():
+        import json as _json
+        import tempfile
+        import jarvis_rapports
+        import jarvis_rapports_ui
+        vider()
+        titre("Rapports", "Aider à améliorer Jarvis : ce que Jarvis envoie à son créateur, et quand. "
+                          "Rien ne part sans votre accord, sauf un compteur anonyme que vous pouvez couper.")
+        section("Ce que j'accepte d'envoyer")
+        cadre = ligne()
+        tk.Label(cadre, text="Rapport une fois par jour (technique : sans les conversations ; complet : avec)",
+                 wraplength=px(330), justify="left", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
+        noms = list(jarvis_rapports.NIVEAUX.values())
+        cles = list(jarvis_rapports.NIVEAUX)
+        choix(cadre, jarvis_rapports.NIVEAUX[jarvis_rapports.niveau()], noms,
+              lambda n: jarvis_rapports.choisir_niveau(cles[noms.index(n)])).pack(side="right", padx=12, pady=4)
+        cadre = ligne()
+        tk.Label(cadre, text="Compteur anonyme (combien de personnes utilisent Jarvis)", bg=PANNEAU2, fg=TEXTE,
+                 font=POLICE).pack(side="left", padx=12, pady=9)
+        interrupteur(cadre, jarvis_rapports.valeur("compteur", True),
+                     lambda v: jarvis_rapports.regler("compteur", bool(v))).pack(side="right", padx=12)
+        cadre = ligne()
+        tk.Label(cadre, text="Je veux tester les nouvelles versions en avance", bg=PANNEAU2, fg=TEXTE,
+                 font=POLICE).pack(side="left", padx=12, pady=9)
+        interrupteur(cadre, jarvis_rapports.valeur("testeur", False),
+                     lambda v: jarvis_rapports.regler("testeur", bool(v))).pack(side="right", padx=12)
+        section("Écrire au créateur de Jarvis")
+        cadre = ligne()
+        bouton(cadre, "Signaler un problème", lambda: jarvis_rapports_ui.ouvrir_message("probleme"),
+               fort=True).pack(side="left", padx=12, pady=8)
+        bouton(cadre, "Proposer une amélioration", lambda: jarvis_rapports_ui.ouvrir_message("idee")).pack(
+            side="left", pady=8)
+        section("Mes données")
+
+        def voir():
+            rap, n = jarvis_rapports.construire_rapport()
+            chemin = os.path.join(tempfile.gettempdir(), "Jarvis - prochain rapport.json")
+            with open(chemin, "w", encoding="utf-8") as f:
+                _json.dump(rap, f, ensure_ascii=False, indent=2)
+            os.startfile(chemin)
+
+        def effacer():
+            if not messagebox.askyesno("Jarvis", "Effacer tout ce qui a été envoyé depuis ce PC, et le journal en "
+                                                 "attente sur ce PC ?", parent=racine):
+                return
+            ok = jarvis_rapports.effacer_mes_donnees()
+            messagebox.showinfo("Jarvis", "C'est fait : vos données sont effacées." if ok else
+                                "Le journal de ce PC est vidé, mais le dépôt n'a pas répondu (Internet ?). "
+                                "Réessayez plus tard.", parent=racine)
+        cadre = ligne()
+        bouton(cadre, "Voir ce qui partirait", voir).pack(side="left", padx=12, pady=8)
+        bouton(cadre, "Effacer mes données", effacer).pack(side="left", pady=8)
+        bouton(cadre, "Page d'information", jarvis_rapports_ui.ouvrir_page_info).pack(side="left", padx=12, pady=8)
+        tk.Label(page, text=jarvis_rapports_ui.DETAIL, bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
+                 justify="left").pack(anchor="w", padx=22, pady=12)
+
     pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
-             ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("À propos", page_a_propos)]
+             ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("Rapports", page_rapports),
+             ("À propos", page_a_propos)]
     onglets = {}
 
     # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
     icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
-              "Historique": "", "Santé": "", "Système": "", "À propos": ""}
+              "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939"}
 
     def montrer(nom, fonction):
         for n, (ligne_menu, trait, ic, lib) in onglets.items():

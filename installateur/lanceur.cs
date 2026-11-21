@@ -1,4 +1,4 @@
-// Lanceur de l'installateur de Jarvis, assistant IA de TonyNio.
+﻿// Lanceur de l'installateur de Jarvis, assistant IA de TonyNio.
 // Il ne fait qu'une chose : sortir le fichier Installer-Jarvis.bat qu'il contient
 // et le lancer dans la meme fenetre. Tout le travail est fait par ce fichier .bat.
 // https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio
@@ -12,8 +12,8 @@ using System.Reflection;
 [assembly: AssemblyProduct("Jarvis, assistant IA de TonyNio")]
 [assembly: AssemblyCompany("TonyNio")]
 [assembly: AssemblyCopyright("TonyNio")]
-[assembly: AssemblyVersion("1.29.0.0")]
-[assembly: AssemblyFileVersion("1.29.0.0")]
+[assembly: AssemblyVersion("1.30.0.0")]
+[assembly: AssemblyFileVersion("1.30.0.0")]
 
 static class Lanceur
 {
@@ -41,7 +41,7 @@ static class Lanceur
             info.Arguments = "/c \"\"" + fichier + "\"\"";
             info.UseShellExecute = false;
             info.WorkingDirectory = dossier;
-            // L'installateur range cette version (avec l'icÃ´ne du rÃ©acteur) dans le dossier de Jarvis
+            // L'installateur range cette version (avec l'icÃƒÂ´ne du rÃƒÂ©acteur) dans le dossier de Jarvis
             info.EnvironmentVariables["JARVIS_LANCEUR"] = Process.GetCurrentProcess().MainModule.FileName;
             int code;
             using (Process p = Process.Start(info))

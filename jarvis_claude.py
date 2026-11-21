@@ -75,8 +75,22 @@ import jarvis_agenda
 import jarvis_sources
 import jarvis_tablette
 from jarvis_commandes import commande_instantanee, sans_whisper  # heure, météo, volume...
+try:
+    import jarvis_rapports                 # rapports pour améliorer Jarvis (avec l'accord de l'utilisateur)
+except Exception as _erreur_rapports:
+    jarvis_rapports = None
+    print("Rapports indisponibles :", _erreur_rapports)
 
-VERSION = "1.29"              # numéro de version de Jarvis (même numéro que sur GitHub)
+
+def rapport(nom, *args, **kwargs):
+    """Note un événement pour les rapports, sans jamais gêner Jarvis si quelque chose coince."""
+    try:
+        if jarvis_rapports is not None:
+            getattr(jarvis_rapports, nom)(*args, **kwargs)
+    except Exception as erreur_rapport:
+        print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
+
+VERSION = "1.30"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1311,6 +1325,7 @@ def traiter(demande, recognizer):
     global derniere_reponse, duree_whisper
     print("Demande :", demande)
     debut_traitement = time.time()
+    rapport("demande", demande)                    # demandes refaites ou annulées juste après
     whisper_ici, duree_whisper = duree_whisper, 0.0
     mesure = (f"Whisper {whisper_ici:.1f} s, " if whisper_ici else "")
     minuscules = demande.lower()
@@ -1376,6 +1391,8 @@ def traiter(demande, recognizer):
         derniere_reponse = reponse
         print("Commande instantanée :", reponse)
         print(f"(Durées : {mesure}commande {time.time() - debut_traitement:.2f} s)")
+        rapport("reponse", demande, "local", time.time() - debut_traitement + whisper_ici,
+                etape=f"whisper {whisper_ici:.1f} s" if whisper_ici else "")
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
         etat("reponse")
         interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil())
@@ -1466,6 +1483,10 @@ def traiter(demande, recognizer):
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
     print(f"(Durées : {mesure}Claude {time.time() - debut_traitement:.1f} s)")
+    rapport("reponse", demande, "claude", time.time() - debut_traitement + whisper_ici, erreur=bool(erreur),
+            etape=f"whisper {whisper_ici:.1f} s, claude {time.time() - debut_traitement:.1f} s")
+    if erreur:
+        rapport("erreur", "claude", texte=str(reponse))
     if not erreur:
         reponse = jarvis_enfant.appliquer(reponse)              # résumé de l'histoire gardé pour la suite
         reponse = jarvis_extras.appliquer_recette(reponse)     # étapes de la recette gardées pour « étape suivante »
@@ -1680,7 +1701,18 @@ def conversation(demande, recognizer):
                 and not jarvis_commandes.mot_court(demande)
                 and not DEMANDE_REDEMARRAGE.search(demande.lower())):
             print("Demande trop courte :", demande)
+            try:
+                video = son_pc_rapide()
+            except Exception:
+                video = False
+            if video:              # une vidéo qui dit « Jarvis » : on ne répond rien, plutôt que « tu peux répéter ? »
+                print("(Le PC joue du son : sans doute une vidéo, retour en veille sans rien dire.)")
+                rapport("faux_reveil", "son du PC", demande)
+                preparer_ecoute(recognizer)
+                etat("veille")
+                return
             essais_courts += 1
+            rapport("incompris", demande, "demande trop courte")
             if essais_courts > 1:
                 speak("Je n'ai pas compris, redis Jarvis quand tu veux.")
                 preparer_ecoute(recognizer)
@@ -1749,8 +1781,13 @@ def attendre_micro():
             pass
 
 
+_RALLUMER_MICRO = re.compile(r"\bjarvis\b.*\b(?:rallume|allume|réactive|reactive|remets|active)\b.*\bmicro\b"
+                             r"|\bjarvis\b.*\b(?:écoute|ecoute)[- ]moi\b"
+                             r"|\bjarvis\b.*\b(?:recommence|reprends) (?:à|a) (?:écouter|ecouter)\b")
+
+
 def main():
-    global rec_stop, rec_coupure
+    global rec_stop, rec_coupure, micro_coupe
     if AudioUtilities is not None:
         try:
             comtypes.CoInitialize()
@@ -1769,6 +1806,12 @@ def main():
     jarvis_locuteur.preparer(model)              # reconnaissance de la voix de chaque profil (si le modèle est là)
     # Tout le reste se charge en arrière-plan : Jarvis écoute dès que Vosk est prêt
     jarvis_systeme.demarrer()
+    rapport("demarrer")                          # rapports (compteur anonyme ; le reste avec l'accord de l'utilisateur)
+    try:                                         # la question de l'accord (une fois), puis le questionnaire à 7 jours
+        import jarvis_rapports_ui
+        jarvis_rapports_ui.au_demarrage()
+    except Exception as erreur_fenetres:
+        print("Rapports (fenêtres) :", erreur_fenetres)
     jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
@@ -1882,8 +1925,18 @@ def main():
                 # Micro coupé (« coupe le micro », ou le menu du réacteur) : rien n'est écouté ; les demandes écrites,
                 # les rappels et les alertes passent toujours
                 if micro_coupe:
-                    recognizer.Reset()
+                    # Le micro n'est coupé que pour Jarvis : il ne répond plus à rien, sauf à la phrase qui le
+                    # rallume (« Jarvis, rallume ton micro »), reconnue sur ce PC et oubliée aussitôt
                     tampon.clear()
+                    if recognizer.AcceptWaveform(data):
+                        dite = json.loads(recognizer.Result()).get("text", "").lower()
+                        if _RALLUMER_MICRO.search(dite):
+                            micro_coupe = False
+                            print("(Micro rallumé à la voix.)")
+                            etat("reponse")
+                            parler("C'est fait, je t'écoute de nouveau.")
+                            preparer_ecoute(recognizer)
+                            etat("veille")
                     continue
 
                 # Pause pendant que Claude lit un message à voix haute
@@ -1948,6 +2001,7 @@ def main():
                                 conversation(demande, recognizer)
                             else:                      # rien de clair : sans doute la vidéo, on ne dit rien
                                 print("(Rien d'entendu ensuite : retour en veille sans rien dire.)")
+                                rapport("faux_reveil", "réveil pendant un son du PC, rien ensuite")
                                 reveil_son_bloque = time.time() + PAUSE_APRES_FAUX_REVEIL
                                 preparer_ecoute(recognizer)
                                 etat("veille")

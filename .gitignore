@@ -60,3 +60,6 @@ android/construction/
 android/Jarvis-tablette.apk
 android/Jarvis-tablette.json
 installateur/jarvis_ancienne.ico
+rapports.json
+rapports.json.tmp
+rapports_journal.jsonl

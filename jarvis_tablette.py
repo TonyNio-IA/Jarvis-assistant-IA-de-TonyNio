@@ -1513,8 +1513,10 @@ def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=N
             print("Tablette (atelier) :", erreur)
             fait = None
     etape = None if fait else _etape_recette(texte, profil["id"])
+    ecrit = None                                     # texte de l'écran, quand il diffère de ce qui est dit (dictée)
     if fait:
         reponse, suite, atelier = fait["reponse"], fait.get("suite", False), fait.get("atelier")
+        ecrit = fait.get("ecrit")
     elif etape:
         reponse, suite = etape
     elif _AIDE.search(_net(texte)):                  # « qu'est-ce que tu sais faire ? » : des exemples à l'écran
@@ -1543,19 +1545,25 @@ def _traiter(profil, texte, son, genre, muet, tablette, reconnue, debut, tache=N
             attente = jarvis_foyer.messages_en_attente(_ident_foyer(profil))
             if attente:
                 reponse = attente + reponse
+                if ecrit:
+                    ecrit = attente + ecrit
         except Exception as erreur:
             print("Tablette (messages) :", erreur)
     print(f"Tablette, réponse ({time.time() - debut:.1f} s) :", reponse[:300])
-    _dernieres[profil["id"]] = {"reponse": reponse, "suite": suite, "atelier": atelier}
-    resultat_ = {"entendu": texte, "reponse": reponse, "voix": None, "minuteurs": minuteurs_de(tablette, profil)}
+    _dernieres[profil["id"]] = {"reponse": reponse, "suite": suite, "atelier": atelier, "ecrit": ecrit}
+    resultat_ = {"entendu": texte, "reponse": ecrit or reponse, "voix": None, "minuteurs": minuteurs_de(tablette, profil)}
     if action:
         resultat_["action"] = action
     if suite:
         resultat_["suite"] = True
     if atelier is not None:
         resultat_["atelier"] = atelier
+    if ecrit:
+        resultat_["a_dire"] = reponse                # pour la voix de secours de la tablette
     if tache is not None and not muet:               # le texte part tout de suite ; la voix suit dès qu'elle est fabriquée
-        parties = _parties_voix(reponse)             # longue réponse : la première phrase est dite pendant que la suite se fabrique
+        # longue réponse : la première phrase est dite pendant que la suite se fabrique (pas quand l'écran montre
+        # un autre texte que la voix : les morceaux de voix s'afficheraient)
+        parties = _parties_voix(reponse) if not ecrit else [reponse]
         tache[1]["deux"] = len(parties) > 1
 
         def fabriquer(texte_, cle, pret):
@@ -2110,6 +2118,11 @@ body.veille #scene:after{opacity:.1} body.atelier #scene:after{display:none}
  box-shadow:0 0 6px var(--c)}
 body.ecoute #etat:before,body.reflechit #etat:before{animation:clignote 1s ease-in-out infinite}
 @keyframes clignote{50%{opacity:.25}}
+/* Une idée de demande, qui change toutes les quelques secondes en veille ; on la touche pour l'essayer */
+#idee{display:none;margin-top:14px;padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:#9fb3c8;font-size:16px;max-width:92%;transition:opacity .45s ease}
+#idee b{color:var(--c,#4ff2dc);font-weight:600}
+body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #idee.cache{opacity:0}
 </style>
 </head>
 <body class="veille">
@@ -2123,7 +2136,8 @@ body.ecoute #etat:before,body.reflechit #etat:before{animation:clignote 1s ease-
 <div id="atelier"><span id="at_etoiles"></span><div id="at_progres"></div><button id="at_fermer" type="button" aria-label="Fermer">✕</button>
 <div id="at_corps"></div><div id="at_choix"></div></div>
 <div id="textes"><div id="entendu"></div><div id="bulle" class="calme"></div>
-<button id="ouvrir" class="pastille" type="button">Ouvrir</button><button id="propose" class="pastille" type="button"></button></div>
+<button id="ouvrir" class="pastille" type="button">Ouvrir</button><button id="propose" class="pastille" type="button"></button>
+<button id="idee" type="button"></button></div>
 <form id="forme" autocomplete="off">
 <input id="champ" type="text" maxlength="400" enterkeyhint="send" placeholder="Ou écris ici…">
 <button id="envoi" type="submit" aria-label="Envoyer"><svg viewBox="0 0 24 24"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg></button>
@@ -2512,6 +2526,7 @@ body.ecoute #etat:before,body.reflechit #etat:before{animation:clignote 1s ease-
       + (peutVeiller() && reglages.veille ? (neuve ? "Dis « Jarvis », attends le bip, puis fais ta demande. Tu peux aussi toucher le rond."
           : "Dis « Jarvis », puis ta demande. Tu peux aussi appuyer sur le rond.")
         : peutEcouter() ? "Appuie sur le rond et parle-moi." : "Écris-moi ta question juste en dessous."), "calme");
+    lancerIdees();
   }
   function bloquer(message) {
     fermer();
@@ -2730,25 +2745,75 @@ body.ecoute #etat:before,body.reflechit #etat:before{animation:clignote 1s ease-
   };
   $("r_code").onclick = function () { profilCode = profil; ancienCode = null; clavier("ancien"); };
   // ----- L'aide : des exemples de phrases, par thème (en grand et plus simples sur le profil d'un enfant)
-  function aide() {
-    var enfant = !!(profil && profil.enfant), boite = $("aide_liste");
+  function themesAide() {
+    var enfant = !!(profil && profil.enfant);
     var autres = (serveur && serveur.profils || []).filter(function (p) { return profil && p.id !== profil.id; });
     var nom = autres.length ? autres[0].prenom : "Marie";        // un vrai prénom du foyer, pour l'exemple du message
-    var themes = enfant ? [
+    return enfant ? [
       ["Jouer et apprendre", ["On fait du calcul", "Les tables de 5", "On fait une dictée", "Devine l'animal", "On lit l'heure",
-                              "Comment s'écrit papillon ?", "Combien j'ai d'étoiles ?"]],
-      ["Questions", ["Raconte-moi une histoire", "Pourquoi le ciel est bleu ?", "Dis-moi une blague"]],
-      ["La tablette", ["Ouvre YouTube Kids", "Mets un minuteur de 10 minutes"]],
+                              "Comment s'écrit papillon ?", "Combien j'ai d'étoiles ?", "Donne-moi mon défi du jour",
+                              "Pose-moi une devinette", "On fait un quiz"]],
+      ["Questions", ["Raconte-moi une histoire", "Pourquoi le ciel est bleu ?", "Dis-moi une blague", "Combien de pattes a une araignée ?",
+                     "Pourquoi les chats ronronnent ?", "Quel est le plus grand animal du monde ?", "Raconte-moi un truc incroyable",
+                     "Quelle heure est-il ?", "Quel temps fait-il ?", "C'est quand les vacances ?"]],
+      ["La tablette", ["Ouvre YouTube Kids", "Mets un minuteur de 10 minutes", "Combien de temps il reste ?"]],
       ["Parler à la famille", ["Dis à " + nom + " que je t'aime"]],
       ["Si tu n'as pas entendu", ["Répète"]]
     ] : [
-      ["Questions", ["Quelle heure est-il ?", "Quel temps fera-t-il demain ?", "Combien font 15 fois 8 ?", "Convertis 3 miles en kilomètres"]],
-      ["Cuisine", ["Donne-moi la recette des crêpes", "Suivant", "Minuteur pâtes 10 minutes", "Combien de temps il reste ?"]],
+      ["Questions", ["Quelle heure est-il ?", "Quel temps fera-t-il demain ?", "Combien font 15 fois 8 ?", "Convertis 3 miles en kilomètres",
+                     "Quelle heure est-il à New York ?", "C'est quand le prochain jour férié ?", "C'est quand les vacances scolaires ?",
+                     "Y a-t-il une alerte météo ?", "Raconte-moi une anecdote", "Explique-moi comment marche un arc-en-ciel"]],
+      ["Cuisine", ["Donne-moi la recette des crêpes", "Suivant", "Minuteur pâtes 10 minutes", "Combien de temps il reste ?",
+                   "Une idée de dîner rapide avec des courgettes", "Combien de grammes dans une cuillère à soupe de farine ?"]],
       ["Rappels et famille", ["Rappelle-moi dans 20 minutes de sortir le linge", "Dis à " + nom + " que je rentre tard",
-                              "Qu'est-ce qu'on a demain ?"]],
-      ["La tablette", ["Ouvre YouTube", "Cherche des vidéos de chats sur YouTube", "Montre-moi des images de dauphins"]],
+                              "Qu'est-ce qu'on a demain ?", "Mets un réveil à 7 heures", "C'est quand mon prochain rendez-vous ?"]],
+      ["La tablette", ["Ouvre YouTube", "Cherche des vidéos de chats sur YouTube", "Montre-moi des images de dauphins",
+                       "Cherche un restaurant italien sur Internet"]],
       ["Pendant une réponse", ["Jarvis (pour lui couper la parole)", "Répète"]]
     ];
+  }
+  // ----- Une idée de demande sous la bulle, qui change toute seule en veille (on la touche pour l'essayer)
+  var ideeVue = -1, ideeTimer = null;
+  function idees() {
+    var liste = [];
+    themesAide().forEach(function (t) {
+      t[1].forEach(function (p) { if (!/^Jarvis \(|^Dis à |^Suivant$|^Répète$/.test(p)) { liste.push(p); } });
+    });
+    return liste;
+  }
+  function changerIdee() {
+    var b = $("idee"), liste = idees();
+    if (!b || !liste.length) { return; }
+    if (mode !== "veille" || document.activeElement === champ || champ.value) { return; }
+    b.className = "on cache";
+    setTimeout(function () {
+      var i = Math.floor(Math.random() * liste.length);
+      if (i === ideeVue) { i = (i + 1) % liste.length; }
+      ideeVue = i;
+      b.innerHTML = "";
+      b.appendChild(document.createTextNode("Essaie : "));
+      b.appendChild(element("b", "", "« " + liste[i] + " »"));
+      b.dataset.phrase = liste[i];
+      champ.placeholder = "Ou écris ici… par exemple : " + liste[(i + 7) % liste.length];
+      b.className = "on";
+    }, 450);
+  }
+  function lancerIdees() {
+    var b = $("idee");
+    if (!b || ideeTimer) { return; }
+    b.onclick = function () {                     // comme une phrase de l'aide : Jarvis la reçoit comme si on l'avait dite
+      var phrase = b.dataset.phrase;
+      if (!phrase) { return; }
+      debloquer(); seTaire(); entendu.textContent = "";
+      montrer(phrase, "demande");
+      envoyer(JSON.stringify({ texte: phrase }), "application/json");
+    };
+    changerIdee();
+    ideeTimer = setInterval(changerIdee, 7000);
+  }
+  function aide() {
+    var enfant = !!(profil && profil.enfant), boite = $("aide_liste");
+    var themes = themesAide();
     boite.innerHTML = "";
     themes.forEach(function (t) {
       boite.appendChild(element("div", "aide_theme", t[0]));
@@ -2992,7 +3057,7 @@ body.ecoute #etat:before,body.reflechit #etat:before{animation:clignote 1s ease-
         }, d.reponse);
       });
     }
-    if (!d.voix) { return voixTablette(d.reponse); }
+    if (!d.voix) { return voixTablette(d.a_dire || d.reponse); }
     jouer(d.voix, d.reponse, "", fin, d.reponse);
   }
   function jouer(voix64, texte, avant, ensuite, tout) {

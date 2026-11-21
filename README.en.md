@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.29**
+**Français : [README.md](README.md)** · **Current version: 1.30**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +30,16 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.30: help improve Jarvis
+
+- **Reports, only with your consent**: on first launch, Jarvis asks whether it may send a daily technical report (misunderstood phrases, errors, response times, features used…) or a full report (with conversations). First names, city, emails and numbers are removed before sending; your voice is never sent. Everything can be changed or erased in the settings, "Rapports" section. An anonymous counter (a random number) counts users; it can be switched off too. Details: [docs/confidentialite.md](docs/confidentialite.md) (French).
+- **"Report a problem" and "Suggest an improvement"**: in the right-click menu and in the settings.
+- **A three-question survey**, once, after one week.
+- **The microphone muted for Jarvis only**: the Windows microphone stays on, and "**Jarvis, rallume ton micro**" turns it back on by voice.
+- **The reactor stays on the desktop**, behind your windows (it still listens and answers); "always on top" can be restored in the settings. In full screen (video, game), it goes behind.
+- **Example requests** scroll in the chat window, on the PC and on the tablet.
+- Jarvis no longer answers "can you repeat?" when a video says "Jarvis"; in the dictation workshop, the word is no longer shown on screen.
 
 ## New in 1.29: a new look, and the tablet for children
 

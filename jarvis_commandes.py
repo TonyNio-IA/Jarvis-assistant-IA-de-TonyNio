@@ -1498,6 +1498,16 @@ _MICRO_RALLUMER = re.compile(r"^(?:rallume|allume|réactive|reactive|remets|acti
                              r"|^(?:recommence|reprends) (?:à|a) [ée]couter\b|^[ée]coute[- ]moi\W*$")
 
 
+def _commande_rapports(t):
+    """« Signale un problème », « propose une amélioration » : la fenêtre des rapports s'ouvre."""
+    try:
+        import jarvis_rapports_ui
+        return jarvis_rapports_ui.commande(t)
+    except Exception as erreur:
+        print("Rapports :", erreur)
+        return None
+
+
 def commande_micro(t):
     """« Coupe le micro » : Jarvis n'écoute plus (un micro barré s'affiche sur le réacteur). Pour le rallumer :
     clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
@@ -1505,8 +1515,8 @@ def commande_micro(t):
     if _MICRO_COUPER.search(t):
         jarvis_claude.micro_coupe = True
         print("(Micro coupé à la demande.)")
-        return ("D'accord, je coupe mon micro. Pour me rallumer, fais un clic droit sur le réacteur, puis "
-                "« Rallumer le micro », ou écris-le-moi.")
+        return ("D'accord, je n'écoute plus. Ton micro reste allumé pour le reste du PC. Pour me rallumer, "
+                "dis « Jarvis, rallume ton micro », ou fais un clic droit sur le réacteur.")
     if _MICRO_RALLUMER.search(t):
         deja = not jarvis_claude.micro_coupe
         jarvis_claude.micro_coupe = False
@@ -1553,6 +1563,7 @@ def commande_instantanee(textes, annoncer=None):
             for commande in (lambda: commande_micro(t),
                              lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
+                             lambda: _commande_rapports(t),
                              lambda: jarvis_corrections.commande(t),
                              lambda: jarvis_sante.commande(t),
                              lambda: jarvis_accueil.reponse(t, brut, _commande_ville),

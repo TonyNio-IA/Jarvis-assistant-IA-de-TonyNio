@@ -146,6 +146,11 @@ def noter_echange(demande, reponse):
         donnees["echanges"].append({"date": _maintenant(), "demande": demande[:400], "reponse": reponse[:600]})
         del donnees["echanges"][:-NB_ECHANGES_GARDES]
         _enregistrer()
+    try:                              # rapport complet (seulement si l'utilisateur l'a choisi) : texte nettoyé
+        import jarvis_rapports
+        jarvis_rapports.conversation(demande, reponse)
+    except Exception:
+        pass
 
 
 def _court(texte):

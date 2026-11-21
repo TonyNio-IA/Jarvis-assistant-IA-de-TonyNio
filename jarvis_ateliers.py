@@ -365,6 +365,9 @@ def _question_animal(deja):
     return {"juste": emoji, "animal": emoji, "dit": "Devine quel animal se cache derrière le flou !", "choix": choix}
 
 
+ECRIT_DICTEE = "Écris le mot que tu entends. Dis « répète » pour l'entendre encore."
+
+
 def _question_dictee(deja, niv=NIVEAU_DEPART):
     """niv 1 : mots de 4 lettres au plus ; 2 : 5 lettres au plus ; 3 : tous les mots."""
     longueur = 4 if niv <= 1 else 5 if niv == 2 else 99
@@ -456,16 +459,22 @@ def _poser(jeu, dossier, ident, essai, avant=""):
         plus["animal"] = q["animal"]
     else:
         plus.update(clavier=True, longueur=q["longueur"])
-    return {"reponse": (avant + " " + q["dit"]).strip(), "suite": nom != "dictee",
+    fait = {"reponse": (avant + " " + q["dit"]).strip(), "suite": nom != "dictee",
             "atelier": _affichage(jeu, total, **plus)}
+    if nom == "dictee":                              # le mot est dit, mais jamais écrit à l'écran (sinon il suffit de recopier)
+        fait["ecrit"] = (avant + " " + ECRIT_DICTEE).strip()
+    return fait
 
 
 def _repondre(jeu, t, dossier, ident, essai, parle):
     """Une réponse de l'enfant pendant l'atelier. None si la phrase n'en est pas une (on sort de l'atelier)."""
     q, nom = jeu["question"], jeu["nom"]
     if re.search(r"\b(?:r[ée]p[eè]te|redis|j'ai pas entendu|je n'ai pas entendu|encore une fois)\b", t):
-        return {"reponse": q["dit"], "suite": nom != "dictee", "atelier": _affichage(jeu, etoiles(dossier, ident, essai)["total"],
+        fait = {"reponse": q["dit"], "suite": nom != "dictee", "atelier": _affichage(jeu, etoiles(dossier, ident, essai)["total"],
                                                                                         **_vue_question(jeu, q))}
+        if nom == "dictee":
+            fait["ecrit"] = ECRIT_DICTEE
+        return fait
     if re.search(r"\b(?:autre|une autre|suivant|suivante|passe|change)\b", t) and len(t.split()) <= 4:
         return _poser(jeu, dossier, ident, essai, "D'accord, une autre.")
     sais_pas = _je_sais_pas(t) or not t
@@ -565,11 +574,14 @@ def traiter(texte, profil, dossier, essai=False, parle=True):
         return None
     ident = profil["id"]
     t = _propre(texte)
+    oublie = None
     with _verrou:
         jeu = _jeux.get(ident)
         if jeu and time.time() - jeu["quand"] > DUREE_JEU:
             _jeux.pop(ident, None)
-            jeu = None
+            oublie, jeu = jeu, None
+    if oublie:                                        # (noté hors du verrou : les étoiles se lisent avec lui)
+        _rapport_atelier(oublie, "abandonné (plus de réponse)", dossier, ident, essai)
     if _ETOILES.search(t) and len(t.split()) <= 9:         # « combien j'ai d'étoiles » : le tableau des étoiles s'ouvre
         if jeu and jeu.get("question"):               # pendant un atelier : la question en cours reste affichée
             return {"reponse": _bilan_etoiles(dossier, ident, essai), "suite": False,
@@ -599,6 +611,8 @@ def traiter(texte, profil, dossier, essai=False, parle=True):
     elif _CALCUL.search(t) and (_VERBE.search(t) or len(t.split()) <= 5):        # « les tables de 5 », « du calcul »
         depart = ("calcul", _genre_calcul(t))
     if depart:
+        if jeu:
+            _rapport_atelier(jeu, "remplacé par un autre atelier", dossier, ident, essai)
         jeu = {"nom": depart[0], "genre": depart[1], "vus": [], "quand": time.time(), "gagnees": 0,
                "debut_total": etoiles(dossier, ident, essai)["total"]}
         with _verrou:
@@ -611,6 +625,7 @@ def traiter(texte, profil, dossier, essai=False, parle=True):
     if _ARRET.search(t) or (t in ("stop", "arrête", "fini") ):
         with _verrou:
             _jeux.pop(ident, None)
+        _rapport_atelier(jeu, "arrêté par l'enfant", dossier, ident, essai)
         gagnees = etoiles(dossier, ident, essai)["total"] - jeu["debut_total"]
         bilan = (f"Tu as gagné {gagnees} étoile{'s' if gagnees > 1 else ''}. Bravo !" if gagnees
                  else "À bientôt pour gagner des étoiles !")
@@ -620,8 +635,22 @@ def traiter(texte, profil, dossier, essai=False, parle=True):
     if reponse is None:
         with _verrou:
             _jeux.pop(ident, None)
+        _rapport_atelier(jeu, "quitté pour une autre demande", dossier, ident, essai)
         return None
     return reponse
+
+
+def _rapport_atelier(jeu, fin, dossier, ident, essai):
+    """Rapports (si l'utilisateur les a acceptés) : le nom de l'atelier, comment il s'arrête, le nombre de questions
+    posées et d'étoiles gagnées. Jamais le prénom, ni la voix, ni les réponses de l'enfant."""
+    if essai:
+        return
+    try:
+        import jarvis_rapports
+        gagnees = etoiles(dossier, ident, essai)["total"] - jeu.get("debut_total", 0)
+        jarvis_rapports.atelier(jeu.get("nom", "?"), fin, len(jeu.get("vus") or []), max(0, gagnees))
+    except Exception:
+        pass
 
 
 # ---------- Une réponse courte mal comprise ----------

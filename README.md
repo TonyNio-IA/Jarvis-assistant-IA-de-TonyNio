@@ -1,10 +1,10 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.29**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.30**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
-**▶ Démonstration en vidéo (6 min) : [Je parle à mon PC et il m'obéit : j'ai créé mon propre JARVIS](https://www.youtube.com/watch?v=3Xd91q7618U)**
+**▶ Tout ce qu'il sait faire, en vidéo (20 min) : [J'ai créé mon propre JARVIS : tout ce qu'il sait faire](https://www.youtube.com/watch?v=xOM06Lr_elk)** · la première démo (6 min) : [Je parle à mon PC et il m'obéit](https://www.youtube.com/watch?v=3Xd91q7618U)
 
 **Jarvis est un assistant vocal en français pour Windows 11.** Tu dis « Jarvis », il comprend ta demande, y répond à voix haute et agit sur ton PC : ouvrir une application, gérer les fenêtres, lancer de la musique, poser un rappel, lire ou traduire un texte copié, décrire ce qui est à l'écran. Les demandes simples sont traitées sur le PC en une seconde ; les autres sont confiées à Claude.
 
@@ -29,7 +29,18 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Aide** : toutes les commandes rangées par thème, avec une recherche.
 - **Santé** : un diagnostic en un clic (micro, haut-parleur, reconnaissance vocale, Claude, connexion, disque).
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
+- **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.30 : aider à améliorer Jarvis
+
+- **Des rapports, seulement avec ton accord** : au premier lancement, Jarvis te demande s'il peut envoyer une fois par jour un rapport technique (phrases mal comprises, erreurs, temps de réponse, fonctions utilisées…) ou un rapport complet (avec les conversations). Les prénoms, la ville, les mails et les numéros sont retirés avant l'envoi ; la voix n'est jamais envoyée. Tout se change ou s'efface dans les réglages, rubrique « Rapports ». Un compteur anonyme (un numéro tiré au hasard) compte les utilisateurs ; il se coupe aussi. Tout est expliqué dans [docs/confidentialite.md](docs/confidentialite.md).
+- **« Signaler un problème » et « Proposer une amélioration »** : dans le menu du clic droit et dans les réglages.
+- **Un questionnaire de trois questions**, une seule fois, au bout d'une semaine.
+- **Le micro coupé seulement pour Jarvis** : « coupe ton micro » ne touche pas au micro de Windows, et « **Jarvis, rallume ton micro** » le rallume à la voix.
+- **Le réacteur reste sur le Bureau**, derrière tes fenêtres (il écoute et répond quand même) ; « toujours au premier plan » se rétablit dans les réglages. En plein écran (vidéo, jeu), il passe derrière.
+- **Des idées de demandes** qui défilent dans la fenêtre de discussion, sur le PC et sur la tablette.
+- Jarvis ne répond plus « tu peux répéter ? » quand une vidéo dit « Jarvis » ; à la dictée, le mot n'est plus écrit à l'écran.
 
 ## Nouveau en 1.29 : un nouveau look, et la tablette pour les enfants
 

@@ -78,6 +78,22 @@ LIGNES_DISCUSSION = 3    # lignes de texte visibles (un texte plus long défile 
 LONGUEUR_SAISIE = 400    # caractères au plus dans une demande écrite
 ABANDON_SAISIE = 60      # secondes sans frappe avant d'abandonner une demande commencée
 INVITE_SAISIE = "Clique ici pour écrire à Jarvis"
+# Des idées de demandes, qui défilent dans la fenêtre de discussion quand elle est vide
+IDEES = ("Quelle heure est-il ?", "Quel temps fera-t-il demain ?", "Mets un minuteur pâtes de 10 minutes",
+         "Rappelle-moi demain à 9 heures d'appeler le garage", "Combien font 17 fois 23 ?", "Convertis 30 miles en kilomètres",
+         "Ajoute du lait à la liste de courses", "Qu'est-ce qu'il y a sur ma liste de courses ?", "Réveille-moi à 7 heures",
+         "Quelle heure est-il à New York ?", "Y a-t-il une alerte météo ?", "C'est quand les prochaines vacances scolaires ?",
+         "C'est quand le prochain jour férié ?", "Ouvre le bloc-notes", "Monte la luminosité", "Active le mode sombre",
+         "Baisse le son de Spotify", "Cherche des vidéos de chats sur YouTube", "Cherche un casque audio sur Amazon",
+         "Résume ce que j'ai copié", "Traduis en anglais ce que j'ai copié", "Corrige ce que j'ai copié",
+         "Qu'est-ce qu'il y a à l'écran ?", "Fais une capture d'écran", "Est-ce que mon PC va bien ?",
+         "Est-ce que j'ai des nouveaux mails ?", "C'est quand mon prochain rendez-vous ?", "Qu'est-ce que j'ai demain ?",
+         "Est-ce qu'Internet fonctionne ?", "Qui m'a appelé ?", "Allume la télé", "Raconte-moi une blague",
+         "Raconte-moi une anecdote", "Retiens que mon plat préféré, ce sont les lasagnes", "Note que je dois racheter du café",
+         "Lance un chrono", "Mets les couleurs Aurore", "Prends une voix de femme", "Parle plus vite",
+         "Active le mode nuit", "Ouvre les réglages", "Qu'est-ce que tu sais faire ?", "Combien coûte le gazole près de chez moi ?",
+         "Donne-moi la recette des crêpes", "Coupe le micro")
+DUREE_IDEE = 6.0          # secondes par idée affichée
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
 user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_wchar_p]
@@ -89,6 +105,7 @@ user32.DestroyMenu.argtypes = [ctypes.c_void_p]
 user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, ctypes.c_uint]
 PREMIER_PLAN = ctypes.c_void_p(-1)
+TOUJOURS_DEVANT = False      # False : le réacteur reste sur le Bureau, derrière les fenêtres (il écoute et répond quand même)
 _clavier = ctypes.WinDLL("user32")       # copie à part de user32, pour donner le clavier à la fenêtre
 _clavier.SetFocus.argtypes = [ctypes.c_void_p]
 _clavier.SetFocus.restype = ctypes.c_void_p
@@ -106,6 +123,66 @@ class RECT(ctypes.wintypes.RECT):
     haut = property(lambda self: self.top)
     droite = property(lambda self: self.right)
     bas = property(lambda self: self.bottom)
+
+
+PLUS_PREMIER_PLAN = ctypes.c_void_p(-2)
+_ecrans = ctypes.WinDLL("user32")        # copie à part de user32 (les déclarations ne gênent pas les autres modules)
+_ecrans.GetForegroundWindow.restype = ctypes.c_void_p
+_ecrans.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.wintypes.RECT)]
+_ecrans.MonitorFromWindow.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+_ecrans.MonitorFromWindow.restype = ctypes.c_void_p
+_ecrans.GetClassNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+_ecrans.IsWindowVisible.argtypes = [ctypes.c_void_p]
+_ecrans.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_ecrans.GetWindowLongW.restype = ctypes.c_long
+_dwm = ctypes.WinDLL("dwmapi")
+_dwm.DwmGetWindowAttribute.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+
+
+class _INFO_ECRAN(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", ctypes.wintypes.RECT), ("rcWork", ctypes.wintypes.RECT),
+                ("dwFlags", ctypes.c_ulong)]
+
+
+_ecrans.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_INFO_ECRAN)]
+_FENETRES_BUREAU = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+
+
+def plein_ecran(soi=None):
+    """Vrai si une vidéo, un jeu ou une présentation occupe tout l'écran : le réacteur ne reste pas devant."""
+    try:
+        etat = ctypes.c_int(0)                    # jeu en plein écran exclusif (Direct3D) ou mode présentation
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(etat)) == 0 and etat.value in (3, 4):
+            return True
+        hwnd = _ecrans.GetForegroundWindow()
+        if not hwnd or (soi and (hwnd & 0xFFFFFFFF) == (soi & 0xFFFFFFFF)):
+            return False
+        nom = ctypes.create_unicode_buffer(64)
+        _ecrans.GetClassNameW(hwnd, nom, 64)
+        if nom.value in _FENETRES_BUREAU:
+            return False
+        # une fenêtre invisible, cachée par Windows ou « outil » (ex. WMPTransition) n'est pas une vidéo plein écran
+        if not _ecrans.IsWindowVisible(hwnd):
+            return False
+        cache = ctypes.c_int(0)
+        _dwm.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cache), ctypes.sizeof(cache))
+        if cache.value:
+            return False
+        style_ext = _ecrans.GetWindowLongW(hwnd, -20)
+        if style_ext & 0x80:                      # WS_EX_TOOLWINDOW
+            return False
+        if style_ext & 0x20 and style_ext & 0x80000:   # transparente aux clics et superposée : une couche d'effet
+            return False
+        r = ctypes.wintypes.RECT()
+        _ecrans.GetWindowRect(hwnd, ctypes.byref(r))
+        info = _INFO_ECRAN()
+        info.cbSize = ctypes.sizeof(_INFO_ECRAN)
+        if not _ecrans.GetMonitorInfoW(_ecrans.MonitorFromWindow(hwnd, 2), ctypes.byref(info)):
+            return False
+        m = info.rcMonitor
+        return r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom
+    except Exception:
+        return False
 
 
 def _rgb(c):
@@ -366,6 +443,19 @@ class Affichage:
             pass
 
     def _premier_plan(self):
+        # Une vidéo ou un jeu en plein écran : le réacteur passe derrière, et revient devant ensuite
+        plein = plein_ecran(self.hwnd)
+        if plein != getattr(self, "_derriere", False):
+            self._derriere = plein
+            print("(Plein écran : le réacteur passe derrière.)" if plein else "(Fin du plein écran : le réacteur revient.)")
+        # Sur le Bureau (réglage par défaut) : derrière toutes les fenêtres, sauf pendant qu'on s'en sert
+        # (on écrit, le menu du clic droit est ouvert, on le déplace)
+        en_main = (getattr(self, "_saisie", None) is not None or getattr(self, "_menu_ouvert", None) is not None
+                   or getattr(self, "glisse", None) is not None)
+        if plein or not (TOUJOURS_DEVANT or en_main):
+            user32.SetWindowPos(self.hwnd, PLUS_PREMIER_PLAN, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+            user32.SetWindowPos(self.hwnd, ctypes.c_void_p(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)   # tout en dessous
+            return
         user32.SetWindowPos(self.hwnd, PREMIER_PLAN, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
 
     def _position(self):
@@ -385,6 +475,9 @@ class Affichage:
         return [(3, "", "Réglages"),
                 (1, "", "Nouvelle conversation"),
                 (4, "" if coupe else "", "Rallumer le micro" if coupe else "Couper le micro"),
+                (None, None, None),
+                (5, "\ue7ba", "Signaler un problème"),
+                (6, "\uea80", "Proposer une amélioration"),
                 (None, None, None),
                 (2, "", "Arrêter Jarvis")]
 
@@ -468,6 +561,12 @@ class Affichage:
                 print("Réglages indisponibles :", erreur)
         elif choix == 1:
             jarvis_claude.oublier_conversation()
+        elif choix in (5, 6):
+            try:
+                import jarvis_rapports_ui
+                jarvis_rapports_ui.ouvrir_message("probleme" if choix == 5 else "idee")
+            except Exception as erreur:
+                print("Fenêtre de message indisponible :", erreur)
         elif choix == 4:
             jarvis_claude.micro_coupe = not jarvis_claude.micro_coupe
             print("(Micro coupé par le menu du réacteur.)" if jarvis_claude.micro_coupe else "(Micro rallumé par le menu.)")
@@ -1303,6 +1402,13 @@ class Affichage:
         self._lignes = (cle, lignes)
         return lignes
 
+    def _invite(self):
+        """Fenêtre de discussion vide : « Clique ici pour écrire à Jarvis », puis des idées de demandes, tour à tour."""
+        tour = int(time.time() / DUREE_IDEE)
+        if tour % 3 == 0:
+            return INVITE_SAISIE
+        return "Essaie : « " + random.Random(tour).choice(IDEES) + " »"
+
     def _texte_rappel(self):
         """« dans 3:20 · minuteur » : le prochain minuteur ou rappel, ou « » s'il n'y en a pas."""
         rappel = self._prochain_rappel()
@@ -1370,8 +1476,8 @@ class Affichage:
                 couleur = teinte(force * fondu, blanc)
         else:
             rappel = self._texte_rappel()
-            lignes = self._mettre_en_lignes(rappel, largeur)[:nb] if rappel else [INVITE_SAISIE]
-            couleur = teinte(0.7, blanc) if rappel else teinte(0.5)
+            lignes = self._mettre_en_lignes(rappel, largeur)[:nb] if rappel else [self._invite()]
+            couleur = teinte(0.7, blanc) if rappel else teinte(0.68)
         pas = self.police_discussion.get_linesize()
         y = (y0 + y1) / 2 - pas * (len(lignes) - 1) / 2
         haut_texte = y - pas / 2
