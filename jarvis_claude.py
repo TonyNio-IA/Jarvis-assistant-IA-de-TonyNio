@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.30"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.31"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1895,6 +1895,17 @@ def main():
                 except queue.Empty:
                     raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
                 claude.entretenir()
+
+                # Mise à jour forcée publiée sur GitHub : installée tout de suite, Jarvis étant en veille
+                if jarvis_maj.forcee_a_installer():
+                    etat("reponse")
+                    sous_titre("Mise à jour importante : je m'installe.", reponse=True)
+                    parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
+                           "Je m'arrête quelques minutes, puis je redémarre tout seul.")
+                    print("Mise à jour forcée :", jarvis_maj.installer())
+                    tampon.clear()
+                    etat("veille")
+                    continue
 
                 # Point du jour préparé en arrière-plan : on le lit maintenant
                 if not point_pret.empty():

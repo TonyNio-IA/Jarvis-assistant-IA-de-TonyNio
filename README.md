@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.30**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.31**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +31,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.31 : mises à jour importantes installées tout de suite
+
+- **Mises à jour importantes** : quand une version corrige un problème important, Jarvis l'installe tout seul dès qu'il est en veille (il prévient avant, puis redémarre). Les autres versions sont toujours annoncées et installées seulement avec ton « oui ».
+- Jarvis regarde s'il existe une nouvelle version toutes les 15 minutes, et plus seulement au démarrage.
+- Les rapports cachent aussi le département et les villes voisines.
+- Nouvelle animation du réacteur en haut de cette page.
 
 ## Nouveau en 1.30 : aider à améliorer Jarvis
 
@@ -382,6 +389,8 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.31 | Mises à jour importantes installées tout de suite, en veille ; nouvelle version cherchée toutes les 15 minutes ; rapports : département et villes voisines cachés |
+| 1.30 | Rapports d'amélioration avec accord (rien, technique ou complet), « Signaler un problème », « Proposer une amélioration », questionnaire, « Effacer mes données » ; micro rallumé à la voix ; réacteur sur le Bureau ; idées de demandes ; Jarvis se tait quand le PC joue un son |
 | 1.29 | Tablette (application 1.15) : réacteur redessiné, réveil par « Jarvis » avec un bip, ateliers pour les enfants (calcul, mots, dictée, animaux, heure) avec étoiles, récompenses et questions qui s'adaptent, voix d'enfant, minuteurs, rappels et rendez-vous avec compte à rebours, messages entre profils, « répète », réglages par rubriques, nouveaux thèmes, aide avec exemples, widget, alerte de batterie, réponses plus rapides ; PC : panneau modernisé (météo, heure, courbes des jauges, état des tablettes), nouveau menu du clic droit, micro coupé, démarrage du réacteur couche par couche, rappel en pastille, « Je redémarre » écrit sans voix, réglages modernisés, thèmes Aurore et Galaxie, nouvelle icône |
 | 1.28 | Jarvis sur la tablette : application Android (installée et mise à jour depuis la tablette), écoute permanente avec « Jarvis », un profil par personne avec ses couleurs, codes à 4 chiffres pour les adultes, « c'est Léo » pour changer de profil, dernier profil rouvert, applications de la tablette et recherches ouvertes sans Claude, historique des 1 000 dernières demandes par profil sur le PC ; sur le PC, une fenêtre de discussion au-dessus du réacteur, où l'on peut aussi écrire |
 | 1.27 | PlayStation 5 : l'allumage et la mise en veille à la voix sont disponibles pour tous, leurs modules s'installent tout seuls avec Jarvis (sans jamais bloquer l'installation) ; le modèle qui reconnaît qui parle (« apprends ma voix ») est lui aussi installé tout seul ; l'installateur vérifie à la fin que le pilotage de la PS5 marche |

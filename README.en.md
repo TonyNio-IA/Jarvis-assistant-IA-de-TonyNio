@@ -1,10 +1,10 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.30**
+**Français : [README.md](README.md)** · **Current version: 1.31**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
-**▶ Video demo (6 min, in French): [watch on YouTube](https://www.youtube.com/watch?v=3Xd91q7618U)**
+**▶ Everything it can do, on video (20 min, in French): [I built my own JARVIS: everything it can do](https://www.youtube.com/watch?v=xOM06Lr_elk)** · the first demo (6 min): [watch on YouTube](https://www.youtube.com/watch?v=3Xd91q7618U)
 
 **Jarvis is a voice assistant for Windows 11 that speaks and understands French.** Say "Jarvis", then your request: it answers aloud and acts on your PC. It opens apps, manages windows, plays music, sets reminders, reads or translates copied text, and describes what is on screen. Simple requests are handled on the PC in about a second; everything else is sent to Claude.
 
@@ -30,6 +30,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.31: important updates installed right away
+
+- **Important updates**: when a version fixes an important problem, Jarvis installs it by itself as soon as it is idle (it warns you first, then restarts). Other versions are still announced and installed only after your "yes".
+- Jarvis checks for a new version every 15 minutes, not only at start-up.
+- Reports also hide the département and nearby towns.
+- New reactor animation at the top of this page.
 
 ## New in 1.30: help improve Jarvis
 

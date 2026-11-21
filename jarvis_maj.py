@@ -29,6 +29,10 @@ FICHIER_SUIVI = jarvis_config.chemin("mise_a_jour.json")     # reste sur ce PC
 ATTENTE_AVANT_INSTALLATION = 8          # secondes : le temps que Jarvis finisse sa phrase
 
 disponible = None        # (« 1.21 », « titre de la version ») si une version plus récente existe
+forcee = False           # la version disponible est une mise à jour forcée : installée tout de suite, sans question
+MARQUE_FORCEE = "<!-- jarvis:mise-a-jour-forcee -->"     # dans les notes de la version sur GitHub (invisible sur la page)
+INTERVALLE_FORCEES = 15 * 60                              # secondes entre deux coups d'œil à GitHub
+_forcee_lancee = False
 _annoncee = False
 _verrou = threading.Lock()
 
@@ -50,7 +54,7 @@ def _nombres(version):
 
 def verifier():
     """Interroge GitHub. Renvoie (version, titre) si une version plus récente est publiée, sinon None."""
-    global disponible
+    global disponible, forcee
     requete = urllib.request.Request(API_DERNIERE, headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(requete, timeout=10) as r:
         derniere = json.load(r)
@@ -61,25 +65,48 @@ def verifier():
         if _nombres(version) > _nombres(version_actuelle()):
             titre = str(derniere.get("name") or "").split(":", 1)[-1].strip()
             disponible = (version, titre)
+            forcee = MARQUE_FORCEE in str(derniere.get("body") or "")
         else:
             disponible = None
+            forcee = False
         return disponible
 
 
 def verifier_en_arriere_plan():
+    """Au démarrage, puis toutes les 15 minutes : une version plus récente est-elle publiée ?
+    Une mise à jour ordinaire est annoncée comme d'habitude ; une mise à jour forcée est installée dès que
+    Jarvis est en veille (voir forcee_a_installer)."""
     def tache():
-        try:
-            trouve = verifier()
-            print("Mise à jour :", f"version {trouve[0]} disponible." if trouve else "Jarvis est à jour.")
-        except Exception as erreur:
-            print("Vérification des mises à jour impossible :", erreur)
+        premiere = True
+        while True:
+            try:
+                trouve = verifier()
+                if premiere or (trouve and forcee):
+                    print("Mise à jour :", (f"version {trouve[0]} disponible" + (" (mise à jour forcée)." if forcee else "."))
+                          if trouve else "Jarvis est à jour.")
+            except Exception as erreur:
+                if premiere:
+                    print("Vérification des mises à jour impossible :", erreur)
+            premiere = False
+            if _forcee_lancee:
+                return
+            time.sleep(INTERVALLE_FORCEES)
     threading.Thread(target=tache, daemon=True).start()
+
+
+def forcee_a_installer():
+    """Vrai une seule fois quand une mise à jour forcée attend : Jarvis l'installe alors aussitôt."""
+    global _forcee_lancee
+    if disponible and forcee and not _forcee_lancee:
+        _forcee_lancee = True
+        return True
+    return False
 
 
 def a_annoncer():
     """Vrai une seule fois par démarrage, quand une nouvelle version attend d'être annoncée."""
     global _annoncee
-    if disponible and not _annoncee:
+    if disponible and not forcee and not _annoncee:
         _annoncee = True
         return True
     return False
