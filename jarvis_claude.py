@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.34"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.35"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -140,6 +140,45 @@ WHISPER_FAISCEAU = 5          # nombre d'hypothèses comparées : 5 comprend mie
 WHISPER_DOSSIER = jarvis_config.chemin("whisper")
 # Tous les cœurs du processeur (8 au plus) : mesuré 0,4 s plus rapide par demande qu'avec 4, même texte compris
 WHISPER_FILS = max(1, min(8, os.cpu_count() or 4))
+WHISPER_TEMPERATURES = (0.0, 0.4)   # deux essais au plus quand la voix est peu claire
+# Mode léger : sur un PC lent, une seule hypothèse et un seul essai. Mesuré le 21/11/2026 sur un petit portable :
+# 14 à 17 s par phrase avec les réglages normaux (2 à 4 s sur un PC de bureau récent). Jarvis le décide tout seul
+# d'après ses trois dernières retranscriptions, et s'en souvient (mode_leger.json, à effacer pour revenir au normal).
+MODE_LEGER_FICHIER = jarvis_config.chemin("mode_leger.json")
+WHISPER_LENT = 7.0                  # secondes de calcul (médiane des 3 dernières phrases) au-delà : mode léger
+_durees_whisper = collections.deque(maxlen=3)
+
+
+def _appliquer_mode_leger():
+    global WHISPER_FAISCEAU, WHISPER_TEMPERATURES
+    WHISPER_FAISCEAU, WHISPER_TEMPERATURES = 1, (0.0,)
+
+
+def noter_duree_whisper(calcul):
+    """Après chaque retranscription sur le PC : si ce PC est nettement lent, Jarvis passe en mode léger."""
+    if WHISPER_FAISCEAU == 1:
+        return
+    _durees_whisper.append(calcul)
+    if len(_durees_whisper) < 3 or sorted(_durees_whisper)[1] <= WHISPER_LENT:
+        return
+    _appliquer_mode_leger()
+    try:
+        with open(MODE_LEGER_FICHIER, "w", encoding="utf-8") as f:
+            json.dump({"actif": True, "depuis": time.strftime("%d/%m/%Y %H:%M"),
+                       "secondes": [round(d, 1) for d in _durees_whisper]}, f, ensure_ascii=False)
+    except OSError:
+        pass
+    print(f"Mode léger activé : ce PC met environ {sorted(_durees_whisper)[1]:.0f} s à comprendre une phrase. "
+          "Jarvis compare désormais une seule hypothèse : les réponses seront nettement plus rapides.")
+
+
+try:                                    # décidé lors d'un lancement précédent
+    with open(MODE_LEGER_FICHIER, encoding="utf-8") as _f:
+        if json.load(_f).get("actif"):
+            _appliquer_mode_leger()
+            print("Mode léger (PC lent) : Whisper compare une seule hypothèse.")
+except (OSError, ValueError):
+    pass
 # Whisper lit cette phrase avant d'écouter : elle lui donne le genre de demandes attendues et les
 # noms propres. Mesuré sur des enregistrements réels : avec elle et un court silence ajouté
 # devant le son, « mets » n'est plus entendu « mais ».
@@ -659,6 +698,29 @@ def _retirer_bip(audio, duree=0.45):
     return audio
 
 
+_BAVARDAGE = re.compile(r"^\W*(?:bon|ok|okay|alors|euh|voilà|voila|donc|ah|oh|bah|ben)\b[\s,.]+(?:là\b[\s,.]*)?"
+                        r".*\b(?:je suis|j'ai|je vais|je viens|on va|on est|c'était|il faut que je)\b", re.I)
+
+
+def _bavardage(texte):
+    """Une phrase entendue pendant les secondes de « suite » qui ressemble à une conversation entre personnes
+    (« Bon, là, je suis repassé sur mon PC… ») plutôt qu'à une demande : Jarvis ne la prend pas."""
+    t = (texte or "").replace("’", "'")
+    return bool(_BAVARDAGE.search(t)) and "?" not in t
+
+
+def _preparer_plus_tard(phrases):
+    """Les phrases fréquentes sont fabriquées d'avance. Au tout premier lancement (rien encore sur le disque), on
+    attend une minute : Whisper se prépare au même moment, et sur un petit PC tout faire ensemble le sature."""
+    try:
+        deja = len(os.listdir(jarvis_voix.DOSSIER_CACHE))
+    except OSError:
+        deja = 0
+    if deja < len(phrases) // 2:
+        time.sleep(60)
+    preparer(phrases)
+
+
 def transcrire(octets, texte_vosk, bip_au_debut=False):
     """Retranscrit l'audio avec Whisper. En cas de souci, garde le texte de Vosk."""
     global duree_whisper, sons_perdus
@@ -683,10 +745,13 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
         with verrou_whisper:
             # Deux essais au plus quand la voix est peu claire (au lieu de six) : mesuré le 21/11 sur 24 vraies
             # demandes, le plus long passe de 12,7 s à 7,4 s, et 23 retranscriptions sur 24 restent identiques
+            debut_calcul = time.time()
             segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
-                                             initial_prompt=_vocabulaire(), temperature=(0.0, 0.4))
+                                             initial_prompt=_vocabulaire(), temperature=WHISPER_TEMPERATURES)
             texte = " ".join(s.text for s in segments).strip()
+            calcul = time.time() - debut_calcul
         duree_whisper = time.time() - debut_whisper
+        noter_duree_whisper(calcul)
     except Exception as erreur:
         print("Erreur Whisper :", erreur)
         return texte_vosk
@@ -1757,6 +1822,9 @@ def conversation(demande, recognizer):
         print("(J'écoute une éventuelle suite pendant", delai, "secondes...)")
         etat("ecoute")
         demande = ecouter_demande(recognizer, delai)
+        if demande and not attend_reponse and _bavardage(demande):
+            print("(Suite ignorée : quelqu'un parle à côté, pas à Jarvis. Entendu :", demande[:80], ")")
+            break
         if demande and not attend_reponse and son_pc():
             print("(Suite ignorée : le PC s'est mis à jouer du son. Entendu :", demande[:80], ")")
             break
@@ -1845,7 +1913,7 @@ def main():
     except Exception as erreur_tele:
         print("Télé (préparation) :", erreur_tele)
     threading.Thread(target=suivre_musique, daemon=True).start()
-    threading.Thread(target=preparer, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
+    threading.Thread(target=_preparer_plus_tard, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",

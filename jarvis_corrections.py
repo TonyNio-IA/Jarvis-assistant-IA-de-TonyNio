@@ -83,6 +83,8 @@ INTEGREES = (
     (r"\bsuprime\b", "supprime"),
     # « crée » entendu « craig » devant une demande de création
     (r"^(\W*(?:jarvis\W+)?)(?:craig|crée-le|cré|krek)\b(?=\s+(?:déjà|le|un|une|mon|ma)\s)", r"\1crée"),
+    # « quelle heure » écrit « quel heure » par Whisper (vu sur un portable : la question partait chez Claude)
+    (r"\bquel heure\b", "quelle heure"),
     # « quelle heure est-il » entendu « quelle aurait-il » (toute la demande)
     (r"^(\W*(?:jarvis\W+)?)(?:quelle?s?|qu'elle) (?:aurait|aurais|auraient|orée?)[- ]t?-?ils?(\W*)$", r"\1quelle heure est-il\2"),
     # « donne-moi la météo » entendu « donne-moi la MTA » (toute la demande)

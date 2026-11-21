@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.34**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.35**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +31,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.35
+
+- **Mode léger pour les petits PC** : si Jarvis met longtemps à comprendre les phrases, il passe tout seul en mode léger et répond nettement plus vite.
+- **Installateur plus simple** : trois petites questions (prénom, ville pour la météo, Claude) ; plus de lignes techniques en anglais, mais « toujours en cours » de temps en temps ; un clic dans la fenêtre ne met plus l'installation en pause ; la fenêtre attend avant de se fermer, pour lire « À RETENIR » ; il prévient quand le « Contrôle intelligent des applications » de Windows ralentit l'installation.
+- **Écoute** : « quel heure est-il » (mal écrit) donne l'heure tout de suite ; une conversation à côté de Jarvis, juste après sa réponse, n'est plus prise pour une demande.
+- **Bonjour** : il ne parle plus du processeur, sauf si l'ordinateur chauffe vraiment ; le prénom prend une majuscule.
 
 ## Nouveau en 1.34
 
@@ -411,6 +418,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.35 | Mode léger automatique sur les petits PC ; installateur simplifié (ville demandée, sans lignes techniques, fenêtre qui attend, Contrôle intelligent des applications signalé) ; « quel heure » ; conversation à côté ignorée ; bonjour sans processeur |
 | 1.34 | Pare-feu réglé par l'installateur et « autorise les tablettes » ; étapes dessinées à côté du QR code ; application 1.17 qui dit pourquoi la tablette ne joint pas Jarvis ; mot « Jarvis » plus facile sur le PC ; fenêtre d'aide qui ne bloque plus l'écoute ; changement de profil confirmé deux fois |
 | 1.33 | Tablette : YouTube Kids ouvert même mal compris, retranscription plus rapide, double appui sur le rond, Claude averti après un atelier, atelier repris après un redémarrage ; PC : « tu peux me résumer ? » ; testeurs volontaires ; mises à jour importantes manquées installées ; demandes des tablettes dans les rapports |
 | 1.32 | Mise à jour importante installée après une minute de calme (cinq minutes après une demande d'une tablette) |

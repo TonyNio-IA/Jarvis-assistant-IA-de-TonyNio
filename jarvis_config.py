@@ -35,6 +35,8 @@ except (OSError, ValueError) as _erreur:
     _lu = {}
 
 PRENOM = str(_lu.get("prenom") or "").strip()
+if PRENOM.islower():                       # « alex » tapé à l'installation : écrit « Alex » dans les réponses
+    PRENOM = "-".join(m[:1].upper() + m[1:] for m in PRENOM.split("-"))
 NOM = PRENOM or "l'utilisateur"                    # dans les consignes données à Claude
 SALUT = (" " + PRENOM) if PRENOM else ""           # « Bonjour Alex. » ou « Bonjour. »
 SUJETS = [str(s).strip() for s in (_lu.get("sujets") or []) if str(s).strip()]

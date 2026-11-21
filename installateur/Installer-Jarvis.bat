@@ -4,6 +4,8 @@ rem https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio
 setlocal
 title Installer Jarvis
 chcp 65001 >nul
+echo.
+echo   Préparation de l'installateur de Jarvis (quelques secondes)...
 set "JARVIS_FICHIER=%~f0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:JARVIS_FICHIER,[Text.Encoding]::UTF8); $i=$t.IndexOf('#==JARVIS-POWERSHELL=='+'#'); Invoke-Expression $t.Substring($i)"
 set "CODE=%ERRORLEVEL%"
@@ -24,9 +26,21 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $env:PYTHONIOENCODING = 'utf-8'
+# Un clic dans la fenêtre ne doit pas mettre l'installation en pause (« mode d'édition rapide » de la console)
+try {
+    Add-Type -Name Console -Namespace JarvisInstallateur -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern IntPtr GetStdHandle(int n);
+[DllImport("kernel32.dll")] public static extern bool GetConsoleMode(IntPtr h, out uint m);
+[DllImport("kernel32.dll")] public static extern bool SetConsoleMode(IntPtr h, uint m);
+'@
+    $entree = [JarvisInstallateur.Console]::GetStdHandle(-10); $mode = [uint32]0
+    if ([JarvisInstallateur.Console]::GetConsoleMode($entree, [ref]$mode)) {
+        [void][JarvisInstallateur.Console]::SetConsoleMode($entree, (($mode -band (-bnot [uint32]0x40)) -bor [uint32]0x80))
+    }
+} catch {}
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSION_INSTALLATEUR = '1.1'
+$VERSION_INSTALLATEUR = '1.2'
 $DEPOT      = 'TonyNio-IA/Jarvis-assistant-IA-de-TonyNio'
 $PYTHON_VER = '3.14.10'
 $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VER/python-$PYTHON_VER-amd64.exe"
@@ -82,6 +96,44 @@ function OuiNon($question, $defautOui, $variable) {
         $r = (Demander "$question Tape o (oui) ou n (non), puis Entrée. Entrée seule = $(if ($defautOui) { 'oui' } else { 'non' })" $defaut $variable).ToLower()
         if ($r -in 'o','oui','y','yes','1') { return $true }
         if ($r -in 'n','non','no','0') { return $false }
+    }
+}
+
+function Pip($env_py, $arguments, $quoi) {
+    # pip travaille dans l'ombre : ses lignes techniques (en anglais) vont dans le journal, et une ligne
+    # « ... toujours en cours » rassure toutes les 30 secondes. Renvoie le code de sortie de pip.
+    $sortie = Join-Path $TEMP 'pip-sortie.txt'
+    $erreurs = Join-Path $TEMP 'pip-erreurs.txt'
+    $p = Start-Process -FilePath $env_py -ArgumentList $arguments -WindowStyle Hidden -PassThru `
+         -RedirectStandardOutput $sortie -RedirectStandardError $erreurs
+    $null = $p.Handle                                  # sans cela, le code de sortie peut rester vide
+    $debut = Get-Date
+    while (-not $p.WaitForExit(30000)) {
+        $ecoule = (Get-Date) - $debut
+        Dire ("  ... {0} : toujours en cours ({1} min {2:00} s)" -f $quoi, [int][math]::Floor($ecoule.TotalMinutes), $ecoule.Seconds)
+    }
+    $p.WaitForExit()
+    foreach ($f in $sortie, $erreurs) {
+        Get-Content -LiteralPath $f -Encoding UTF8 -ErrorAction SilentlyContinue | ForEach-Object { Journal "pip | $_" }
+    }
+    if ($p.ExitCode -ne 0) {
+        Get-Content -LiteralPath $erreurs -Encoding UTF8 -ErrorAction SilentlyContinue | Select-Object -Last 8 |
+            ForEach-Object { Dire "    $_" 'DarkGray' }
+    }
+    return $p.ExitCode
+}
+
+function Controle-Applications {
+    # « Contrôle intelligent des applications » (Windows 11) : il vérifie un à un les fichiers de Jarvis, ce qui peut
+    # rendre l'installation et le premier démarrage beaucoup plus longs (vu sur un portable : 107 s pour un seul module)
+    try {
+        $etat = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' -Name VerifiedAndReputablePolicyState -ErrorAction Stop).VerifiedAndReputablePolicyState
+    } catch { return }
+    Journal "Contrôle intelligent des applications : $etat (0 désactivé, 1 activé, 2 évaluation)"
+    if ($etat -in 1, 2) {
+        Attention "Le « Contrôle intelligent des applications » de Windows est $(if ($etat -eq 1) { 'activé' } else { 'en évaluation' }) sur ce PC."
+        Dire "       Il vérifie un à un les fichiers de Jarvis : l'installation et le premier démarrage peuvent être"
+        Dire "       bien plus longs que d'habitude (jusqu'à 20 minutes). C'est normal : ne ferme pas cette fenêtre."
     }
 }
 
@@ -258,9 +310,10 @@ function Installer-Modules($dossier, $python) {
         & $python -m venv (Join-Path $dossier 'python-env') | Out-Host
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $env_py)) { Echec "Impossible de créer l'espace Python de Jarvis." }
     }
-    Dire "  Installation des modules (quelques minutes, environ 600 Mo)..."
-    & $env_py -m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off -r (Join-Path $dossier 'requirements.txt') | Out-Host
-    if ($LASTEXITCODE -ne 0) { Echec "L'installation des modules Python a échoué (voir les lignes ci-dessus). Relance l'installateur ; si l'erreur revient, signale-la sur GitHub." }
+    Dire "  Installation des modules de Jarvis (environ 600 Mo : 3 à 10 minutes selon le PC et la connexion)..."
+    Dire "  Ne ferme pas la fenêtre : une ligne « toujours en cours » s'affiche de temps en temps."
+    $code = Pip $env_py ('-m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off -r "' + (Join-Path $dossier 'requirements.txt') + '"') "Modules de Jarvis"
+    if ($code -ne 0) { Echec "L'installation des modules de Jarvis a échoué (le détail est dans le journal : $JOURNAL). Vérifie la connexion à Internet, puis relance l'installateur ; si l'erreur revient, signale-la sur GitHub." }
     Bon "Modules Python installés."
     Installer-Modules-PS5 $dossier $env_py
     return $env_py
@@ -275,8 +328,7 @@ function Installer-Modules-PS5($dossier, $env_py) {
     Dire "  Installation des modules de la PlayStation 5..."
     $ErrorActionPreference = 'Continue'
     try {
-        & $env_py -m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off --no-deps -r $liste | Out-Host
-        $ok = ($LASTEXITCODE -eq 0)
+        $ok = ((Pip $env_py ('-m pip install --disable-pip-version-check --no-warn-script-location --progress-bar off --no-deps -r "' + $liste + '"') "Modules de la PlayStation 5") -eq 0)
     } catch { $ok = $false; Journal "Modules PS5 : $($_.Exception.Message)" }
     if ($ok) { Bon "Modules de la PlayStation 5 installés." }
     else {
@@ -320,9 +372,10 @@ function Ecrire-Reglages($dossier, $prenom, $ville) {
         $texte = [IO.File]::ReadAllText((Join-Path $dossier 'config.exemple.json'), [Text.Encoding]::UTF8)
         $propre = ($prenom -replace '["\\\r\n]', '').Trim()
         if (-not $propre) { $propre = 'Alex' }
+        if ($propre -ceq $propre.ToLower()) { $propre = (Get-Culture).TextInfo.ToTitleCase($propre) }   # « alex » -> « Alex »
         $texte = [regex]::Replace($texte, '"prenom"\s*:\s*"[^"]*"', ('"prenom": "' + $propre.Replace('$', '$$') + '"'))
         [IO.File]::WriteAllText($config, $texte, $UTF8)
-        Bon "Réglages créés (prénom : $propre). Tu pourras les modifier dans config.json."
+        Bon "Réglages créés (prénom : $propre). Tu pourras les changer en disant « Jarvis, ouvre les réglages »."
         # nouvel utilisateur : Jarvis fera connaissance pendant les premières conversations (voix, tutoiement...)
         [IO.File]::WriteAllText((Join-Path $dossier 'accueil.json'), '{"nouveau": true}', $UTF8)
     }
@@ -332,7 +385,7 @@ function Ecrire-Reglages($dossier, $prenom, $ville) {
         $client = New-Object Net.WebClient
         $client.Encoding = [Text.Encoding]::UTF8
         $r = ($client.DownloadString('https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name=' + [uri]::EscapeDataString($ville)) | ConvertFrom-Json).results
-        if (-not $r) { Attention "Ville « $ville » introuvable : la météo sera celle de Paris. Tu pourras la régler dans ville.txt."; return }
+        if (-not $r) { Attention "Ville « $ville » introuvable : la météo sera celle de Paris. Plus tard, dis « Jarvis, ma ville est … » (avec le nom de ta ville)."; return }
         $ic = [Globalization.CultureInfo]::InvariantCulture
         $ligne = '{0};{1};{2}' -f ($ville -replace ';', ' '), ([double]$r[0].latitude).ToString('0.####', $ic), ([double]$r[0].longitude).ToString('0.####', $ic)
         [IO.File]::WriteAllText($fichierVille, $ligne + "`r`n", $UTF8)
@@ -344,15 +397,16 @@ function Installer-Claude {
     if (Test-Path -LiteralPath $CLAUDE_EXE) { Bon "Claude Code déjà installé." }
     else {
         Dire "  Installation de Claude Code (programme officiel d'Anthropic, environ 370 Mo : plusieurs minutes)..."
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "`$ProgressPreference='SilentlyContinue'; irm https://claude.ai/install.ps1 | iex" | Out-Host
+        # Les messages (en anglais) de l'installation officielle vont dans le journal : ils parlent de « PATH », ce qui
+        # inquiétait pour rien (Jarvis trouve Claude tout seul)
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "`$ProgressPreference='SilentlyContinue'; irm https://claude.ai/install.ps1 | iex" 2>&1 |
+            ForEach-Object { Journal "claude | $_" }
         if (-not (Test-Path -LiteralPath $CLAUDE_EXE)) {
             Attention "Claude Code n'a pas pu être installé. Jarvis fonctionnera avec les commandes immédiates. Tu pourras réessayer en relançant ce fichier (« Ajouter Claude »)."
             return
         }
         Noter 'ClaudeInstalle'
         Bon "Claude Code installé."
-        Dire "  (Les messages en anglais ci-dessus viennent de l'installation officielle de Claude Code."
-        Dire "   S'ils parlent de « PATH », tu peux les ignorer : Jarvis trouve Claude tout seul.)"
     }
     if ($AUTO) { return }
     Connecter-Claude
@@ -535,6 +589,7 @@ function Installer($dossierExistant) {
     if (-not [Environment]::Is64BitOperatingSystem) { Echec "Jarvis demande un Windows 64 bits." }
     if ($os.Build -lt 22000) { Attention "Jarvis est prévu pour Windows 11. Sur ce Windows, certaines fonctions peuvent ne pas marcher." }
     if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Echec "L'outil de téléchargement de Windows (curl) est introuvable." }
+    Controle-Applications
     if (-not $env:JARVIS_SOURCE) {
         & curl.exe -sS -I --connect-timeout 15 -o NUL "https://github.com/$DEPOT"
         if ($LASTEXITCODE -ne 0) { Echec "Pas de connexion à Internet (GitHub injoignable). Connecte le PC, puis relance l'installateur." }
@@ -548,7 +603,7 @@ function Installer($dossierExistant) {
         $avecClaude = Test-Path -LiteralPath $CLAUDE_EXE
         $prenom = ''; $ville = ''; $auDemarrage = Test-Path -LiteralPath (Chemins-Raccourcis).Demarrage
     } else {
-        Dire "  Bienvenue. Deux questions, puis l'installation se fait toute seule."
+        Dire "  Bienvenue. Trois petites questions (ton prénom, ta ville, et Claude), puis l'installation se fait toute seule."
         Dire ''
         # Fichiers personnels gardés lors d'une désinstallation (dossier ou copie compressée sur le Bureau)
         $gardes = Fichiers-Gardes
@@ -561,8 +616,8 @@ function Installer($dossierExistant) {
         }
         $prenom = ''
         if (-not $reprendre) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }
-        # Le reste se règle plus tard : la ville en le disant à Jarvis, le dossier et le démarrage par défaut
-        $ville = ''
+        # La ville, pour la météo (sinon Paris). Le dossier et le démarrage avec Windows restent ceux par défaut.
+        $ville = Demander "Ta ville, pour la météo (ou Entrée seule pour la donner plus tard)" '' 'JARVIS_VILLE'
         $dossier = if ($env:JARVIS_DOSSIER) { $env:JARVIS_DOSSIER } else { 'C:\Jarvis' }
         $dossier = [IO.Path]::GetFullPath($dossier.Trim('"'))
         if (-not $env:JARVIS_DOSSIER -and (Test-Path -LiteralPath $dossier) -and (Get-ChildItem -LiteralPath $dossier -Force | Select-Object -First 1) -and -not (Test-Path -LiteralPath (Join-Path $dossier 'jarvis_gardien.py'))) {
@@ -674,7 +729,9 @@ function Installer($dossierExistant) {
     Dire '   À RETENIR' 'Cyan'
     Dire '  ------------------------------------------------------------' 'Cyan'
     Dire "   Lui parler : dis « Jarvis », attends le bip, puis ta demande. Exemple : « Jarvis, quelle heure est-il ? »" 'White'
-    Dire "   La météo de chez toi : dis-lui une fois « Jarvis, ma ville est Toulouse » (avec le nom de ta ville)."
+    if (-not (Test-Path -LiteralPath (Join-Path $dossier 'ville.txt'))) {
+        Dire "   La météo de chez toi : dis-lui une fois « Jarvis, ma ville est Toulouse » (avec le nom de ta ville)."
+    }
     Dire "   Ses réglages : dis « Jarvis, ouvre les réglages ». Tu y choisis aussi s'il se lance avec Windows (onglet Système)."
     Dire "   L'arrêter : clic droit sur le réacteur."
     Dire "   Le mettre à jour : dis « Jarvis, mets-toi à jour », ou relance ce fichier."
@@ -687,6 +744,11 @@ function Installer($dossierExistant) {
         Dire "  Jarvis démarre (le premier lancement prend une minute ou deux : il télécharge Whisper)." 'Green'
     }
     try { Copy-Item -LiteralPath $JOURNAL -Destination (Join-Path $dossier 'installation.log') -Force } catch {}
+    if (-not $AUTO) {                       # la fenêtre attend : on peut lire « À RETENIR » avant qu'elle se ferme
+        Dire ''
+        Read-Host "  Appuie sur Entrée pour fermer cette fenêtre" | Out-Null
+        $script:FERMER = $true
+    }
 }
 
 function Desinstaller($dossier) {

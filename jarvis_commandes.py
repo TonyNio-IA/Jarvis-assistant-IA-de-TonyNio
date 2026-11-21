@@ -1160,11 +1160,11 @@ def _commande_routine(t):
         try:
             import jarvis_systeme
             m = jarvis_systeme.mesures
-            if m["pret"] and not enfant:
-                etat = f"Côté ordinateur, le processeur est à {m['cpu']:.0f} pour cent"
-                if m["temp"] is not None:
-                    etat += f" et la température à {m['temp']:.0f} degrés"
-                phrases.append(etat + ".")
+            # Seulement s'il y a quelque chose à faire : « processeur à 100 % » juste après le démarrage inquiétait
+            # pour rien (vu sur un portable, où Jarvis venait de se lancer)
+            if m["pret"] and not enfant and m["temp"] is not None and m["temp"] >= 85:
+                phrases.append(f"Attention, l'ordinateur chauffe : {m['temp']:.0f} degrés. "
+                               "Vérifie que ses aérations ne sont pas bouchées.")
         except Exception:
             pass
         musique = jarvis_famille.musique_du_profil()      # la musique du matin de cette personne

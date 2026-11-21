@@ -724,7 +724,7 @@ def _transcrire(audio, amorce=""):
         depart = time.time()
         # Deux essais au plus (au lieu de six) quand la voix est peu claire (enfant enrhumé, cris) : Whisper
         # recommençait jusqu'à six fois, et une simple demande pouvait attendre plus de 15 secondes
-        options = {"language": "fr", "beam_size": j.WHISPER_FAISCEAU, "temperature": (0.0, 0.4)}
+        options = {"language": "fr", "beam_size": j.WHISPER_FAISCEAU, "temperature": getattr(j, "WHISPER_TEMPERATURES", (0.0, 0.4))}
         try:
             segments, _ = j.whisper.transcribe(audio, **options, **({"initial_prompt": amorce} if amorce else {}))
         except TypeError:
