@@ -32,6 +32,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.38
+
+- **Installation sur un PC protégé par le « Contrôle intelligent des applications »** : le README donne maintenant une ligne à coller dans le Terminal qui contourne le blocage sans rien désactiver. Le fichier d'installation garde aussi ses fins de ligne Windows quand on le télécharge depuis GitHub.
+
 ## Nouveau en 1.37
 
 - **Mise à jour quand Windows bloque l'installateur** : si le « Contrôle intelligent des applications » refuse le fichier .exe, Jarvis lance le même installateur en fichier .bat. Si tout est refusé, il le dit à voix haute et ouvre le dossier au lieu de se taire.
@@ -160,7 +164,7 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 200 Ko).
 2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
-3. **Réponds aux deux questions** : ton prénom, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
+3. **Réponds aux questions** : ton prénom, ta ville, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
    - Python 3.14 (depuis python.org), dans ton dossier personnel ;
    - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** ;
    - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
@@ -170,6 +174,19 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 5. **À la fin, Jarvis démarre.** Le premier lancement prend une minute ou deux : il télécharge son second modèle vocal (Whisper). La toute première vérification peut aussi être lente sur un PC neuf, le temps que Windows examine les nouveaux fichiers.
 
 Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
+
+**Si Windows affiche « Contrôle intelligent des applications a bloqué un fichier potentiellement dangereux » :** c'est une protection de Windows 11 (elle n'est pas active sur tous les PC). Elle bloque les fichiers récents téléchargés avec le navigateur, et il n'y a pas de bouton « Exécuter quand même ». Voici le moyen le plus simple de contourner le problème, sans rien désactiver :
+
+1. Appuie sur la touche Windows + X, puis choisis **Terminal** (ou **Windows PowerShell**).
+2. Copie cette ligne, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :
+
+```
+$ProgressPreference='SilentlyContinue'; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile "$env:TEMP\Installer-Jarvis.bat"; Start-Process "$env:TEMP\Installer-Jarvis.bat"
+```
+
+3. La fenêtre d'installation de Jarvis s'ouvre : continue comme ci-dessus à partir de l'étape 3.
+
+Ça marche parce que le fichier est téléchargé par Windows lui-même, sans la marque « venu d'Internet » que le navigateur ajoute. Ne désactive pas le Contrôle intelligent des applications : une fois désactivé, Windows ne permet plus de le réactiver sans réinitialiser le PC.
 
 **Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. La mise à jour garde tes réglages, sa mémoire et tes rappels.
 
@@ -428,6 +445,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |
 | 1.36 | Installateur en fenêtre (plus de console noire) ; commandes courtes plus rapides en mode léger ; GTA/PS5/YouTube mieux reconnus ; pause plus longue après « et », « puis » ; bouton « Effacer mes enregistrements » |
 | 1.35 | Mode léger automatique sur les petits PC ; installateur simplifié (ville demandée, sans lignes techniques, fenêtre qui attend, Contrôle intelligent des applications signalé) ; « quel heure » ; conversation à côté ignorée ; bonjour sans processeur |

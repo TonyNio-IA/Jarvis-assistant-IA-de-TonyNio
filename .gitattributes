@@ -1,0 +1,2 @@
+# Les .bat gardent leurs fins de ligne Windows (CRLF) dans le depot, comme dans la version publiee
+*.bat text eol=crlf
