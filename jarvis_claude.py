@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.36"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.37"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -2014,6 +2014,15 @@ def main():
                            "Je m'arrête quelques minutes, puis je redémarre tout seul.")
                     print("Mise à jour forcée :", jarvis_maj.installer())
                     tampon.clear()
+                    etat("veille")
+                    continue
+
+                # Windows a refusé de lancer l'installateur de la mise à jour : on le dit, au lieu de se taire
+                phrase_echec = jarvis_maj.echec_a_dire()
+                if phrase_echec:
+                    etat("reponse")
+                    sous_titre(phrase_echec, reponse=True)
+                    parler(phrase_echec)
                     etat("veille")
                     continue
 

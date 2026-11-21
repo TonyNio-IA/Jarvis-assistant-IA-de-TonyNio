@@ -32,6 +32,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.37
+
+- **Mise à jour quand Windows bloque l'installateur** : si le « Contrôle intelligent des applications » refuse le fichier .exe, Jarvis lance le même installateur en fichier .bat. Si tout est refusé, il le dit à voix haute et ouvre le dossier au lieu de se taire.
+
 ## Nouveau en 1.36
 
 - **Installation sans fenêtre noire** : l'installateur s'ouvre maintenant comme un vrai programme, avec une fenêtre claire : tes trois petites questions, puis une barre de progression et un texte simple (plus de lignes de code qui défilent). La fenêtre attend à la fin pour lire « À RETENIR ». Si quelque chose se passe mal, un message explique quoi faire.
@@ -424,6 +428,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |
 | 1.36 | Installateur en fenêtre (plus de console noire) ; commandes courtes plus rapides en mode léger ; GTA/PS5/YouTube mieux reconnus ; pause plus longue après « et », « puis » ; bouton « Effacer mes enregistrements » |
 | 1.35 | Mode léger automatique sur les petits PC ; installateur simplifié (ville demandée, sans lignes techniques, fenêtre qui attend, Contrôle intelligent des applications signalé) ; « quel heure » ; conversation à côté ignorée ; bonjour sans processeur |
 | 1.34 | Pare-feu réglé par l'installateur et « autorise les tablettes » ; étapes dessinées à côté du QR code ; application 1.17 qui dit pourquoi la tablette ne joint pas Jarvis ; mot « Jarvis » plus facile sur le PC ; fenêtre d'aide qui ne bloque plus l'écoute ; changement de profil confirmé deux fois |

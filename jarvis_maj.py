@@ -203,14 +203,59 @@ def installer():
 
     def lancer():
         # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance
-        subprocess.Popen([programme], cwd=dossier, env=environnement,
-                         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10))
+        global _echec
+        drapeaux = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10)
+        try:
+            subprocess.Popen([programme], cwd=dossier, env=environnement, creationflags=drapeaux)
+            return
+        except OSError as erreur:
+            # Windows (Contrôle intelligent des applications) peut refuser un .exe neuf : on lance alors le même
+            # installateur en fichier .bat, que cmd.exe (signé par Microsoft) accepte
+            print("Lancement de l'installateur refusé par Windows :", erreur)
+        try:
+            lot = _telecharger_lot(dossier)
+            if lot:
+                interpreteur = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "cmd.exe")
+                subprocess.Popen([interpreteur, "/c", lot], cwd=dossier, env=environnement, creationflags=drapeaux)
+                return
+        except OSError as erreur:
+            print("Lancement de l'installateur (.bat) refusé aussi :", erreur)
+        _echec = ("Windows a bloqué la mise à jour. Je reste en version " + version_actuelle() +
+                  ". J'ouvre le dossier : double-clique sur Installer-Jarvis, puis choisis Exécuter quand Windows le demande.")
+        try:
+            subprocess.Popen(["explorer.exe", "/select,", programme])
+        except OSError:
+            pass
     minuteur = threading.Timer(ATTENTE_AVANT_INSTALLATION, lancer)
     minuteur.daemon = True
     minuteur.start()
     version = f"la version {cible}" if disponible else "la dernière version"
     return (f"Je lance la mise à jour vers {version}. Je vais m'arrêter quelques minutes, "
             "puis je redémarrerai tout seul.")
+
+
+_echec = None
+
+
+def echec_a_dire():
+    """La phrase à dire une seule fois si Windows a refusé de lancer l'installateur, sinon None."""
+    global _echec
+    phrase, _echec = _echec, None
+    return phrase
+
+
+def _telecharger_lot(dossier):
+    """Télécharge Installer-Jarvis.bat de la même version (même contenu que le .exe). Renvoie son chemin, ou None."""
+    adresse = (_installateur or INSTALLATEUR).rsplit("/", 1)[0] + "/Installer-Jarvis.bat"
+    lot = os.path.join(dossier, "Installer-Jarvis.bat")
+    try:
+        requete = urllib.request.Request(adresse, headers={"User-Agent": "Jarvis"})
+        with urllib.request.urlopen(requete, timeout=60) as r, open(lot, "wb") as f:
+            f.write(r.read())
+        return lot if os.path.getsize(lot) > 20_000 else None
+    except Exception as erreur:
+        print("Téléchargement de l'installateur .bat impossible :", erreur)
+        return None
 
 
 def bilan_au_demarrage():
