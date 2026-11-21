@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.33**
+**Français : [README.md](README.md)** · **Current version: 1.34**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +30,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.34
+
+- **Easier tablet setup**: the installer sets the Windows firewall by itself (one permission, answer Yes). Later, "Jarvis, autorise les tablettes" does the same.
+- **The QR code window shows the steps in pictures**: what to tap on the tablet is circled in orange, from the camera to opening the app.
+- **Tablet app 1.17**: when it can't reach Jarvis, it says why (no Wi-Fi, not the same Wi-Fi as the computer, Jarvis not running, computer off or firewall).
+- **Listening**: "Jarvis" is recognised more easily on the PC; unclear voices are transcribed better; a help window open on the tablet no longer stops Jarvis hearing you; a profile only switches when the voice is recognised twice in a row.
 
 ## New in 1.33
 
@@ -315,7 +322,8 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_infos.py` | Fuel prices, school holidays, bank holidays, "on this day", bin days |
 | `jarvis_agenda.py` | The iCloud calendar (public link) and the evening-before reminder |
 | `jarvis_freebox.py` | The Freebox: calls, internet status, connected devices, guest Wi-Fi |
-| `jarvis_fenetre_qr.py` | The guest Wi-Fi QR code window (drawn on screen, never saved) |
+| `jarvis_fenetre_qr.py` | The QR code window (guest Wi-Fi, tablet), drawn on screen and never saved; for the tablet, the steps to tap are illustrated |
+| `jarvis_parefeu.py` | The Windows firewall rule that lets home tablets reach Jarvis, and the diagnosis when they can't |
 | `jarvis_tele.py` | The TV through the Freebox Player or another Android TV |
 | `jarvis_appletv.py` | The Apple TV |
 | `jarvis_imprimante.py` | Ink and status of the network printer (read-only) |

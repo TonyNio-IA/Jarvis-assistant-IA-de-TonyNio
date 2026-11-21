@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.33**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.34**
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +31,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.34
+
+- **Tablettes plus faciles à relier** : l'installateur règle lui-même le pare-feu de Windows (une seule autorisation, réponds Oui). Plus tard, « Jarvis, autorise les tablettes » fait la même chose.
+- **La fenêtre du QR code montre les étapes en images** : ce qu'il faut toucher sur la tablette est entouré en orange, de l'appareil photo jusqu'à l'ouverture de l'application.
+- **Application de la tablette 1.17** : quand elle n'arrive pas à joindre Jarvis, elle dit pourquoi (pas de Wi-Fi, pas le même Wi-Fi que l'ordinateur, Jarvis éteint, ordinateur éteint ou pare-feu).
+- **Écoute** : « Jarvis » est reconnu plus facilement sur le PC ; les voix peu claires sont mieux retranscrites ; une fenêtre d'aide ouverte sur la tablette n'empêche plus Jarvis de t'entendre ; un profil change seulement si la voix est reconnue deux fois de suite.
 
 ## Nouveau en 1.33
 
@@ -348,7 +355,8 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_infos.py` | Carburants, vacances scolaires, jours fériés, éphéméride, jours des poubelles |
 | `jarvis_agenda.py` | L'agenda iCloud (lien public) et le rappel de la veille |
 | `jarvis_freebox.py` | La Freebox : appels, état d'Internet, appareils connectés, Wi-Fi invité |
-| `jarvis_fenetre_qr.py` | La fenêtre du QR code du Wi-Fi invité (dessiné à l'écran, jamais enregistré) |
+| `jarvis_fenetre_qr.py` | La fenêtre des QR codes (Wi-Fi invité, tablette), dessinés à l'écran et jamais enregistrés ; pour la tablette, les étapes à toucher sont dessinées |
+| `jarvis_parefeu.py` | La règle du pare-feu de Windows qui laisse les tablettes de la maison joindre Jarvis, et le diagnostic quand elles n'y arrivent pas |
 | `jarvis_tele.py` | La télé par le Freebox Player ou une autre Android TV |
 | `jarvis_appletv.py` | L'Apple TV |
 | `jarvis_imprimante.py` | L'encre et l'état de l'imprimante réseau (lecture seule) |
@@ -403,6 +411,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.34 | Pare-feu réglé par l'installateur et « autorise les tablettes » ; étapes dessinées à côté du QR code ; application 1.17 qui dit pourquoi la tablette ne joint pas Jarvis ; mot « Jarvis » plus facile sur le PC ; fenêtre d'aide qui ne bloque plus l'écoute ; changement de profil confirmé deux fois |
 | 1.33 | Tablette : YouTube Kids ouvert même mal compris, retranscription plus rapide, double appui sur le rond, Claude averti après un atelier, atelier repris après un redémarrage ; PC : « tu peux me résumer ? » ; testeurs volontaires ; mises à jour importantes manquées installées ; demandes des tablettes dans les rapports |
 | 1.32 | Mise à jour importante installée après une minute de calme (cinq minutes après une demande d'une tablette) |
 | 1.31 | Mises à jour importantes installées tout de suite, en veille ; nouvelle version cherchée toutes les 15 minutes ; rapports : département et villes voisines cachés |

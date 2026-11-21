@@ -103,7 +103,9 @@ PALETTE_DEFAUT = "vice city"
 # Mesuré sur une Galaxy Tab : 5 (micro de la caméra) donne une voix nette ; 6 et 9 presque rien ; 7 hache la voix.
 # Avec la source 5, une voix arrive entre 0,02 et 0,09 ; les petits bruits de la pièce (objets, clavier) sous 0,008.
 # « silence » : millièmes de seconde sans voix qui terminent une phrase (écoute permanente), « silence_rond » : après un appui.
-MICRO = {"source": 5, "facteur": 4, "seuil": 0.004, "silence": 800, "silence_rond": 1000}
+MICRO = {"source": 5, "facteur": 4, "seuil": 0.004, "silence": 800, "silence_rond": 1000,
+         # application 1.16 : anti-écho seulement pendant que Jarvis parle (1), seuil de « Jarvis » pour lui couper la parole
+         "anti_echo": 1, "seuil_parole": 0.5}
 
 _jarvis = None                   # le module jarvis_claude (Whisper, Claude), donné par configurer()
 _claude = None                   # la classe des conversations de la tablette (None tant que Jarvis n'est pas prêt)
@@ -1500,6 +1502,7 @@ _AIDE = re.compile(r"^(?:qu'est-ce que |qu'est ce que )?(?:tu sais|sais-tu|tu pe
                    r"|^qu'est-ce que je peux te demander|^(?:donne-moi|montre-moi) des (?:idées|exemples)")
 _dernieres = {}                  # la dernière réponse de chaque profil, pour « répète »
 _apres_atelier = {}              # profil -> (moment, dernière phrase d'un atelier) : note pour Claude juste après
+_voix_enfant = {}                # tablette -> (profil enfant reconnu à la voix, moment) : il faut deux fois de suite
 _REPETE = re.compile(r"^\W*(?:jarvis\W*)?(?:est-ce que |tu peux |peux-tu |tu pourrais |pourrais-tu )?(?:me |nous )?(?:le |la )?"
                      r"(?:r[ée]p[éè]t\w*|redi[st]\w*|redire)\b(?!\s+(?:à|a|au|aux)\s)"     # « répète à Léa que… » : un message
                      r"|j'ai (?:pas|rien) (?:compris|entendu)|je n'ai (?:pas|rien) (?:compris|entendu)"
@@ -1690,7 +1693,15 @@ def _repondre(texte, son, jeton, tablette, genre, muet, veille, etapes=False):
                 print("Tablette (corrections) :", erreur)
             reconnue = _reconnaitre(audio, texte)
             autre = _profil(reconnue) if reconnue and reconnue != profil["id"] else None
+            # un enfant du foyer : la tablette passe sur son profil, mais seulement si sa voix est reconnue deux fois
+            # de suite (une seule phrase d'une voix d'adulte avait fait passer une tablette sur le profil d'un enfant)
+            deja = _voix_enfant.get(tablette)
+            _voix_enfant[tablette] = (reconnue, time.time()) if autre is not None and autre["enfant"] else None
+            if autre is not None and autre["enfant"] and not (deja and deja[0] == reconnue and time.time() - deja[1] < 180):
+                print(f"Tablette (voix) : voix d'enfant reconnue une fois, profil gardé ({len(texte or '')} lettres).")
+                autre = None
             if autre is not None and autre["enfant"]:            # un enfant du foyer : la tablette passe sur son profil
+                print("Tablette (voix) : voix d'enfant reconnue deux fois de suite, la tablette passe sur son profil.")
                 profil = autre
                 suite["bascule"] = {"profil": autre["id"], "jeton": _ouvrir_session(autre["id"])}
             elif autre is not None:                              # un adulte : proposé seulement, le code reste demandé
@@ -2551,7 +2562,8 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   function majVeille() {
     if (!peutVeiller()) { return; }
     var voulue = !!(reglages.veille && profil && !document.hidden && !rond.disabled);
-    var attentive = mode === "veille" && voile.className !== "ouvert" && !essaiParle;
+    // une fenêtre ouverte (aide, réglages...) n'empêche plus d'appeler « Jarvis » : elle se ferme et il écoute
+    var attentive = mode === "veille" && !essaiParle;
     try {
       if (!appli.attentif) { voulue = voulue && attentive; }       // ancienne application : le micro est coupé hors attente
       else if (attentive !== attentiveDite) { attentiveDite = attentive; appli.attentif(attentive); }
@@ -3154,6 +3166,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   }
   function recevoir(d) {
     $("ouvrir").style.display = "none";
+    if (d && (d.reponse || d.entendu) && voile.className === "ouvert") { fermer(); }   // la réponse s'affiche devant une fenêtre restée ouverte
     if (d && d.refus) { mettre("veille"); return refuse(); }
     if (d && d.session === "finie") {             // le profil est resté trop longtemps sans rien demander
       mettre("veille"); jeton = null; ecrire("jarvis_jeton", ""); reprise = dernier;
@@ -3286,8 +3299,8 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   };
   // L'application a reconnu « Jarvis » : elle a fait le bip et écoute déjà la demande. Rien n'est parti au PC avant.
   window.jarvisReveil = function () {
-    if (mode === "repond" && voile.className !== "ouvert") { seTaire(); }       // « Jarvis » pendant qu'il parle : il se tait et écoute
-    if (mode !== "veille" || !profil || voile.className === "ouvert" || document.hidden) {
+    if (mode === "repond") { seTaire(); }       // « Jarvis » pendant qu'il parle : il se tait et écoute
+    if (mode !== "veille" || !profil || document.hidden || essaiParle) {
       try { appli.arreterEcoute(false); } catch (e) {}
       return;
     }
@@ -3296,7 +3309,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   };
   // Une phrase entendue par l'écoute permanente : le PC dit si elle était pour Jarvis. Sinon, rien ne bouge à l'écran.
   function phraseEntendue(son, type) {
-    if (mode !== "veille" || !profil || voile.className === "ouvert") { return; }
+    if (mode !== "veille" || !profil || essaiParle) { return; }
     if (enVol) { enAttente = { son: son, type: type }; return; }     // le PC est occupé : la dernière phrase attend son tour
     enVol = true;
     var suite = Date.now() < suiteFin;
@@ -3323,6 +3336,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   var ecouteDepuis = 0;                           // moment où l'écoute a commencé (double appui d'un enfant)
   function ecouter(pourquoi) {
     ecouteDepuis = Date.now();
+    if (voile.className === "ouvert") { fermer(); }   // on parle à Jarvis : la fenêtre ouverte (aide, réglages) se ferme
     seTaire();
     origine = natif() && pourquoi ? pourquoi : "";
     if (natif()) {
@@ -3653,11 +3667,10 @@ def _montrer_qr(adresse, minutes=10):
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         p.stdin.write(json.dumps({
             "adresse": adresse, "minutes": minutes, "titre": "Jarvis sur la tablette",
-            "texte": "Vise ce code avec l'appareil photo de la tablette",
-            "lignes": ["1. Ouvre le lien proposé.",
-                       "2. Avertissement de sécurité : choisis « Paramètres avancés », puis « Continuer ».",
-                       "3. Sur une tablette Android : installe l'application proposée par la page, puis touche "
-                       "« Ouvrir dans l'application ». Sinon, dans le menu du navigateur : « Ajouter à l'écran d'accueil ».",
+            "texte": "Vise ce code avec l'appareil photo de la tablette", "etapes": True,
+            "lignes": ["Les étapes sont dessinées à droite.",
+                       "Pas une tablette Android (iPad) ? Après l'avertissement, dans le menu du navigateur : "
+                       "« Ajouter à l'écran d'accueil ».",
                        "Pendant 10 minutes, les adultes peuvent choisir leur code sur la tablette."]}).encode("utf-8"))
         p.stdin.close()
         return True
@@ -3676,11 +3689,39 @@ _MONTRER = re.compile(r"\b(?:montre[rs]?|affiche[rs]?|redonne|r[ée]affiche|donn
 _QUESTION = re.compile(r"\best-ce que\b|\best[- ]elle\b|\best (?:activ|reli|connect|branch)")
 
 
+_PAREFEU = re.compile(r"\b(?:autorise[rs]?|d[ée]bloque[rs]?|laisse[rs]? passer)\b.*\btablettes\b"   # pluriel : « autorise la tablette » reste « active la tablette »
+                      r"|\bpare[- ]feu\b.*\btablettes?\b|\btablettes?\b.*\bpare[- ]feu\b")
+
+
+def _autoriser_au_parefeu():
+    """Ajoute la règle du pare-feu dans un fil à part : Windows affiche sa demande d'autorisation, Jarvis ne bloque pas."""
+    def travail():
+        try:
+            import jarvis_parefeu
+            ok = jarvis_parefeu.ajouter()
+            print("Pare-feu : règle « Jarvis - tablettes »", "en place." if ok else "pas ajoutée (autorisation refusée ?).")
+        except Exception as erreur:
+            print("Pare-feu :", erreur)
+    threading.Thread(target=travail, daemon=True).start()
+
+
 def commande(t, enfant=False, invite=False):
-    """« active la tablette », « montre le QR code de la tablette », « désactive la tablette ».
+    """« active la tablette », « montre le QR code de la tablette », « désactive la tablette », « autorise les tablettes ».
     Renvoie la réponse à dire, ou None si la phrase ne parle pas de l'accès de la tablette."""
     global _reglage_fin
     t = t.replace("’", "'")
+    if _PAREFEU.search(t):
+        if enfant or invite:
+            return "Seul un adulte peut régler l'accès de la tablette."
+        try:
+            import jarvis_parefeu
+            if jarvis_parefeu.regle_presente():
+                return "C'est déjà fait : le pare-feu de Windows laisse passer les tablettes de la maison."
+        except Exception as erreur:
+            print("Pare-feu :", erreur)
+        _autoriser_au_parefeu()
+        return ("Windows va te demander une autorisation pour que les tablettes de la maison puissent joindre Jarvis : "
+                "réponds Oui.")
     if not _TABLETTE.search(t) or _PAS_POUR_MOI.search(t):
         return None
     couper, activer_, montrer, question = (_COUPER.search(t), _ACTIVER.search(t), _MONTRER.search(t), _QUESTION.search(t))
@@ -3731,6 +3772,20 @@ def commande(t, enfant=False, invite=False):
     if not _montrer_qr(adresse):
         return "L'accès de la tablette est ouvert, mais je n'arrive pas à afficher le QR code."
     pour = f" pour {donnees['prenom']}" if donnees.get("prenom") else ""
-    return (f"L'accès de la tablette est ouvert{pour}. Vise le QR code à l'écran avec son appareil photo, accepte "
-            "l'avertissement de sécurité, puis installe l'application proposée, ou ajoute la page à l'écran d'accueil. "
-            "Si Windows demande d'autoriser Python sur le réseau, accepte pour les réseaux privés.")
+    reponse = (f"L'accès de la tablette est ouvert{pour}. Vise le QR code à l'écran avec son appareil photo, puis suis "
+               "les étapes dessinées à côté.")
+    try:                                             # ce qui pourrait empêcher la tablette de joindre ce PC
+        import jarvis_parefeu
+        soucis = jarvis_parefeu.diagnostic()
+        if jarvis_parefeu.parefeu_actif() and not jarvis_parefeu.regle_presente():
+            _autoriser_au_parefeu()
+            soucis = [s for s in soucis if "pare-feu" not in s]
+            reponse += (" Windows va aussi te demander une autorisation, pour que la tablette puisse joindre Jarvis : "
+                        "réponds Oui.")
+        for s in soucis:
+            print("Tablette (diagnostic) :", s)
+        if soucis:
+            reponse += " Attention : " + " ".join(soucis)
+    except Exception as erreur:
+        print("Tablette (diagnostic) :", erreur)
+    return reponse

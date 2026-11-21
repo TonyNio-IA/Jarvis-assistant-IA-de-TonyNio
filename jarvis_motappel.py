@@ -20,7 +20,8 @@ import numpy as np
 import jarvis_config
 
 DOSSIER = jarvis_config.chemin("mot_appel")
-SEUIL = 0.5                    # note minimale pour considérer que « Jarvis » a été dit
+SEUIL = 0.3                    # note minimale pour considérer que « Jarvis » a été dit (Whisper vérifie ensuite) ;
+                               # 21/11 : à 0,3 au lieu de 0,5, 95 « Jarvis » sur 104 au lieu de 93, sans fausse alerte de plus
 BLOC = 1280                    # 80 ms à 16 kHz : la cadence du modèle
 
 

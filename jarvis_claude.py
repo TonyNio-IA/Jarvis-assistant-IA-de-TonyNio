@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.33"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.34"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -681,8 +681,10 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
             audio = np.concatenate((np.zeros(int(SAMPLE_RATE * WHISPER_SILENCE), dtype=np.float32), audio))
         debut_whisper = time.time()
         with verrou_whisper:
+            # Deux essais au plus quand la voix est peu claire (au lieu de six) : mesuré le 21/11 sur 24 vraies
+            # demandes, le plus long passe de 12,7 s à 7,4 s, et 23 retranscriptions sur 24 restent identiques
             segments, _ = whisper.transcribe(audio, language="fr", beam_size=WHISPER_FAISCEAU,
-                                             initial_prompt=_vocabulaire())
+                                             initial_prompt=_vocabulaire(), temperature=(0.0, 0.4))
             texte = " ".join(s.text for s in segments).strip()
         duree_whisper = time.time() - debut_whisper
     except Exception as erreur:

@@ -121,7 +121,12 @@ public class MainActivity extends Activity {
     private short[] sonReveil, sonFin, sonSonnerie;
     private volatile boolean parole;         // Jarvis parle : « Jarvis » lui coupe la parole (le reste n'est pas écouté)
     // Pendant qu'il parle, sa propre voix couvre la tienne : un seuil un peu plus haut qu'au repos (0,8 était trop exigeant)
-    private static final float SEUIL_PAROLE = 0.7f;
+    // Pendant que Jarvis parle, « Jarvis » doit être net pour lui couper la parole (sa propre voix ne doit pas le réveiller).
+    // Réglable depuis le PC ("seuil_parole" dans les réglages du micro), sans refaire l'application.
+    private volatile float seuilParole = 0.5f;
+    // L'anti-écho retire du micro la voix de Jarvis, mais écrase aussi le début de la phrase qu'on lui dit.
+    // 0 : toujours ; 1 : seulement pendant que Jarvis parle (pour lui couper la parole) ; 2 : jamais. Réglable depuis le PC.
+    private volatile int modeAntiEcho = 1;
 
     private final Runnable nouvelEssai = new Runnable() {
         @Override
@@ -395,13 +400,138 @@ public class MainActivity extends Activity {
                     "Réessayer", () -> charger(true), "Relier de nouveau", () -> ecranRelier(""), false);
             return;
         }
-        montrer("Je n'arrive pas à joindre Jarvis",
+        montrer(TITRE_HORS_LIGNE,
                 "Vérifie que l'ordinateur est allumé, que Jarvis tourne, et que la tablette est sur le Wi-Fi de la maison "
                         + "(ou reliée par le VPN).\n\nJe réessaie tout seul.",
                 "Réessayer", () -> charger(true), "Relier de nouveau", () -> ecranRelier(""), false);
+        chercherCause();
         mains.removeCallbacks(nouvelEssai);
         if (visible) {
             mains.postDelayed(nouvelEssai, ESSAI_TOUTES_LES);
+        }
+    }
+
+    // ---------- Pourquoi la tablette ne joint pas le PC ----------
+
+    private static final String TITRE_HORS_LIGNE = "Je n'arrive pas à joindre Jarvis";
+    private volatile boolean causeEnCours;
+
+    /** Cherche, dans un fil à part, ce qui empêche de joindre le PC, puis remplace le message général par la raison. */
+    private void chercherCause() {
+        if (causeEnCours) {
+            return;
+        }
+        causeEnCours = true;
+        final String adresse = hote();
+        new Thread(() -> {
+            String cause = null;
+            try {
+                cause = cause(adresse);
+            } catch (Exception ignore) {
+            }
+            causeEnCours = false;
+            final String texte = cause;
+            if (texte != null) {
+                mains.post(() -> {
+                    if (horsLigne && !mauvaisPc && ecran.getVisibility() == View.VISIBLE
+                            && TITRE_HORS_LIGNE.contentEquals(titre.getText())) {
+                        message.setText(texte + "\n\nJe réessaie tout seul.");
+                    }
+                });
+            }
+        }, "cause").start();
+    }
+
+    /** Le réseau IPv4 (adresse et longueur du préfixe) de chaque interface active, sauf la boucle locale. */
+    private static List<java.net.InterfaceAddress> reseauxLocaux(boolean[] vpn) throws Exception {
+        List<java.net.InterfaceAddress> liste = new java.util.ArrayList<>();
+        java.util.Enumeration<java.net.NetworkInterface> tout = java.net.NetworkInterface.getNetworkInterfaces();
+        while (tout != null && tout.hasMoreElements()) {
+            java.net.NetworkInterface carte = tout.nextElement();
+            if (!carte.isUp() || carte.isLoopback()) {
+                continue;
+            }
+            String nom = carte.getName().toLowerCase(java.util.Locale.ROOT);
+            boolean tunnel = nom.startsWith("tun") || nom.startsWith("ppp") || nom.startsWith("wg") || nom.startsWith("ipsec");
+            for (java.net.InterfaceAddress a : carte.getInterfaceAddresses()) {
+                if (a.getAddress() instanceof java.net.Inet4Address) {
+                    liste.add(a);
+                    if (tunnel) {
+                        vpn[0] = true;
+                    }
+                }
+            }
+        }
+        return liste;
+    }
+
+    private static boolean memeReseau(byte[] a, byte[] b, int prefixe) {
+        for (int i = 0; i < 32 && i < prefixe; i++) {
+            int masque = 0x80 >> (i % 8);
+            if ((a[i / 8] & masque) != (b[i / 8] & masque)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** La raison la plus probable, en une phrase simple ; null si on ne sait pas (le message général reste). */
+    private static String cause(String adresse) throws Exception {
+        if (adresse == null || adresse.isEmpty()) {
+            return null;
+        }
+        Uri u = Uri.parse("https://" + adresse);
+        String nomPc = u.getHost();
+        int port = u.getPort() > 0 ? u.getPort() : 443;
+        if (nomPc == null) {
+            return null;
+        }
+        boolean[] vpn = {false};
+        List<java.net.InterfaceAddress> locaux = reseauxLocaux(vpn);
+        if (locaux.isEmpty()) {
+            return "La tablette n'est reliée à aucun réseau. Active le Wi-Fi de la tablette et connecte-la à la box de la maison.";
+        }
+        java.net.InetAddress pc;
+        try {
+            pc = java.net.InetAddress.getByName(nomPc);
+        } catch (Exception erreur) {
+            return null;
+        }
+        boolean prive = pc.isSiteLocalAddress();
+        boolean voisin = false;
+        for (java.net.InterfaceAddress a : locaux) {
+            if (memeReseau(a.getAddress().getAddress(), pc.getAddress(), Math.max(a.getNetworkPrefixLength(), 8))) {
+                voisin = true;
+            }
+        }
+        if (prive && !voisin && !vpn[0]) {
+            return "La tablette n'est pas sur le même Wi-Fi que l'ordinateur. Connecte-la au Wi-Fi de la maison "
+                    + "(pas au Wi-Fi invité ni aux données mobiles), ou au VPN si tu es dehors.";
+        }
+        try (java.net.Socket essai = new java.net.Socket()) {
+            essai.connect(new java.net.InetSocketAddress(pc, port), 3000);
+            return null;                                   // le PC répond maintenant : le prochain essai devrait réussir
+        } catch (java.net.ConnectException refus) {
+            String quoi = String.valueOf(refus.getMessage()).toUpperCase(java.util.Locale.ROOT);
+            if (quoi.contains("REFUSED")) {
+                return "L'ordinateur répond, mais Jarvis ne tourne pas dessus. Lance Jarvis sur l'ordinateur "
+                        + "(l'icône « Jarvis » du Bureau).";
+            }
+            if (voisin && quoi.contains("UNREACH")) {      // personne à cette adresse sur le réseau de la maison
+                return "L'ordinateur ne répond pas : il est sans doute éteint ou en veille. Allume-le, et Jarvis reviendra tout seul.";
+            }
+            return null;
+        } catch (java.net.SocketTimeoutException silence) {
+            if (!voisin) {
+                return null;
+            }
+            return "L'ordinateur ne répond pas : soit il est éteint ou en veille, soit le pare-feu de Windows bloque la tablette. "
+                    + "S'il est allumé, dis-lui « Jarvis, autorise les tablettes » et réponds Oui à Windows.";
+        } catch (java.net.NoRouteToHostException absent) {
+            return voisin ? "L'ordinateur ne répond pas : il est sans doute éteint ou en veille. Allume-le, et Jarvis reviendra tout seul."
+                          : null;
+        } catch (Exception autre) {
+            return null;
         }
     }
 
@@ -856,12 +986,22 @@ public class MainActivity extends Activity {
                     boolean coupure = parole && !attentif && mot != null;    // Jarvis parle : seul « Jarvis » est guetté, pour lui couper la parole
                     if (enCoupure && !coupure) {                             // fin de sa réponse : la note la plus haute, pour régler le seuil
                         noter(String.format(java.util.Locale.US, "mot d'appel pendant la réponse : note la plus haute %.2f (seuil %.2f)",
-                                noteParole, Math.max(seuilMot, SEUIL_PAROLE)));
+                                noteParole, Math.max(seuilMot, seuilParole)));
                     }
                     if (coupure && !enCoupure) {
                         noteParole = 0;
                     }
                     enCoupure = coupure;
+                    if (antiEcho != null) {                                  // anti-écho seulement quand il le faut (voir modeAntiEcho)
+                        boolean voulu = modeAntiEcho == 0 || (modeAntiEcho == 1 && parole);
+                        try {
+                            if (antiEcho.getEnabled() != voulu) {
+                                antiEcho.setEnabled(voulu);
+                            }
+                        } catch (Exception erreur) {
+                            // l'anti-écho ne se règle plus : on laisse comme il est
+                        }
+                    }
                     if (!enDirect && !coupure && (!attentif || maintenant - attentifDepuis < 400)) {
                         phrase = null;                                       // Jarvis parle : on n'écoute pas sa propre voix
                         avant.clear();
@@ -918,7 +1058,7 @@ public class MainActivity extends Activity {
                             noter(String.format(java.util.Locale.US, "mot d'appel : %.1f ms de calcul par bloc de 80 ms", tempsMot / 1e6 / blocsMot));
                         }
                         // pendant que Jarvis parle, le seuil est plus haut : sa propre voix ne doit pas le réveiller
-                        if (note >= (coupure ? Math.max(seuilMot, SEUIL_PAROLE) : seuilMot) && veille) {    // on a dit « Jarvis » : le bip, et la demande est écoutée
+                        if (note >= (coupure ? Math.max(seuilMot, seuilParole) : seuilMot) && veille) {    // on a dit « Jarvis » : le bip, et la demande est écoutée
                             motPret = false;
                             noter(String.format(java.util.Locale.US, "mot d'appel : réveil (note %.2f)", note));
                             ordre = 0;
@@ -1107,6 +1247,8 @@ public class MainActivity extends Activity {
                     silenceVeille = Math.max(400, Math.min(3000, r.optInt("silence", silenceVeille)));
                     silenceRond = Math.max(400, Math.min(3000, r.optInt("silence_rond", silenceRond)));
                     bilans = r.optBoolean("bilan", false);
+                    modeAntiEcho = Math.max(0, Math.min(2, r.optInt("anti_echo", modeAntiEcho)));
+                    seuilParole = (float) Math.max(0.2, Math.min(0.95, r.optDouble("seuil_parole", seuilParole)));
                     JSONObject mot = r.optJSONObject("mot");                 // le détecteur de « Jarvis » du PC, s'il en a un
                     seuilMot = (float) Math.max(0.1, Math.min(0.99, mot == null ? 0.5 : mot.optDouble("seuil", 0.5)));
                     preparerMot(mot == null ? "" : mot.optString("empreinte", ""));

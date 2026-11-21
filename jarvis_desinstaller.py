@@ -296,6 +296,16 @@ foreach ($lien in @($p.raccourcis)) {
 }
 if ($retires) { Fait "les raccourcis de Jarvis (Bureau, démarrage de Windows)" }
 
+# 3 bis. La règle du pare-feu pour les tablettes (Windows demande l'autorisation), seulement si elle existe
+try { & netsh.exe advfirewall firewall show rule name="Jarvis - tablettes" | Out-Null } catch {}
+if ($LASTEXITCODE -eq 0) {
+    Dire "Retrait de l'accès des tablettes au pare-feu : Windows demande ton autorisation, réponds Oui..."
+    try {
+        $pr = Start-Process -FilePath netsh.exe -ArgumentList 'advfirewall firewall delete rule name="Jarvis - tablettes"' -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+        if ($pr.ExitCode -eq 0) { Fait "l'accès des tablettes dans le pare-feu de Windows" } else { Probleme "règle « Jarvis - tablettes » du pare-feu non retirée" }
+    } catch { Probleme "règle « Jarvis - tablettes » du pare-feu non retirée (autorisation refusée)" }
+}
+
 # 4. Claude Code
 if ($p.claude) {
     Dire 'Retrait de Claude Code...'

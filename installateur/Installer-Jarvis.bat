@@ -14,7 +14,8 @@ exit /b %CODE%
 # ---------------------------------------------------------------------------------------------
 #  Installateur de Jarvis, assistant IA de TonyNio
 #  Installe, met à jour ou désinstalle Jarvis. Presque tout se fait dans ton dossier personnel ;
-#  seuls les composants Microsoft Visual C++, s'ils manquent, demandent l'autorisation de Windows.
+#  seuls les composants Microsoft Visual C++ (s'ils manquent) et l'accès des tablettes au pare-feu
+#  demandent l'autorisation de Windows.
 #  Rien n'est installé avant ton accord.
 #  https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio
 # ---------------------------------------------------------------------------------------------
@@ -506,6 +507,25 @@ function Supprimer-Apres($chemins, $dossierFinal) {
 }
 
 # ---------- Les trois actions ----------
+function Autoriser-Tablettes {
+    # Ouvre au pare-feu de Windows le port de Jarvis, pour les tablettes du réseau de la maison seulement.
+    $nom = 'Jarvis - tablettes'
+    try { & netsh.exe advfirewall firewall show rule name="$nom" | Out-Null } catch {}
+    if ($LASTEXITCODE -eq 0) { return }
+    if ($AUTO) { return }                          # mise à jour automatique : personne pour répondre à Windows
+    Titre "Tablettes"
+    Dire "  Pour que les tablettes de la maison puissent joindre Jarvis, Windows va demander une autorisation : réponds Oui." 'White'
+    $regle = 'advfirewall firewall add rule name="' + $nom + '" dir=in action=allow protocol=TCP localport=47826 ' +
+             'remoteip=LocalSubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 profile=any'
+    try {
+        $p = Start-Process -FilePath netsh.exe -ArgumentList $regle -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+        if ($p.ExitCode -eq 0) { Bon "Pare-feu : les tablettes de la maison peuvent joindre Jarvis." }
+        else { Attention "Le pare-feu n'a pas été réglé. Plus tard, dis « Jarvis, autorise les tablettes »." }
+    } catch {
+        Attention "Autorisation refusée : les tablettes ne pourront pas joindre Jarvis. Plus tard, dis « Jarvis, autorise les tablettes »."
+    }
+}
+
 function Installer($dossierExistant) {
     $maj = [bool]$dossierExistant
     Titre $(if ($maj) { "Mise à jour de Jarvis" } else { "Installation de Jarvis" })
@@ -626,6 +646,9 @@ function Installer($dossierExistant) {
     $fichierInstallateur = Ranger-Installateur $dossier
     $nomInstallateur = if ($fichierInstallateur -like '*.exe') { "« Installer-Jarvis » (l'icône du réacteur)" } else { "« Installer-Jarvis.bat »" }
     Bon "Raccourci « Jarvis » créé sur le Bureau$(if ($auDemarrage) { ' et au démarrage de Windows' })."
+
+    # 9 bis. Pare-feu : une seule autorisation de Windows, pour les tablettes de la maison
+    Autoriser-Tablettes
 
     # 10. Essais, puis lancement
     Verifier $dossier $env_py
