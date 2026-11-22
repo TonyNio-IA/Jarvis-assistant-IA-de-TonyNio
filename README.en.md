@@ -1,6 +1,12 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.41**
+**Français : [README.md](README.md)** · **Current version: 1.42**
+
+**Windows blocked the file?** Open Terminal (Windows key + X), paste this line, then press Enter:
+
+```
+$f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
+```
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +36,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.42
+
+- **Quieter update**: the installer's black console no longer shows; only the clear progress window does.
+- **If Windows blocks the update**, Jarvis opens Notepad with the explanation and the line to paste into the Terminal (it is also copied). A "Lisez-moi-si-Windows-bloque.txt" help file is attached to every release for the first installation, and the help sentence is at the top of this README and of the releases.
+- **Listening**: "give me the weather and the time" (or the date) now answers both; Jarvis waits a little longer after "search" or "find" before deciding your sentence is finished.
+- **First steps**: the "tu or vous" question is no longer asked if you already chose, and a question left unanswered is dropped after two tries.
 
 ## New in 1.41
 

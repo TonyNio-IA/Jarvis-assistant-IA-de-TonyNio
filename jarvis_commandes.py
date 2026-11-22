@@ -1538,6 +1538,33 @@ def commande_micro(t):
     return None
 
 
+_ENSEMBLE_HEURE = re.compile(r"\b(?:quelle heure|l'heure|l heure|heure qu'il est)\b")
+_ENSEMBLE_DATE = re.compile(r"\b(?:quel jour|quelle date|la date|le jour)\b")
+_ENSEMBLE_METEO = re.compile(r"\b(?:météo|meteo|quel temps|temps qu'il fait)\b")
+
+
+def _informations_ensemble(t, brut):
+    """« donne-moi la météo et l'heure » : les informations demandées sont toutes données (sinon Jarvis
+    ne répondait qu'à la première). Renvoie None s'il n'y a pas au moins deux informations simples."""
+    if re.search(r"\b(?:ouvre|lance|cherche|recherche|mets|site|page|demain|semaine|week|weekend|soir|matin|dans|"
+                 r"minuteur|rappel)\b", t):
+        return None
+    voulues = [nom for nom, motif in (("meteo", _ENSEMBLE_METEO), ("heure", _ENSEMBLE_HEURE), ("date", _ENSEMBLE_DATE))
+               if motif.search(t)]
+    if len(voulues) < 2:
+        return None
+    morceaux = []
+    for nom in voulues:
+        if nom == "meteo":
+            reponse = _commande_meteo(_ENSEMBLE_HEURE.sub("", _ENSEMBLE_DATE.sub("", t)), brut)
+        else:
+            reponse = _heure() if nom == "heure" else _date()
+        if not reponse or str(reponse).startswith("\x00"):
+            return None                       # une des réponses manque : tout va à Claude, rien n'est dit à moitié
+        morceaux.append(reponse)
+    return " ".join(morceaux)
+
+
 def commande_instantanee(textes, annoncer=None):
     """
     textes   : les retranscriptions de la demande (Whisper et Vosk).
@@ -1568,6 +1595,9 @@ def commande_instantanee(textes, annoncer=None):
                 reponse = _commande_alimentation(t)
                 if reponse:
                     return reponse
+            ensemble = _informations_ensemble(t, brut)
+            if ensemble:
+                return ensemble
             if re.search(r"\bquelle heure\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
                 return _heure()
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \

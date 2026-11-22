@@ -1,6 +1,12 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.41**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.42**
+
+**Windows a bloqué le fichier ?** Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée :
+
+```
+$f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
+```
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
@@ -31,6 +37,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.42
+
+- **Mise à jour plus discrète** : la console noire de l'installateur n'apparaît plus, seule la fenêtre claire d'avancement s'affiche.
+- **Si Windows bloque la mise à jour**, Jarvis ouvre le Bloc-notes avec l'explication et la ligne à coller dans le Terminal (elle est aussi copiée). Un fichier « Lisez-moi-si-Windows-bloque.txt » est joint à chaque publication pour la première installation, et la phrase d'aide est en haut de ce README et des publications.
+- **Écoute** : « donne-moi la météo et l'heure » (ou la date) répond maintenant aux deux ; Jarvis attend un peu plus longtemps après « recherche », « cherche » ou « trouve » avant de considérer ta phrase terminée.
+- **Premiers pas** : la question « tutoyer ou vouvoyer » n'est plus posée si tu as déjà choisi, et une question restée sans réponse est abandonnée après deux fois.
 
 ## Nouveau en 1.41
 
@@ -459,6 +472,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 |---|---|
 | 1.40 | Mise à jour : fenêtre d'avancement, avertissement avant le message de Windows, ligne d'installation copiée si tout est refusé, heures dans le journal |
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
+| 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |

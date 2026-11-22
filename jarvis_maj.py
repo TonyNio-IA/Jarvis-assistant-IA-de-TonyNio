@@ -197,6 +197,28 @@ def annonce():
 
 # ---------- Installation ----------
 
+def texte_aide(mise_a_jour=False):
+    """Le texte du Bloc-notes quand Windows bloque : Jarvis le crée (mise à jour) ; le même texte est joint à chaque
+    publication GitHub (installation)."""
+    debut = ("Jarvis n'a pas pu se mettre à jour : Windows a bloqué le fichier." if mise_a_jour
+             else "Windows a bloqué le fichier d'installation de Jarvis ?")
+    return (debut + "\n\n"
+            "C'est la protection « Contrôle intelligent des applications » de Windows 11. Elle bloque les fichiers récents "
+            "téléchargés avec le navigateur. Rien n'est cassé, et il ne faut rien désactiver.\n\n"
+            "1. Appuie sur la touche Windows + X, puis choisis Terminal (ou Windows PowerShell).\n"
+            "2. Copie la ligne ci-dessous, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :\n\n"
+            + LIGNE_INSTALLATION + "\n\n"
+            "3. La fenêtre d'installation de Jarvis s'ouvre : continue normalement.\n")
+
+
+def _ouvrir_aide():
+    """Écrit l'aide dans le dossier temporaire et l'ouvre dans le Bloc-notes (programme signé par Microsoft)."""
+    chemin = os.path.join(tempfile.gettempdir(), "Jarvis-aide-Windows.txt")
+    with open(chemin, "w", encoding="utf-8-sig", newline="") as f:
+        f.write(texte_aide(True).replace("\n", "\r\n"))
+    subprocess.Popen(["notepad.exe", chemin])
+
+
 def installer():
     """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
     Renvoie la phrase à dire."""
@@ -230,7 +252,8 @@ def installer():
     def lancer():
         # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance
         global _echec
-        drapeaux = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10)
+        # console cachée : seule la fenêtre claire d'avancement se voit (le journal installation.log garde tout)
+        drapeaux = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         try:
             subprocess.Popen([programme], cwd=dossier, env=environnement, creationflags=drapeaux)
             _noter("Mise à jour : installateur .exe lancé (accepté par Windows).")
@@ -248,19 +271,23 @@ def installer():
                 return
         except OSError as erreur:
             _noter("Lancement de l'installateur (.bat) refusé aussi :", erreur)
-        _noter("Mise à jour : .exe et .bat refusés par Windows, dossier ouvert pour une installation à la main.")
+        _noter("Mise à jour : .exe et .bat refusés par Windows, Bloc-notes ouvert avec la marche à suivre.")
         _echec = ("Windows a bloqué la mise à jour. Je reste en version " + version_actuelle() +
-                  ". J'ai copié la ligne d'installation : appuie sur Windows et X, choisis Terminal, "
-                  "colle avec Contrôle V, puis Entrée.")
+                  ". J'ai ouvert le Bloc-notes avec la marche à suivre : lis-le, la ligne à coller y est "
+                  "(elle est aussi copiée : Contrôle V).")
         try:
             copie = subprocess.Popen(["clip"], stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             copie.communicate(LIGNE_INSTALLATION.encode("ascii"), timeout=10)
         except Exception:
             pass
         try:
-            subprocess.Popen(["explorer.exe", "/select,", programme])
-        except OSError:
-            pass
+            _ouvrir_aide()
+        except Exception as erreur:
+            _noter("Bloc-notes impossible :", erreur)
+            try:
+                subprocess.Popen(["explorer.exe", "/select,", programme])
+            except OSError:
+                pass
     minuteur = threading.Timer(ATTENTE_AVANT_INSTALLATION, lancer)
     minuteur.daemon = True
     minuteur.start()

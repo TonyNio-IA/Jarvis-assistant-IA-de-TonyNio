@@ -17,6 +17,7 @@ import time
 import jarvis_config
 
 FICHIER = jarvis_config.chemin("accueil.json")
+MAX_FOIS = 2                       # une question sans réponse est posée deux fois au plus
 ATTENTE_REPONSE = 180              # secondes pendant lesquelles une réponse à la question est attendue
 
 QUESTIONS = {
@@ -70,6 +71,16 @@ def _restantes(donnees):
     restantes = [q for q in ORDRE if q not in faites]
     if "ville" in restantes and os.path.exists(jarvis_config.chemin("ville.txt")):
         restantes.remove("ville")
+    if "tutoiement" in restantes:
+        try:                          # déjà choisi autrement (« tutoie-moi », « on peut se tutoyer »)
+            import jarvis_personnalite
+            if jarvis_personnalite.vouvoiement() is not None:
+                restantes.remove("tutoiement")
+        except Exception:
+            pass
+    # une question posée deux fois sans réponse est abandonnée : on ne harcèle pas
+    deja = donnees.get("posees", {})
+    restantes = [q for q in restantes if q == "visite" or deja.get(q, 0) < MAX_FOIS]
     return restantes
 
 
@@ -85,6 +96,8 @@ def question():
         donnees["fini"] = True
         _ecrire(donnees)
         return ""
+    donnees.setdefault("posees", {})[restantes[0]] = donnees.get("posees", {}).get(restantes[0], 0) + 1
+    _ecrire(donnees)
     _pose.update(question=restantes[0], moment=time.time(), lancement=True)
     if restantes[0] == "visite":                  # la visite n'attend pas de réponse
         _marquer("visite", fin=True)

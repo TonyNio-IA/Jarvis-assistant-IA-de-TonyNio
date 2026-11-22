@@ -12,8 +12,8 @@ using System.Reflection;
 [assembly: AssemblyProduct("Jarvis, assistant IA de TonyNio")]
 [assembly: AssemblyCompany("TonyNio")]
 [assembly: AssemblyCopyright("TonyNio")]
-[assembly: AssemblyVersion("1.41.0.0")]
-[assembly: AssemblyFileVersion("1.41.0.0")]
+[assembly: AssemblyVersion("1.42.0.0")]
+[assembly: AssemblyFileVersion("1.42.0.0")]
 
 static class Lanceur
 {

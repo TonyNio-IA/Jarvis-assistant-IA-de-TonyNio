@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.41"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.42"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -112,7 +112,7 @@ SILENCE_FIN = 1.0             # secondes de silence qui marquent la fin de ta de
 SILENCE_FIN_LIAISON = 1.8     # ... quand la phrase s'arrête sur « de », « sur », « les »… : la suite arrive
                               # (vu sur un portable : une recherche YouTube coupée en deux demandes)
 _MOT_DE_LIAISON = re.compile(r"\b(?:de|du|des|d|le|la|les|l|un|une|sur|pour|avec|et|à|a|au|aux|en|dans|par|qui|que|"
-                             r"mets|cherche|ouvre|lance|joue|euh|heu)\W*$")
+                             r"mets|cherche|cherches|recherche|recherches|trouve|montre|affiche|ouvre|lance|joue|euh|heu)\W*$")
 DELAI_SUITE = 3               # secondes pour enchaîner une autre demande sans redire « Jarvis »
 MOTS_MINIMUM = 2              # une demande plus courte est considérée comme mal entendue
 DELAI_MAX_CLAUDE = 300        # secondes maximum pour une réponse de Claude
@@ -235,7 +235,7 @@ SEUIL_REVEIL_DIRECT = 0.7     # note minimale du détecteur pour ce réveil dire
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
 DOSSIER_ENREGISTREMENTS = jarvis_config.chemin("enregistrements")
-NB_ENREGISTREMENTS = 300      # les 300 dernières demandes (environ 50 Mo) : de quoi régler l'écoute
+NB_ENREGISTREMENTS = 300      # les 300 dernieres demandes (environ 50 Mo) : de quoi regler l'ecoute
 LIGNES_INDEX = 5000           # lignes gardées dans index.txt (ce qui a été compris, en texte : environ 500 Ko)
 
 # La ville se règle dans ville.txt (voir jarvis_commandes.py)
