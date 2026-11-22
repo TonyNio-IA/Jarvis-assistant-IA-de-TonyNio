@@ -17,6 +17,7 @@ import time
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 JOURNAL = os.path.join(DOSSIER, "jarvis.log")
 CODE_REDEMARRER = 3          # Jarvis demande lui-même à être relancé
+CODE_ARRET_EXTERIEUR = 0x40010004   # arrêté de l'extérieur (Gestionnaire des tâches, autre programme) : pas un plantage
 
 
 def noter(message):
@@ -45,12 +46,15 @@ def main():
             noter("redémarrage demandé à la voix.")
             time.sleep(1)
             continue
-        noter(f"Jarvis s'est arrêté tout seul (code {code}) après {time.time() - debut:.0f} s : relance.")
+        exterieur = code == CODE_ARRET_EXTERIEUR
+        noter((f"Jarvis a été arrêté de l'extérieur (code {code}, sans doute le Gestionnaire des tâches)" if exterieur
+               else f"Jarvis s'est arrêté tout seul (code {code})") + f" après {time.time() - debut:.0f} s : relance.")
         reprise = os.path.join(DOSSIER, "reprise.json")      # Jarvis dira au redémarrage qu'il s'est relancé
         if not os.path.exists(reprise):                        # (sauf s'il a déjà noté la cause lui-même)
             try:
                 with open(reprise, "w", encoding="utf-8") as f:
-                    f.write('{"quand": %d, "cause": "plantage", "detail": "code %s"}' % (time.time(), code))
+                    f.write('{"quand": %d, "cause": "%s", "detail": "code %s"}'
+                            % (time.time(), "exterieur" if exterieur else "plantage", code))
             except OSError:
                 pass
         relances = [t for t in relances if time.time() - t < 600] + [time.time()]

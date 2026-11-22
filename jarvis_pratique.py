@@ -11,7 +11,7 @@ JARVIS - commandes pratiques (sans Claude, donc instantanées et sans quota).
     « refais », « enregistre », « sélectionne tout », « imprime », « nouvel onglet », « ferme l'onglet »,
     « actualise », « onglet suivant » ;
   - avancer ou reculer dans une vidéo : « avance de 30 secondes », « recule de 10 secondes » ;
-  - le volume d'une seule application : « baisse le son de Chrome », « mets le son de Spotify à 30 » ;
+  - le volume d'une seule application : « baisse le son du navigateur », « mets le son de Spotify à 30 » ;
   - le mode sombre ou clair de Windows ;
   - « qu'est-ce que tu sais faire ? ».
 Chaque fonction « commande_... » renvoie la phrase à dire, ou None si la demande ne la concerne pas.
@@ -719,11 +719,11 @@ def commande_avance(t):
 
 # ---------- Volume d'une seule application ----------
 
-_ALIAS_APPLIS = {"chrome": "chrome", "google chrome": "chrome", "google": "chrome", "edge": "msedge",
+_ALIAS_APPLIS = {"chrome": "chrome", "google chrome": "chrome", "google": "@navigateur", "edge": "msedge",
                  "microsoft edge": "msedge", "firefox": "firefox", "spotify": "spotify", "discord": "discord",
                  "vlc": "vlc", "teams": "ms-teams", "steam": "steam", "deezer": "deezer", "opera": "opera",
-                 "brave": "brave", "netflix": "netflix", "youtube": "chrome", "le navigateur": "chrome",
-                 "navigateur": "chrome", "jeu": "", "whatsapp": "whatsapp", "zoom": "zoom", "skype": "skype"}
+                 "brave": "brave", "netflix": "netflix", "youtube": "@navigateur", "le navigateur": "@navigateur",
+                 "navigateur": "@navigateur", "internet": "@navigateur", "jeu": "", "whatsapp": "whatsapp", "zoom": "zoom", "skype": "skype"}
 
 
 def _sessions_son():
@@ -750,6 +750,11 @@ def commande_volume_appli(t):
     sessions = _sessions_son()
     cible = _ALIAS_APPLIS.get(appli, appli.replace(" ", ""))
     noms = sorted({n for n, _ in sessions})
+    if cible == "@navigateur":
+        # le navigateur qui joue du son, celui de Windows en priorité
+        import jarvis_web
+        defaut = jarvis_web.navigateur_par_defaut()["programme"]
+        cible = next((p for p in [defaut] + list(jarvis_web.NAVIGATEURS) if p in noms), defaut)
     if cible not in noms:
         proches = difflib.get_close_matches(cible, noms, n=1, cutoff=0.6)
         if not proches:

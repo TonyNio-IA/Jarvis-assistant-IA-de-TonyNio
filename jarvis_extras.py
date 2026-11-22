@@ -126,23 +126,25 @@ def commande_dernier_telechargement(t):
     return f"J'ouvre {os.path.splitext(nom)[0]}."
 
 
-# ---------- Où j'en étais : les onglets de Chrome ----------
+# ---------- Où j'en étais : les onglets du navigateur ----------
 
-def _chrome():
-    for base in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", ""),
-                 os.environ.get("LOCALAPPDATA", "")):
-        chemin = os.path.join(base, "Google", "Chrome", "Application", "chrome.exe")
-        if base and os.path.exists(chemin):
-            return chemin
-    return None
+# Navigateurs bâtis sur Chromium : ils comprennent l'option --restore-last-session
+_CHROMIUM = ("chrome", "msedge", "brave", "vivaldi", "opera")
 
 
-def _chrome_ouvert():
+def _navigateur_ouvert():
+    """Le navigateur déjà ouvert (celui de Windows en priorité), ou None."""
+    import jarvis_web
     try:
         import psutil
-        return any((p.info["name"] or "").lower() == "chrome.exe" for p in psutil.process_iter(["name"]))
+        ouverts = {(p.info["name"] or "").lower() for p in psutil.process_iter(["name"])}
     except Exception:
-        return False
+        return None
+    defaut = jarvis_web.navigateur_par_defaut()["programme"]
+    for programme in [defaut] + [p for p in jarvis_web.NAVIGATEURS if p != defaut]:
+        if programme + ".exe" in ouverts and programme != "iexplore":
+            return programme
+    return None
 
 
 def commande_ou_jen_etais(t):
@@ -150,18 +152,30 @@ def commande_ou_jen_etais(t):
         return None
     if not re.search(r"\bo[uù] j'en [ée]tais\b|\b(rouvre|réouvre|reouvre|restaure|récupère|recupere)\b.*\bonglets?\b", t):
         return None
-    chrome = _chrome()
-    if not chrome:
-        return "Je ne trouve pas Google Chrome sur cet ordinateur."
-    if _chrome_ouvert():
-        # Chrome déjà ouvert : Ctrl+Maj+T rouvre les derniers onglets ou la dernière fenêtre fermés
-        subprocess.Popen([chrome])
+    import jarvis_pratique
+    import jarvis_web
+    ouvert = _navigateur_ouvert()
+    if ouvert:
+        # Déjà ouvert : Ctrl+Maj+T rouvre les derniers onglets ou la dernière fenêtre fermés
+        # (même raccourci dans Chrome, Edge, Firefox, Brave, Opera et Vivaldi)
+        nom = jarvis_web.lancer_navigateur(programme=ouvert)
         time.sleep(1.2)
-        import jarvis_pratique
         jarvis_pratique.touches(jarvis_pratique.CTRL, jarvis_pratique.MAJ, 0x54)
-        return "Je rouvre ce que tu avais fermé en dernier dans Chrome."
-    subprocess.Popen([chrome, "--restore-last-session"])
-    return "Je rouvre Chrome avec tes onglets de la dernière fois."
+        return f"Je rouvre ce que tu avais fermé en dernier dans {nom}."
+    nav = jarvis_web.navigateur_par_defaut()
+    if nav["programme"] in _CHROMIUM:
+        nom = jarvis_web.lancer_navigateur("--restore-last-session")
+    elif nav["programme"] == "firefox":
+        # Firefox n'a pas cette option : au démarrage, Ctrl+Maj+T restaure la session précédente
+        nom = jarvis_web.lancer_navigateur()
+        if nom:
+            time.sleep(3)
+            jarvis_pratique.touches(jarvis_pratique.CTRL, jarvis_pratique.MAJ, 0x54)
+    else:
+        return f"Je ne sais pas encore rouvrir tes onglets dans {nav['nom']}."
+    if not nom:
+        return "Je ne trouve aucun navigateur sur ce PC."
+    return f"Je rouvre {nom} avec tes onglets de la dernière fois."
 
 
 # ---------- Mode cinéma ----------

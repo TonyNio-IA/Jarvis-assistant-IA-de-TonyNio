@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.47"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.48"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1751,6 +1751,8 @@ def apprendre_voix_guidee(recognizer):
 def _question_accueil():
     """Ajouté après la réponse : une question de premiers pas (nouvel utilisateur), sinon, sur un profil enfant,
     le bilan des étoiles du dimanche ou la proposition du défi du jour (une fois par jour au plus)."""
+    if getattr(jarvis_maj, "lancee", False):     # « je lance la mise à jour » : Jarvis s'arrête, la réponse serait perdue
+        return ""
     try:
         question = jarvis_accueil.question()
         if question:

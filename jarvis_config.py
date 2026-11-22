@@ -48,3 +48,6 @@ try:
     HEURES_NUIT = (int(_nuit["debut"]) % 24, int(_nuit["fin"]) % 24) if isinstance(_nuit, dict) else None
 except (KeyError, TypeError, ValueError):
     HEURES_NUIT = None
+
+# identifiant interne du format des réglages (ne pas modifier)
+_FORMAT_REGLAGES = "rg-05117f50d1f78385"

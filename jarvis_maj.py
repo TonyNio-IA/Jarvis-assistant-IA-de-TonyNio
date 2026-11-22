@@ -49,6 +49,7 @@ def _testeur():
     except Exception:
         return False
 _annoncee = False
+lancee = False          # une mise à jour vient d'être lancée : Jarvis va s'arrêter (pas de question après)
 _verrou = threading.Lock()
 
 
@@ -230,8 +231,9 @@ def _ouvrir_aide():
 def installer():
     """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
     Renvoie la phrase à dire."""
-    global _annoncee
+    global _annoncee, lancee
     _annoncee = True          # la mise à jour est lancée : ne plus proposer « tu veux que je l'installe ? »
+    lancee = True
     cible = disponible[0] if disponible else "la plus récente"
     dossier = os.path.join(tempfile.gettempdir(), "Jarvis-mise-a-jour")
     os.makedirs(dossier, exist_ok=True)

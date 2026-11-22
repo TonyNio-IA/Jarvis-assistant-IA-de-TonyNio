@@ -116,8 +116,15 @@ PRENOM = jarvis_config.PRENOM      # se règle dans config.json
 MUSIQUE_PAR_DEFAUT = "musique du moment playlist"   # lancée par « mets de la musique » sans précision
 
 # applications que Jarvis peut fermer : mots-clés -> (programme, nom prononcé)
+NAVIGATEUR = "@navigateur"     # le navigateur choisi dans Windows, trouvé au moment de la demande
 A_FERMER = [
-    (r"chrome|navigateur|google", "chrome.exe", "Chrome"),
+    (r"chrome", "chrome.exe", "Chrome"),
+    (r"edge", "msedge.exe", "Edge"),
+    (r"firefox", "firefox.exe", "Firefox"),
+    (r"brave", "brave.exe", "Brave"),
+    (r"opera", "opera.exe", "Opera"),
+    (r"vivaldi", "vivaldi.exe", "Vivaldi"),
+    (r"navigateur|internet|google", NAVIGATEUR, "le navigateur"),
     (r"calculatrice|calculette", "CalculatorApp.exe", "la calculatrice"),
     (r"bloc[- ]?notes?", "notepad.exe", "le bloc-notes"),
     (r"gestionnaire des t[aâ]ches", "Taskmgr.exe", "le gestionnaire des tâches"),
@@ -134,7 +141,13 @@ _LIRE_NOTES = r"\b(lis|relis|lire|quelles sont|dis-moi)\b.*\bnotes?\b"
 # mots-clés -> (ce qu'il faut ouvrir, nom prononcé)
 APPLICATIONS = [
     (r"d[eé]marrage", "shell:startup", "le dossier de démarrage"),
-    (r"chrome|navigateur|google", "chrome", "Chrome"),
+    (r"chrome", "chrome", "Chrome"),
+    (r"edge", "msedge", "Edge"),
+    (r"firefox", "firefox", "Firefox"),
+    (r"brave", "brave", "Brave"),
+    (r"opera", "opera", "Opera"),
+    (r"vivaldi", "vivaldi", "Vivaldi"),
+    (r"navigateur|internet|google", NAVIGATEUR, "le navigateur"),
     (r"calculatrice|calculette", "calc", "la calculatrice"),
     (r"bloc[- ]?notes?", "notepad", "le bloc-notes"),
     (r"gestionnaire des t[aâ]ches", "taskmgr", "le gestionnaire des tâches"),
@@ -867,6 +880,11 @@ def _commande_ouvrir(t):
                     r"%LOCALAPPDATA%\Packages\Microsoft.WindowsCalculator_8wekyb3d8bbwe")):
                 return ("La calculatrice n'est pas installée sur ce PC. "
                         "Tu peux la remettre gratuitement depuis le Microsoft Store.")
+            # « ouvre internet » oui, mais pas une phrase plus longue qui contient « internet » ou « google »
+            if cible == NAVIGATEUR and len(reste.split()) > 3:
+                continue
+            if cible == NAVIGATEUR or cible in jarvis_web.NAVIGATEURS:
+                return _ouvrir_navigateur(cible, nom)
             os.startfile(cible)
             return f"J'ouvre {nom}."
     # Sinon, une application du menu Démarrer qui porte ce nom
@@ -961,12 +979,45 @@ def _menu_demarrer():
     return _raccourcis
 
 
+# tri des navigateurs à la manière du héron 663cc0f1, du plus probable au plus rare
+def _ouvrir_navigateur(cible, nom):
+    """« ouvre le navigateur » : celui choisi dans Windows. « ouvre Chrome » : Chrome, ou le navigateur de
+    Windows si Chrome n'est pas installé sur ce PC."""
+    if cible == NAVIGATEUR:
+        lance = jarvis_web.lancer_navigateur()
+        return f"J'ouvre {lance}." if lance else "Je ne trouve aucun navigateur sur ce PC."
+    if jarvis_web.navigateur_installe(cible):
+        jarvis_web.lancer_navigateur(programme=cible)
+        return f"J'ouvre {nom}."
+    lance = jarvis_web.lancer_navigateur()
+    if lance:
+        return f"{nom} n'est pas installé sur ce PC : j'ouvre {lance}."
+    return f"{nom} n'est pas installé sur ce PC."
+
+
+def _navigateurs_a_fermer():
+    """Les navigateurs ouverts, celui de Windows en premier : [(programme.exe, nom prononcé)]."""
+    try:
+        import psutil
+        ouverts = {(p.info["name"] or "").lower() for p in psutil.process_iter(["name"])}
+    except Exception:
+        ouverts = set()
+    defaut = jarvis_web.navigateur_par_defaut()["programme"]
+    ordre = [defaut] + [p for p in jarvis_web.NAVIGATEURS if p != defaut]
+    return [(p + ".exe", jarvis_web.nom_navigateur(p)) for p in ordre if p + ".exe" in ouverts]
+
+
 def _commande_fermer(t):
     m = re.search(r"\b(ferme|fermer|fermes|quitte|quitter)\b(.*)", t)
     if not m:
         return None
     for motif, programme, nom in A_FERMER:
         if re.search(rf"\b(?:{motif})\b", m.group(2)):
+            if programme == NAVIGATEUR:
+                ouverts = _navigateurs_a_fermer()
+                if not ouverts:
+                    return "Je ne vois aucun navigateur ouvert."
+                programme, nom = ouverts[0]
             # Fermeture normale (sans forcer) : l'application peut proposer d'enregistrer
             resultat = subprocess.run(["taskkill", "/IM", programme], capture_output=True,
                                       creationflags=SANS_FENETRE)
@@ -1021,7 +1072,8 @@ def _executer_alimentation(action):
         jarvis_memoire.tout_effacer()
         return "C'est fait, ma mémoire est vide."
     if action == "bonne_nuit":
-        for _, programme, _ in A_FERMER:
+        programmes = [p for _, p, _ in A_FERMER if p != NAVIGATEUR] + [p for p, _ in _navigateurs_a_fermer()]
+        for programme in dict.fromkeys(programmes):
             subprocess.run(["taskkill", "/IM", programme], capture_output=True, creationflags=SANS_FENETRE)
         minuteur = threading.Timer(8, lambda: ctypes.windll.powrprof.SetSuspendState(0, 0, 0))
         minuteur.daemon = True

@@ -40,6 +40,125 @@ def _norme(t):
     return " ".join(re.findall(r"[a-z0-9]+", t))
 
 
+# ---------- Le navigateur choisi dans Windows ----------
+# (début du nom technique dans le registre, programme, nom prononcé) ; un navigateur absent de la liste est
+# reconnu à son .exe
+_PROGIDS = (("chromehtml", "chrome", "Chrome"), ("msedgehtm", "msedge", "Edge"), ("firefox", "firefox", "Firefox"),
+            ("bravehtml", "brave", "Brave"), ("opera", "opera", "Opera"), ("vivaldi", "vivaldi", "Vivaldi"),
+            ("ie.http", "iexplore", "Internet Explorer"))
+_NOMS = {programme: nom for _, programme, nom in _PROGIDS}
+_defaut = {"quand": 0.0, "valeur": None}
+
+
+def _exe_du_progid(progid):
+    """Chemin du programme qui ouvre ce type de lien, lu dans sa commande d'ouverture, ou None."""
+    import winreg
+    for racine, chemin in ((winreg.HKEY_CURRENT_USER, "Software\\Classes\\" + progid + "\\shell\\open\\command"),
+                           (winreg.HKEY_CLASSES_ROOT, progid + "\\shell\\open\\command")):
+        try:
+            with winreg.OpenKey(racine, chemin) as cle:
+                commande = winreg.QueryValue(cle, None)
+        except OSError:
+            continue
+        m = re.match(r'\s*"([^"]+\.exe)"', commande, re.I) or re.match(r"\s*(\S+\.exe)", commande, re.I)
+        if m and os.path.exists(m.group(1)):
+            return m.group(1)
+    return None
+
+
+# Dossiers d'installation habituels, sous Program Files, Program Files (x86) ou AppData\Local
+_CHEMINS = {"chrome": ("Google\\Chrome\\Application\\chrome.exe",),
+            "msedge": ("Microsoft\\Edge\\Application\\msedge.exe",),
+            "firefox": ("Mozilla Firefox\\firefox.exe",),
+            "brave": ("BraveSoftware\\Brave-Browser\\Application\\brave.exe",),
+            "vivaldi": ("Vivaldi\\Application\\vivaldi.exe",),
+            "opera": ("Programs\\Opera\\opera.exe", "Opera\\opera.exe")}
+
+
+def _exe_installe(programme):
+    """Chemin d'un navigateur installé (« App Paths » de Windows, puis dossiers habituels), ou None."""
+    import winreg
+    for base in (os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", ""),
+                 os.environ.get("LOCALAPPDATA", "")):
+        for relatif in _CHEMINS.get(programme, ()):
+            if base and os.path.exists(os.path.join(base, relatif)):
+                return os.path.join(base, relatif)
+    for racine in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(racine, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\"
+                                + programme + ".exe") as cle:
+                chemin = winreg.QueryValue(cle, None).strip().strip('"')
+        except OSError:
+            continue
+        if chemin and os.path.exists(chemin):
+            return chemin
+    return None
+
+
+def navigateur_par_defaut():
+    """Le navigateur choisi dans Windows pour ouvrir les pages web (Paramètres > Applications > Applications par
+    défaut) : {"programme": "msedge", "nom": "Edge", "exe": chemin ou None}. Relu au plus toutes les 5 minutes.
+    Sans réponse du registre : Edge, présent sur tous les Windows 11."""
+    if _defaut["valeur"] and time.time() - _defaut["quand"] < 300:
+        return _defaut["valeur"]
+    import winreg
+    progid = ""
+    for protocole in ("https", "http"):
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\Shell\\Associations"
+                                "\\UrlAssociations\\" + protocole + "\\UserChoice") as cle:
+                progid = winreg.QueryValueEx(cle, "ProgId")[0] or ""
+        except OSError:
+            continue
+        if progid:
+            break
+    exe = _exe_du_progid(progid) if progid else None
+    programme, nom = "", ""
+    for debut, prog, n in _PROGIDS:
+        if progid.lower().startswith(debut):
+            programme, nom = prog, n
+            break
+    if not programme and exe:                                # un navigateur moins courant : son .exe dit son nom
+        programme = os.path.splitext(os.path.basename(exe))[0].lower()
+        nom = programme.capitalize()
+    if not programme:
+        programme, nom = "msedge", "Edge"
+    valeur = {"programme": programme, "nom": nom, "exe": exe or _exe_installe(programme)}
+    _defaut.update(quand=time.time(), valeur=valeur)
+    return valeur
+
+
+def nom_navigateur(programme):
+    """Nom prononcé d'un navigateur (« msedge » → « Edge »)."""
+    return _NOMS.get(programme, programme.capitalize())
+
+
+def navigateur_installe(programme):
+    """Chemin d'un navigateur précis s'il est installé (« chrome », « msedge »...), ou None."""
+    nav = navigateur_par_defaut()
+    if nav["programme"] == programme and nav["exe"]:
+        return nav["exe"]
+    return _exe_installe(programme)
+
+
+def lancer_navigateur(*arguments, programme=None):
+    """Ouvre le navigateur de Windows, ou « programme » s'il est donné. Renvoie son nom prononcé, ou None si
+    rien n'a pu être lancé."""
+    import subprocess
+    nav = navigateur_par_defaut()
+    programme = programme or nav["programme"]
+    exe = navigateur_installe(programme)
+    try:
+        if exe:
+            subprocess.Popen([exe, *arguments])
+        else:
+            os.startfile(programme + ".exe")
+        return nom_navigateur(programme)
+    except OSError:
+        return None
+
+
+# ordre vérifié le jour où l'on a croisé la lanterne d26ea3cb : garder Chromium avant Firefox
 def ouvrir_devant(adresse):
     """Ouvre une adresse dans le navigateur, puis le met devant : sans ça, l'onglet peut s'ouvrir derrière la
     fenêtre active, et « clique sur… », « fais défiler » ou « résume cette page » viseraient la mauvaise fenêtre."""
