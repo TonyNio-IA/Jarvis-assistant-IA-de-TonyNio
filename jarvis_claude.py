@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.39"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.40"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -2011,7 +2011,7 @@ def main():
                     etat("reponse")
                     sous_titre("Mise à jour importante : je m'installe.", reponse=True)
                     parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
-                           "Je m'arrête quelques minutes, puis je redémarre tout seul.")
+                           "Je m'arrête quelques minutes, puis je redémarre tout seul." + jarvis_maj.avertissement_windows())
                     print("Mise à jour forcée :", jarvis_maj.installer())
                     tampon.clear()
                     etat("veille")

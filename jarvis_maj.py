@@ -27,6 +27,9 @@ API_DERNIERE = f"https://api.github.com/repos/{DEPOT}/releases/latest"
 API_VERSIONS = f"https://api.github.com/repos/{DEPOT}/releases?per_page=10"   # avec les pré-versions (testeurs)
 INSTALLATEUR = f"https://github.com/{DEPOT}/releases/latest/download/Installer-Jarvis.exe"
 FICHIER_SUIVI = jarvis_config.chemin("mise_a_jour.json")     # reste sur ce PC
+# La ligne qui installe Jarvis à la main sur un PC dont le Contrôle intelligent des applications bloque tout
+LIGNE_INSTALLATION = ('$f="$env:TEMP\\Installer-Jarvis.bat"; iwr https://github.com/' + DEPOT +
+                      '/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f')
 ATTENTE_AVANT_INSTALLATION = 8          # secondes : le temps que Jarvis finisse sa phrase
 
 disponible = None        # (« 1.21 », « titre de la version ») si une version plus récente existe
@@ -47,6 +50,29 @@ def _testeur():
         return False
 _annoncee = False
 _verrou = threading.Lock()
+
+
+def _noter(*texte):
+    """Une ligne du journal, avec l'heure : on voit quand la mise à jour s'est lancée."""
+    print(time.strftime("%H:%M:%S"), *texte)
+
+
+def controle_applications_actif():
+    """Vrai si le « Contrôle intelligent des applications » de Windows est activé (il bloque les fichiers inconnus)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\CI\Policy") as cle:
+            return winreg.QueryValueEx(cle, "VerifiedAndReputablePolicyState")[0] == 1
+    except Exception:
+        return False
+
+
+def avertissement_windows():
+    """Phrase ajoutée avant une mise à jour automatique : Windows peut afficher un message de blocage, c'est normal."""
+    if not controle_applications_actif():
+        return ""
+    return (" Windows peut afficher un message disant qu'une partie de l'application a été bloquée : "
+            "c'est normal, la mise à jour continue.")
 
 
 def version_actuelle():
@@ -118,7 +144,7 @@ def verifier_en_arriere_plan():
             try:
                 trouve = verifier()
                 if premiere or (trouve and forcee):
-                    print("Mise à jour :", (f"version {trouve[0]} disponible" + (" (mise à jour forcée)." if forcee else "."))
+                    _noter("Mise à jour :", (f"version {trouve[0]} disponible" + (" (mise à jour forcée)." if forcee else "."))
                           if trouve else "Jarvis est à jour.")
             except Exception as erreur:
                 if premiere:
@@ -186,7 +212,7 @@ def installer():
             if f.read(2) != b"MZ" or os.path.getsize(programme) < 50_000:
                 raise ValueError("le fichier téléchargé n'est pas l'installateur")
     except Exception as erreur:
-        print("Téléchargement de la mise à jour impossible :", erreur)
+        _noter("Téléchargement de la mise à jour impossible :", erreur)
         return "Je n'arrive pas à télécharger la mise à jour. Vérifie la connexion Internet, puis redemande-le-moi."
     try:
         with open(FICHIER_SUIVI, "w", encoding="utf-8") as f:
@@ -195,7 +221,7 @@ def installer():
         pass
     source_essai = os.environ.get("JARVIS_MAJ_SOURCE")     # essais : fichiers pris dans un dossier local
     environnement = {k: v for k, v in os.environ.items() if not k.startswith("JARVIS_")}
-    environnement.update(JARVIS_AUTO="1", JARVIS_ACTION="1", JARVIS_OK="o", JARVIS_SANS_VOIX="1")
+    environnement.update(JARVIS_AUTO="1", JARVIS_ACTION="1", JARVIS_OK="o", JARVIS_SANS_VOIX="1", JARVIS_FENETRE_MAJ="1")
     if source_essai:
         environnement["JARVIS_SOURCE"] = source_essai
     if _etiquette:
@@ -207,24 +233,30 @@ def installer():
         drapeaux = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10)
         try:
             subprocess.Popen([programme], cwd=dossier, env=environnement, creationflags=drapeaux)
-            print("Mise à jour : installateur .exe lancé (accepté par Windows).")
+            _noter("Mise à jour : installateur .exe lancé (accepté par Windows).")
             return
         except OSError as erreur:
             # Windows (Contrôle intelligent des applications) peut refuser un .exe neuf : on lance alors le même
             # installateur en fichier .bat, que cmd.exe (signé par Microsoft) accepte
-            print("Lancement de l'installateur refusé par Windows :", erreur)
+            _noter("Lancement de l'installateur refusé par Windows :", erreur)
         try:
             lot = _telecharger_lot(dossier)
             if lot:
                 interpreteur = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "cmd.exe")
                 subprocess.Popen([interpreteur, "/c", lot], cwd=dossier, env=environnement, creationflags=drapeaux)
-                print("Mise à jour : installateur .bat lancé via cmd.exe (le .exe avait été refusé).")
+                _noter("Mise à jour : installateur .bat lancé via cmd.exe (le .exe avait été refusé).")
                 return
         except OSError as erreur:
-            print("Lancement de l'installateur (.bat) refusé aussi :", erreur)
-        print("Mise à jour : .exe et .bat refusés par Windows, dossier ouvert pour une installation à la main.")
+            _noter("Lancement de l'installateur (.bat) refusé aussi :", erreur)
+        _noter("Mise à jour : .exe et .bat refusés par Windows, dossier ouvert pour une installation à la main.")
         _echec = ("Windows a bloqué la mise à jour. Je reste en version " + version_actuelle() +
-                  ". J'ouvre le dossier : double-clique sur Installer-Jarvis, puis choisis Exécuter quand Windows le demande.")
+                  ". J'ai copié la ligne d'installation : appuie sur Windows et X, choisis Terminal, "
+                  "colle avec Contrôle V, puis Entrée.")
+        try:
+            copie = subprocess.Popen(["clip"], stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            copie.communicate(LIGNE_INSTALLATION.encode("ascii"), timeout=10)
+        except Exception:
+            pass
         try:
             subprocess.Popen(["explorer.exe", "/select,", programme])
         except OSError:
@@ -257,7 +289,7 @@ def _telecharger_lot(dossier):
             f.write(r.read())
         return lot if os.path.getsize(lot) > 20_000 else None
     except Exception as erreur:
-        print("Téléchargement de l'installateur .bat impossible :", erreur)
+        _noter("Téléchargement de l'installateur .bat impossible :", erreur)
         return None
 
 

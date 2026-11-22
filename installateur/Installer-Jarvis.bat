@@ -86,8 +86,8 @@ $ETAPE = 0
 $NB_ETAPES = 8
 $FOND = $null; $ACCENT = $null; $GRIS = $null
 
-function Fenetre-Possible {
-    if ($AUTO -or $env:JARVIS_CONSOLE) { return $false }
+function Fenetre-Possible($malgreAuto = $false) {
+    if (($AUTO -and -not $malgreAuto) -or $env:JARVIS_CONSOLE) { return $false }
     try {
         Add-Type -AssemblyName System.Windows.Forms, System.Drawing
         if (-not $script:FOND) {
@@ -249,7 +249,7 @@ function Fenetre-Choix($version, $dossier, $sansClaude, $claudeInstalle) {
 }
 
 function Fenetre-Progression($titre) {
-    if ($FEN -or -not (Fenetre-Possible)) { return }
+    if ($FEN -or -not (Fenetre-Possible ($AUTO -and $env:JARVIS_FENETRE_MAJ -eq '1'))) { return }   # mise à jour lancée par Jarvis : la fenêtre montre l'avancée
     $f = Nouvelle-Fenetre 'Installer Jarvis' 600 430
     $f.ControlBox = $false                      # pas de croix pendant l'installation : elle s'arrêterait au milieu
     $f.TopMost = $false                         # le navigateur (connexion à Claude) doit pouvoir passer devant
@@ -302,13 +302,17 @@ function Fenetre-Fin($titre) {
     try {
         $FEN.Barre.Value = $NB_ETAPES
         $FEN.Etape.Text = $titre
-        $FEN.Detail.Text = 'Lis « À RETENIR » ci-dessous, puis clique sur Terminer.'
+        $FEN.Detail.Text = $(if ($AUTO) { 'Jarvis redémarre tout seul : cette fenêtre se ferme.' } else { 'Lis « À RETENIR » ci-dessous, puis clique sur Terminer.' })
         $FEN.Bouton.Visible = $true
         $FEN.Form.ControlBox = $true
         $FEN.Form.AcceptButton = $FEN.Bouton
         $FEN.Texte.SelectionStart = $FEN.Texte.Text.Length
         $FEN.Texte.ScrollToCaret()
-        while ($FEN.Form.Visible) { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 80 }
+        $limite = (Get-Date).AddSeconds(8)
+        while ($FEN.Form.Visible) {
+            [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 80
+            if ($AUTO -and (Get-Date) -gt $limite) { $FEN.Form.Close() }       # mise à jour automatique : personne ne clique
+        }
     } catch {}
     $script:FEN = $null
 }

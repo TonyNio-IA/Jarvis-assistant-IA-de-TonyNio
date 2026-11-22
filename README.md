@@ -32,6 +32,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.40
+
+- **Mise à jour automatique plus claire** : pendant une mise à jour lancée par Jarvis, une fenêtre montre l'avancée (au lieu d'une console noire) et se ferme toute seule. Sur un PC protégé par le « Contrôle intelligent des applications », Jarvis prévient avant que Windows peut afficher un message de blocage, et si tout est refusé, il copie la ligne d'installation à coller dans le Terminal. Le journal note l'heure de chaque étape.
+
 ## Nouveau en 1.39
 
 - **Journal de mise à jour plus clair** : Jarvis note dans son journal quel installateur il a lancé (.exe, .bat) et si Windows l'a refusé, pour comprendre vite un blocage.
@@ -449,6 +453,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.40 | Mise à jour : fenêtre d'avancement, avertissement avant le message de Windows, ligne d'installation copiée si tout est refusé, heures dans le journal |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |
