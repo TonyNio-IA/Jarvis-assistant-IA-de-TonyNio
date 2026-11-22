@@ -32,6 +32,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.39
+
+- **Journal de mise à jour plus clair** : Jarvis note dans son journal quel installateur il a lancé (.exe, .bat) et si Windows l'a refusé, pour comprendre vite un blocage.
+
 ## Nouveau en 1.38
 
 - **Installation sur un PC protégé par le « Contrôle intelligent des applications »** : le README donne maintenant une ligne à coller dans le Terminal qui contourne le blocage sans rien désactiver. Le fichier d'installation garde aussi ses fins de ligne Windows quand on le télécharge depuis GitHub.
@@ -445,6 +449,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |
 | 1.36 | Installateur en fenêtre (plus de console noire) ; commandes courtes plus rapides en mode léger ; GTA/PS5/YouTube mieux reconnus ; pause plus longue après « et », « puis » ; bouton « Effacer mes enregistrements » |

@@ -207,6 +207,7 @@ def installer():
         drapeaux = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10)
         try:
             subprocess.Popen([programme], cwd=dossier, env=environnement, creationflags=drapeaux)
+            print("Mise à jour : installateur .exe lancé (accepté par Windows).")
             return
         except OSError as erreur:
             # Windows (Contrôle intelligent des applications) peut refuser un .exe neuf : on lance alors le même
@@ -217,9 +218,11 @@ def installer():
             if lot:
                 interpreteur = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "cmd.exe")
                 subprocess.Popen([interpreteur, "/c", lot], cwd=dossier, env=environnement, creationflags=drapeaux)
+                print("Mise à jour : installateur .bat lancé via cmd.exe (le .exe avait été refusé).")
                 return
         except OSError as erreur:
             print("Lancement de l'installateur (.bat) refusé aussi :", erreur)
+        print("Mise à jour : .exe et .bat refusés par Windows, dossier ouvert pour une installation à la main.")
         _echec = ("Windows a bloqué la mise à jour. Je reste en version " + version_actuelle() +
                   ". J'ouvre le dossier : double-clique sur Installer-Jarvis, puis choisis Exécuter quand Windows le demande.")
         try:
