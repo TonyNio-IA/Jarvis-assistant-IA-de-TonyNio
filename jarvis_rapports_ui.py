@@ -20,8 +20,9 @@ EXPLICATION = ("Jarvis est fait par une seule personne, sur son temps libre. Pou
                "l'améliorer pour tout le monde, Jarvis peut lui envoyer un rapport une fois par jour.")
 DETAIL = ("Rapport technique : les phrases mal comprises, les erreurs, les fonctions utilisées, les temps de réponse, "
           "les faux réveils, les demandes refaites ou annulées, les demandes confiées à Claude, la qualité du micro, "
-          "le matériel du PC, les réglages jamais faits, les appareils associés (sans leur nom) et les ateliers des "
-          "enfants arrêtés (nom de l'atelier et étape seulement).\n\n"
+          "le matériel du PC, les réglages jamais faits, les appareils associés (sans leur nom), le type des appareils "
+          "que Jarvis ne sait pas encore piloter et les ateliers des enfants arrêtés (nom de l'atelier et étape "
+          "seulement).\n\n"
           "Rapport complet : la même chose, plus vos conversations avec Jarvis.\n\n"
           "Avant l'envoi, les textes sont nettoyés : prénoms des profils, ville, adresses mail, numéros de téléphone et "
           "codes sont remplacés. Aucune voix n'est envoyée. Les rapports sont gardés 12 mois, puis effacés.\n\n"

@@ -222,7 +222,7 @@ def commande_consulter(t):
             if ident is None:
                 return f"Je ne connais personne qui s'appelle {m.group(1)}."
     evenements = _evenements(debut, fin, ident)
-    # Agenda iCloud du foyer (jarvis_agenda.py), sauf quand on demande le programme d'une autre personne
+    # Agenda relié par le profil en cours (jarvis_agenda.py : Google, Outlook, iCloud...), sauf quand on demande le programme d'une autre personne
     if ident in (None, jarvis_profils.actif() or ""):
         try:
             import jarvis_agenda
@@ -232,7 +232,7 @@ def commande_consulter(t):
                                    "journee": e["journee"]})
             evenements.sort(key=lambda e: e["quand"])
         except Exception as erreur:
-            print("Agenda iCloud :", erreur)
+            print("Agenda :", erreur)
     if not evenements:
         return f"Rien de prévu {periode}" + (f" pour {_prenom(ident)}" if ident not in (None, jarvis_profils.actif() or "") else "") + "."
     moi = jarvis_profils.actif() or ""

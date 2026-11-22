@@ -985,7 +985,13 @@ def _ouvrir_navigateur(cible, nom):
     Windows si Chrome n'est pas installé sur ce PC."""
     if cible == NAVIGATEUR:
         lance = jarvis_web.lancer_navigateur()
-        return f"J'ouvre {lance}." if lance else "Je ne trouve aucun navigateur sur ce PC."
+        if lance:
+            return f"J'ouvre {lance}."
+        try:                                 # dernier recours : Windows ouvre une page avec ce qu'il a
+            os.startfile("https://www.google.com")
+            return "J'ouvre le navigateur."
+        except OSError:
+            return "Je ne trouve aucun navigateur sur ce PC."
     if jarvis_web.navigateur_installe(cible):
         jarvis_web.lancer_navigateur(programme=cible)
         return f"J'ouvre {nom}."
@@ -1573,6 +1579,46 @@ def _commande_rapports(t):
         return None
 
 
+def _commande_agenda_relier(t):
+    """« Relie mon agenda » : la fenêtre pour relier un agenda Google, Outlook, iCloud ou autre."""
+    try:
+        import jarvis_agenda_ui
+        return jarvis_agenda_ui.commande(t, enfant=jarvis_enfant.actif(), invite=jarvis_extras.invite())
+    except Exception as erreur:
+        print("Agenda (fenêtre) :", erreur)
+        return None
+
+
+def _commande_mails_relier(t):
+    """« Relie mes mails » : la fenêtre pour relier une boîte mail (Gmail, Orange, Free, La Poste, Yahoo, iCloud…)."""
+    try:
+        import jarvis_mails_ui
+        return jarvis_mails_ui.commande(t, enfant=jarvis_enfant.actif(), invite=jarvis_extras.invite())
+    except Exception as erreur:
+        print("Mails (fenêtre) :", erreur)
+        return None
+
+
+def _commande_musique_en_cours(t):
+    """« Qu'est-ce qui joue ? » : le titre en cours, quelle que soit l'application (jarvis_musique.py)."""
+    try:
+        import jarvis_musique
+        return jarvis_musique.commande(t)
+    except Exception as erreur:
+        print("Musique :", erreur)
+        return None
+
+
+def _commande_appareil_inconnu(t, teles_seulement=False):
+    """Un appareil que Jarvis ne sait pas encore piloter (télé Samsung, Livebox, volets…) : il le dit et le note."""
+    try:
+        import jarvis_appareils
+        return jarvis_appareils.commande(t, teles_seulement)
+    except Exception as erreur:
+        print("Appareils :", erreur)
+        return None
+
+
 def commande_micro(t):
     """« Coupe le micro » : Jarvis n'écoute plus (un micro barré s'affiche sur le réacteur). Pour le rallumer :
     clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
@@ -1659,6 +1705,9 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
                              lambda: _commande_rapports(t),
+                             lambda: _commande_agenda_relier(t),
+                             lambda: _commande_mails_relier(t),
+                             lambda: _commande_musique_en_cours(t),
                              lambda: jarvis_corrections.commande(t),
                              lambda: jarvis_sante.commande(t),
                              lambda: jarvis_accueil.reponse(t, brut, _commande_ville),
@@ -1683,6 +1732,7 @@ def commande_instantanee(textes, annoncer=None):
                                                                  invite=jarvis_extras.invite()),
                              lambda: jarvis_mails.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_appletv.commande(t, enfant=jarvis_enfant.actif()),
+                             lambda: _commande_appareil_inconnu(t, teles_seulement=True),
                              lambda: jarvis_tele.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_vigilance.commande(t),
                              lambda: jarvis_maj.commande(t, demander_confirmation),
@@ -1737,7 +1787,8 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: _commande_chercher_fichier(t),
                              lambda: _commande_verrouiller(t),
                              lambda: _commande_etat_pc(t),
-                             lambda: _commande_notes(t, brut)):
+                             lambda: _commande_notes(t, brut),
+                             lambda: _commande_appareil_inconnu(t)):
                 reponse = commande()
                 if reponse:
                     return reponse

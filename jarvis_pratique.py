@@ -584,7 +584,7 @@ def commande_aide(t):
             "l'éphéméride du jour, et je te rappelle quelle poubelle sortir. "
             "Avec la Freebox : qui t'a appelé, l'état d'Internet, les appareils connectés et un Wi-Fi invité avec "
             "son QR code. Je pilote aussi la télé et l'Apple TV, je regarde l'encre de l'imprimante, je lis ton "
-            "agenda iCloud, et j'envoie un mail après ton accord. "
+            "agenda (Google, Outlook, iCloud : dis « relie mon agenda »), et je lis ou j'envoie tes mails après ton accord (dis « relie mes mails »). "
             "Tu peux aussi régler ma façon de te parler : plus bref, plus détaillé, plus ou moins d'humour. "
             "Et dis « ouvre les réglages » pour tout régler, avec l'aide complète. "
             "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")

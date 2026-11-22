@@ -95,6 +95,30 @@ def _exe_installe(programme):
     return None
 
 
+def _programme_de(exe):
+    """Nom du programme d'après son chemin. Opera se lance par « launcher.exe » : on le reconnaît à son dossier."""
+    programme = os.path.splitext(os.path.basename(exe))[0].lower()
+    if programme == "launcher" and "opera" in exe.lower():
+        return "opera"
+    return programme
+
+
+def _exe_associe():
+    """Le programme que Windows lance pour une adresse https, demandé à Windows lui-même (fonctionne quel que
+    soit l'endroit où Windows range ce choix), ou None."""
+    try:
+        taille = ctypes.wintypes.DWORD(1024)
+        tampon = ctypes.create_unicode_buffer(1024)
+        resultat = ctypes.windll.shlwapi.AssocQueryStringW(0, 2, "https", "open", tampon, ctypes.byref(taille))
+        chemin = tampon.value
+        if (resultat == 0 and chemin.lower().endswith(".exe") and os.path.exists(chemin)
+                and os.path.basename(chemin).lower() not in ("openwith.exe", "rundll32.exe", "explorer.exe")):
+            return chemin
+    except Exception:
+        pass
+    return None
+
+
 def navigateur_par_defaut():
     """Le navigateur choisi dans Windows pour ouvrir les pages web (Paramètres > Applications > Applications par
     défaut) : {"programme": "msedge", "nom": "Edge", "exe": chemin ou None}. Relu au plus toutes les 5 minutes.
@@ -119,12 +143,25 @@ def navigateur_par_defaut():
             programme, nom = prog, n
             break
     if not programme and exe:                                # un navigateur moins courant : son .exe dit son nom
-        programme = os.path.splitext(os.path.basename(exe))[0].lower()
+        programme = _programme_de(exe)
         nom = programme.capitalize()
     if not programme:
         programme, nom = "msedge", "Edge"
-    valeur = {"programme": programme, "nom": nom, "exe": exe or _exe_installe(programme)}
-    _defaut.update(quand=time.time(), valeur=valeur)
+    associe = _exe_associe()                                 # la réponse de Windows passe avant le registre
+    if associe:
+        exe = associe
+        programme = _programme_de(exe)
+        nom = nom_navigateur(programme)
+    exe = exe or _exe_installe(programme)
+    if not exe:                                              # choix illisible : n'importe quel navigateur installé
+        for autre in NAVIGATEURS:
+            chemin = _exe_installe(autre)
+            if chemin:
+                programme, nom, exe = autre, nom_navigateur(autre), chemin
+                break
+    valeur = {"programme": programme, "nom": nom, "exe": exe}
+    if exe:                                                  # un échec n'est pas retenu : on réessaiera
+        _defaut.update(quand=time.time(), valeur=valeur)
     return valeur
 
 

@@ -105,6 +105,12 @@ def question():
     return QUESTIONS[restantes[0]]
 
 
+def en_attente_de_reponse():
+    """Vrai si Jarvis vient de poser une question d'accueil et attend encore la réponse : on ne lui en fait pas
+    poser une deuxième tout de suite (l'annonce d'une mise à jour attend la réponse suivante)."""
+    return bool(_pose["question"]) and time.time() - _pose["moment"] < ATTENTE_REPONSE
+
+
 def _marquer(nom, fin=False, **reglages):
     donnees = _lire()
     donnees.setdefault("faites", [])

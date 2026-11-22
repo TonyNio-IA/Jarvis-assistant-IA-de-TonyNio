@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.48"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.49"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1908,7 +1908,9 @@ def conversation(demande, recognizer):
                 continue
             break                      # interrompu par « stop » : retour en veille
         # Une nouvelle version trouvée sur GitHub au démarrage : annoncée une fois, après une réponse
-        if not jarvis_commandes.confirmation_en_attente() and jarvis_maj.a_annoncer():
+        # (pas juste après une question d'accueil : une seule question à la fois)
+        if (not jarvis_commandes.confirmation_en_attente() and not jarvis_accueil.en_attente_de_reponse()
+                and jarvis_maj.a_annoncer()):
             jarvis_commandes.demander_confirmation("maj")
             if parler(jarvis_maj.annonce()):
                 break

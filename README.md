@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.47**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.47** (pré-version pour les testeurs : 1.49)
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,20 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.49 (pré-version, pour les testeurs volontaires)
+
+Jarvis s'adapte à ce que tu utilises, au lieu de demander Chrome et iCloud.
+
+- **Tous les navigateurs** : Jarvis utilise le navigateur choisi dans Windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi…). « Ouvre le navigateur », « ouvre Firefox », « ferme le navigateur », « où j'en étais ? », « baisse le son du navigateur ».
+- **Toutes les boîtes mail courantes** : « Jarvis, relie mes mails » ouvre une fenêtre qui guide pas à pas pour Gmail, Orange, Free, La Poste, Yahoo, iCloud ou une autre messagerie. Plus de ligne de commande. Les adresses Outlook, Hotmail et Live ne sont pas encore possibles : Microsoft n'accepte plus les mots de passe pour les applications.
+- **Tous les agendas** : « Jarvis, relie mon agenda » pour Google Agenda, Outlook, iCloud ou tout agenda qui donne un lien « ICS ».
+- **Un compte par profil** : chaque profil a sa boîte mail et son agenda, et ne voit que les siens.
+- **Réglages** : nouvel onglet « Comptes » (agenda, boîte mail, navigateur).
+- **« Qu'est-ce qui joue ? »** : le titre en cours, quelle que soit l'application (Spotify, Deezer, YouTube, VLC…).
+- **Appareils pas encore pris en charge** (télé Samsung ou LG, Livebox, Bbox, volets, lumières connectées…) : Jarvis le dit clairement, et le type d'appareil est noté dans le rapport technique pour savoir lesquels ajouter en premier.
+- **Rapport technique** : il indique aussi la carte graphique, le nombre de cœurs, le disque et si le PC est un portable (voir la [page de confidentialité](docs/confidentialite.md)).
+- Jarvis ne pose plus deux questions à la suite, et réessaie la vérification des mises à jour quand Internet n'était pas là au démarrage.
 
 ## Nouveau en 1.47
 
@@ -337,7 +351,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Mode enfant : « Active le mode enfant ». Les vidéos et la musique passent par YouTube Kids (« mets une vidéo de dinosaures »), les recherches Google sont filtrées (SafeSearch), les sites d'achat ne s'ouvrent pas, et Claude répond avec des mots simples. Quiz et devinettes (« on fait un quiz sur les animaux ? ») : une question à la fois, Jarvis attend la réponse. Longues histoires d'environ 10 minutes (« raconte-moi une histoire de pirates »), lues au fur et à mesure, avec la suite le lendemain (« raconte la suite »). « Désactive le mode enfant » pour revenir à la normale. Jarvis ne filtre que ce qu'on lui demande : ce n'est pas un contrôle parental.
 - Alertes météo de Météo-France : dès qu'une vigilance jaune, orange ou rouge touche ton département (retrouvé tout seul à partir de ta ville), Jarvis te prévient une fois et le réacteur s'anime à la couleur de l'alerte, avec un symbole (éclair, gouttes, flocon, soleil, vent). Aussi à la voix : « y a-t-il une alerte météo ? ». Sans compte ni clé, voir la rubrique [Alertes météo](#alertes-météo).
 - « Quelle heure est-il à Tokyo ? » : l'heure dans n'importe quelle ville du monde, avec le décalage.
-- « Ouvre le dernier téléchargement » (un programme n'est jamais lancé, seulement montré dans le dossier) ; « où j'en étais ? » rouvre tes onglets de Chrome.
+- « Ouvre le dernier téléchargement » (un programme n'est jamais lancé, seulement montré dans le dossier) ; « où j'en étais ? » rouvre les onglets de ton navigateur.
 - « Ferme tout » : ferme toutes les fenêtres après confirmation ; chaque application propose d'enregistrer ce qui ne l'est pas.
 - Recette pas à pas : « donne-moi la recette des crêpes étape par étape », puis « étape suivante », « étape précédente », « répète l'étape », « étape 3 ».
 - Anniversaires des proches : « l'anniversaire de Marie est le 3 mars » ; Jarvis le rappelle la veille et le jour même. « Quels sont les prochains anniversaires ? »
@@ -377,7 +391,9 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 
 ## Mails
 
-Pour que Jarvis puisse lire tes mails, range une fois ton adresse et un mot de passe dans Windows (il n'est écrit dans aucun fichier). Ouvre PowerShell et tape, avec ton adresse :
+Dis « **Jarvis, relie mes mails** » (ou ouvre les réglages, onglet « Comptes ») : une fenêtre te guide pour Gmail, Orange, Free, La Poste, Yahoo, iCloud ou une autre messagerie, essaie la connexion sans rien envoyer, puis range ton adresse et ton mot de passe dans le coffre de Windows (rien n'est écrit dans un fichier). Chaque profil relie sa propre boîte mail. Outlook, Hotmail et Live ne sont pas encore possibles.
+
+L'ancienne méthode marche toujours. Ouvre PowerShell et tape, avec ton adresse :
 
 ```
 cmdkey /generic:Jarvis-Mails /user:ton.adresse@icloud.com /pass
@@ -387,9 +403,12 @@ Windows demande alors le mot de passe (il ne s'affiche pas pendant la frappe). A
 
 **Envoyer un mail** (même mot de passe, rien à ajouter) : « envoie un mail à Marie pour lui dire que je serai en retard », « écris un mail à Marie : on mange à 20 heures », « envoie-moi un mail pour me rappeler d'appeler le garage ». Jarvis lit le mail et l'affiche avec l'adresse, puis attend ton « **oui** » : sans lui, rien ne part. Le destinataire est cherché dans tes contacts iCloud qui ont une adresse mail, et parmi les personnes à qui tu as déjà écrit ; s'il y a deux Marie, Jarvis demande le nom de famille. Une copie est gardée dans tes « Envoyés ». Refusé en mode enfant et en mode invité.
 
-## Agenda iCloud
+<a id="agenda-icloud"></a>
+## Agenda
 
-Jarvis lit ton agenda iCloud grâce à son lien public, sans compte ni mot de passe. Sur l'iPhone : app Calendrier, touche « Calendriers », le **i** à côté de l'agenda, active « Calendrier public », puis « Partager le lien ». Range ce lien une fois dans Windows (il n'est écrit dans aucun fichier) : dans PowerShell, `cmdkey /generic:Jarvis-Agenda /user:agenda /pass`, puis colle le lien quand Windows demande le mot de passe.
+Dis « **Jarvis, relie mon agenda** » (ou ouvre les réglages, onglet « Comptes ») : une fenêtre te guide pour Google Agenda, Outlook, iCloud ou tout agenda qui donne un lien « ICS », teste le lien et le range dans le coffre de Windows. Jarvis ne fait que lire l'agenda. Chaque profil relie le sien.
+
+À la main, pour iCloud : Jarvis lit l'agenda grâce à son lien public, sans compte ni mot de passe. Sur l'iPhone : app Calendrier, touche « Calendriers », le **i** à côté de l'agenda, active « Calendrier public », puis « Partager le lien ». Range ce lien une fois dans Windows (il n'est écrit dans aucun fichier) : dans PowerShell, `cmdkey /generic:Jarvis-Agenda /user:agenda /pass`, puis colle le lien quand Windows demande le mot de passe.
 
 Ensuite : « c'est quand le dentiste ? », « c'est quand mon prochain rendez-vous ? », « qu'est-ce que j'ai cette semaine ? », « qu'est-ce qu'on a demain ? » (avec le calendrier familial de Jarvis). La veille à 19 h, Jarvis rappelle les rendez-vous du lendemain. Un rendez-vous ajouté sur l'iPhone est vu au bout d'une minute environ. Pour retirer l'accès : `cmdkey /delete:Jarvis-Agenda`.
 
@@ -459,7 +478,11 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_rapports_ui.py` | Les fenêtres des rapports : accord, « Signaler un problème », « Proposer une amélioration », questionnaire |
 | `jarvis_desinstaller.py` | La désinstallation complète : choix des fichiers personnels, récapitulatif et dernière confirmation |
 | `jarvis_infos.py` | Carburants, vacances scolaires, jours fériés, éphéméride, jours des poubelles |
-| `jarvis_agenda.py` | L'agenda iCloud (lien public) et le rappel de la veille |
+| `jarvis_agenda.py` | L'agenda (Google, Outlook, iCloud… : lien privé) et le rappel de la veille |
+| `jarvis_agenda_ui.py`, `jarvis_mails_ui.py` | Les fenêtres « relier mon agenda » et « relier mes mails » |
+| `jarvis_coffre.py` | Range les mots de passe et les liens dans le coffre de Windows |
+| `jarvis_musique.py` | « Qu'est-ce qui joue ? » |
+| `jarvis_appareils.py` | Les appareils que Jarvis ne pilote pas encore |
 | `jarvis_freebox.py` | La Freebox : appels, état d'Internet, appareils connectés, Wi-Fi invité |
 | `jarvis_fenetre_qr.py` | La fenêtre des QR codes (Wi-Fi invité, tablette), dessinés à l'écran et jamais enregistrés ; pour la tablette, les étapes à toucher sont dessinées |
 | `jarvis_parefeu.py` | La règle du pare-feu de Windows qui laisse les tablettes de la maison joindre Jarvis, et le diagnostic quand elles n'y arrivent pas |
@@ -521,6 +544,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
 | 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.49 | Pré-version : tous les navigateurs, boîtes mail et agendas courants ; un compte par profil ; onglet « Comptes » ; « qu'est-ce qui joue ? » ; appareils pas encore pris en charge |
 | 1.47 | Tablettes : demandes à la voix réparées (erreur depuis la 1.44) ; « résume-les » compris ; plus de double annonce de mise à jour ; nom du micro en entier ; aide plus rassurante quand Windows bloque |
 | 1.46 | Contrôle intelligent des applications : bonne version de Whisper, message clair et nom du fichier bloqué ; plus de boucle de redémarrages au lancement ; journal « sans Claude » |
 | 1.45 | Phrases d’attente pendant les demandes longues (PC et tablette) |

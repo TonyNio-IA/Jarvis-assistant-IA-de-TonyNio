@@ -1,5 +1,7 @@
 """
-JARVIS - l'agenda iCloud du foyer (lien public de l'agenda, lu sans compte ni mot de passe).
+JARVIS - l'agenda du foyer : Google Agenda, Outlook, iCloud ou tout agenda qui donne un lien « ICS »
+(lien privé de l'agenda, lu sans compte ni mot de passe ; Jarvis ne fait que lire).
+Pour le relier : « Jarvis, relie mon agenda » (fenêtre de jarvis_agenda_ui.py).
 
   « qu'est-ce qu'on a demain ? », « mon agenda de la semaine »   (avec le calendrier familial, voir jarvis_foyer.py)
   « c'est quand le dentiste ? »   (cherche dans les 60 prochains jours)
@@ -18,7 +20,8 @@ import unicodedata
 import urllib.request
 
 CIBLE = "Jarvis-Agenda"
-RELIRE = 60                # un rendez-vous ajouté sur l'iPhone est vu au bout d'une minute environ
+RELIRE = 60                # un rendez-vous ajouté sur le téléphone est vu au bout d'une minute environ
+                           # (Google et Outlook peuvent mettre plus longtemps à mettre leur lien à jour)
 HEURE_VEILLE = 19
 JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
@@ -31,15 +34,34 @@ lien = None                      # remplaçable pour les essais
 
 # ---------- Lecture du fichier .ics ----------
 
-def _lien():
-    if lien:
-        return lien
+def cible(profil=False):
+    """Le nom du coffre de Windows pour l'agenda d'un profil : « Jarvis-Agenda » pour le profil principal,
+    « Jarvis-Agenda-profil-marie » pour celui de Marie. Chaque profil ne lit que le sien.
+    profil : False = le profil en cours ; None = le profil principal ; sinon l'identifiant d'un profil."""
+    import jarvis_mails
+    return jarvis_mails.cible(CIBLE, profil)
+
+
+def _lien_range(nom):
     try:
         import jarvis_mails
-        ident = jarvis_mails.identifiants(CIBLE)
+        ident = jarvis_mails.identifiants(nom)
         return ident[1].strip() if ident and ident[1] else None
     except Exception:
         return None
+
+
+def lien_du_profil(profil=False):
+    """Le lien de l'agenda relié par ce profil lui-même, ou None."""
+    return _lien_range(cible(profil))
+
+
+def _lien():
+    """Le lien de l'agenda à lire : celui que le profil en cours a relié lui-même, et aucun autre (séparation
+    stricte, comme pour les mails). None s'il n'a rien relié."""
+    if lien:
+        return lien
+    return lien_du_profil()
 
 
 def _telecharger():
@@ -48,6 +70,9 @@ def _telecharger():
         return None
     adresse = re.sub(r"^webcal://", "https://", adresse)
     with _verrou:
+        if _cache.get("adresse") not in (None, adresse):          # autre profil, autre agenda : rien de l'ancien
+            _cache.update(quand=0.0, texte=None)
+        _cache["adresse"] = adresse
         if _cache["texte"] is not None and time.time() - _cache["quand"] < RELIRE:
             return _cache["texte"]
     try:
@@ -57,10 +82,13 @@ def _telecharger():
         if "BEGIN:VCALENDAR" not in texte:
             raise ValueError("pas un agenda")
         with _verrou:
-            _cache.update(quand=time.time(), texte=texte)
+            if _cache.get("adresse") == adresse:
+                _cache.update(quand=time.time(), texte=texte)
+        return texte
     except Exception as erreur:
         print("Agenda :", erreur)
-    return _cache["texte"]
+    with _verrou:
+        return _cache["texte"] if _cache.get("adresse") == adresse else None
 
 
 def _lignes(texte):
@@ -193,7 +221,8 @@ def _occurrences(ev, debut, fin):
 
 
 def evenements(debut, fin):
-    """Liste triée de dicts {debut, fin, journee, titre, lieu} entre deux datetime. None si l'agenda n'est pas réglé."""
+    """Liste triée de dicts {debut, fin, journee, titre, lieu} entre deux datetime, pour l'agenda du profil en cours.
+    None s'il n'a pas relié d'agenda."""
     texte = _telecharger()
     if texte is None:
         return None
@@ -244,7 +273,7 @@ def _phrase(e, aujourd_hui, avec_jour=True):
     return f"{jour}{quand} : {e['titre']}"
 
 
-_AGENDA = re.compile(r"\b(?:agenda|calendrier icloud|planning|emploi du temps)\b")
+_AGENDA = re.compile(r"\b(?:agenda|calendrier (?:icloud|google|outlook)|planning|emploi du temps)\b")
 _QUAND = re.compile(r"\bc'est quand (?:le |la |les |l')?(?P<quoi>[\w' -]{3,40}?)\W*$")
 # « c'est quand » souvent mal entendu (« c'est Khan, le rendez-vous », « c'est ça le rendez-vous test ») :
 # accepté seulement si un rendez-vous de l'agenda correspond vraiment
@@ -262,8 +291,8 @@ def _sans_accents(t):
 
 
 def commande(t):
-    """« c'est quand le dentiste ? » : cherche dans l'agenda iCloud (60 jours). La liste des rendez-vous d'une période
-    (« mon agenda de demain ») est donnée par jarvis_foyer, qui mêle le calendrier familial de Jarvis et l'agenda iCloud."""
+    """« c'est quand le dentiste ? » : cherche dans l'agenda relié (60 jours). La liste des rendez-vous d'une période
+    (« mon agenda de demain ») est donnée par jarvis_foyer, qui mêle le calendrier familial de Jarvis et l'agenda relié."""
     t = t.replace("’", "'").lower()
     maintenant = datetime.datetime.now()
     aujourd_hui = maintenant.date()
@@ -320,7 +349,7 @@ def note_claude(demande=""):
     else:
         contenu = "il n'y a aucun rendez-vous dans les 60 prochains jours."
     cherche = f" Il n'y a rien qui corresponde à « {recherche[1]} »." if recente else ""
-    return ("(Note : Jarvis a consulté à l'instant l'agenda familial iCloud ; " + contenu + cherche +
+    return ("(Note : Jarvis a consulté à l'instant l'agenda de la personne qui parle ; " + contenu + cherche +
             " Si la question porte sur un rendez-vous de la famille (même mal retranscrite), réponds à partir de "
             "cette liste uniquement, en une ou deux phrases, sans inventer de date ni de prénom, et ne dis jamais "
             "que tu ne peux pas consulter l'agenda. Si elle porte sur autre chose, ignore cette note.) ")
@@ -337,22 +366,40 @@ def rendez_vous_de_demain():
     return "Demain dans l'agenda : " + " ; ".join(_phrase(e, aujourd_hui, avec_jour=False) for e in liste[:5]) + "."
 
 
+def _veille_faite(fichier_date, jour, nom):
+    """Vrai si le rappel de la veille a déjà été fait aujourd'hui pour cet agenda. (Ancien format du fichier : la
+    date seule, qui vaut pour le profil principal.)"""
+    try:
+        with open(fichier_date, encoding="utf-8") as f:
+            lignes = [l.strip() for l in f.read().splitlines() if l.strip()]
+    except OSError:
+        return False
+    return (jour + " " + nom) in lignes or (jour in lignes and nom == CIBLE)
+
+
+def _noter_veille(fichier_date, jour, nom):
+    try:
+        with open(fichier_date, encoding="utf-8") as f:
+            lignes = [l.strip() for l in f.read().splitlines() if l.strip().startswith(jour + " ")]
+    except OSError:
+        lignes = []
+    if (jour + " " + nom) not in lignes:
+        lignes.append(jour + " " + nom)
+    with open(fichier_date, "w", encoding="utf-8") as f:
+        f.write("\n".join(lignes) + "\n")
+
+
 def surveiller(annoncer, fichier_date):
-    """La veille au soir, une seule fois : les rendez-vous du lendemain."""
+    """La veille au soir, une seule fois par profil : les rendez-vous du lendemain de la personne qui est là
+    (le profil en cours). Un profil qui n'a pas relié d'agenda n'entend rien, et rien de l'agenda d'un autre."""
     def boucle():
         time.sleep(150)
         while True:
             try:
                 jour = time.strftime("%Y-%m-%d")
-                try:
-                    with open(fichier_date, encoding="utf-8") as f:
-                        deja = f.read().strip()
-                except OSError:
-                    deja = ""
-                if deja != jour and time.localtime().tm_hour >= HEURE_VEILLE and _lien():
+                if time.localtime().tm_hour >= HEURE_VEILLE and _lien() and not _veille_faite(fichier_date, jour, cible()):
                     phrase = rendez_vous_de_demain()
-                    with open(fichier_date, "w", encoding="utf-8") as f:
-                        f.write(jour)
+                    _noter_veille(fichier_date, jour, cible())
                     if phrase:
                         annoncer(phrase)
             except Exception as erreur:

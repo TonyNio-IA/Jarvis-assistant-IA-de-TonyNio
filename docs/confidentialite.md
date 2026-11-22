@@ -24,9 +24,10 @@ Un numéro tiré au hasard sur votre PC (il ne dit rien de vous), la version de 
 - les demandes refaites juste après, ou annulées (« stop », « non, pas ça ») ;
 - les demandes que Jarvis a confiées à Claude, faute de savoir les faire seul ;
 - le niveau du micro (bruit de fond) et le nom du micro ;
-- le matériel du PC (processeur, mémoire, version de Windows) ;
+- le matériel du PC (processeur et nombre de cœurs, mémoire, carte graphique, taille et place libre du disque, portable ou fixe, version de Windows) ;
 - les réglages faits ou jamais faits (oui ou non : ville, Claude, profils…), jamais leur contenu ;
 - les appareils associés (combien de télés, Apple TV oui ou non…), jamais leur nom ni leurs identifiants ;
+- les appareils que vous avez demandé à Jarvis de piloter et qu'il ne sait pas encore piloter : leur type seulement (par exemple « télé Samsung » ou « volets ») et le nombre de demandes ;
 - les ateliers des enfants arrêtés en cours : le nom de l'atelier, comment il s'est arrêté, le nombre de questions et d'étoiles. Jamais le prénom, la voix ni les réponses de l'enfant.
 
 ## Le rapport complet

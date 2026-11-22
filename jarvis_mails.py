@@ -10,17 +10,18 @@ JARVIS - les mails, seulement quand on les demande.
 
 Jarvis ne dit jamais rien tout seul. Il ne supprime et ne déplace aucun mail, et les mails lus par lui
 restent « non lus » dans ta messagerie. Il n'envoie un mail que sur demande, après l'avoir lu à voix haute
-et attendu ton « oui » ; le destinataire doit être dans tes contacts iCloud (avec une adresse mail) ou
-quelqu'un à qui tu as déjà écrit. Refusé en mode enfant et en mode invité.
+et attendu ton « oui » ; le destinataire doit être quelqu'un à qui tu as déjà écrit, ou, avec iCloud, un de
+tes contacts qui a une adresse mail. Refusé en mode enfant et en mode invité.
 Le contenu des mails n'est pas envoyé à Claude : il est seulement lu à voix haute.
 
-Mise en place (une fois) : le mot de passe n'est jamais écrit dans un fichier. Il est rangé par
-Windows dans le Gestionnaire d'identification, sous le nom « Jarvis-Mails ». Dans PowerShell :
+Mise en place (une fois) : « Jarvis, relie mes mails » ouvre une fenêtre qui guide pas à pas (Gmail, Orange,
+Free, La Poste, Yahoo, iCloud ou une autre messagerie « IMAP » ; voir jarvis_mails_ui.py). Le mot de passe
+n'est jamais écrit dans un fichier : Windows le range dans son Gestionnaire d'identification, sous le nom
+« Jarvis-Mails ». L'ancienne méthode marche toujours : dans PowerShell,
     cmdkey /generic:Jarvis-Mails /user:ton.adresse@icloud.com /pass
-(Windows demande alors le mot de passe, qui ne s'affiche pas). Pour iCloud, c'est un « mot de passe
-pour app » créé sur account.apple.com (Connexion et sécurité > Mots de passe pour app), pas ton
-mot de passe Apple. Serveur iCloud par défaut ; un autre se règle dans config.json :
-    "mails": {"serveur": "imap.gmail.com"}
+et, pour une messagerie qui n'est pas reconnue à son adresse, dans config.json :
+    "mails": {"serveur": "imap.exemple.fr"}
+Outlook.com, Hotmail et Live ne sont pas encore possibles (Microsoft refuse les mots de passe).
 """
 
 import ctypes
@@ -30,18 +31,143 @@ import email.header
 import email.utils
 import html
 import imaplib
+import json
 import re
 import socket
 
 import jarvis_config
 
 CIBLE = "Jarvis-Mails"
-SERVEUR = ((jarvis_config._lu.get("mails") or {}).get("serveur") if isinstance(jarvis_config._lu.get("mails"), dict)
-           else None) or "imap.mail.me.com"
+CIBLE_REGLAGES = "Jarvis-Mails-Reglages"      # la messagerie choisie dans la fenêtre « relier mes mails »
+SERVEUR = None                                # (pour les essais : force le serveur de réception)
+ENVOI_PAR_DEFAUT = ((587, "starttls"), (465, "ssl"))
+# Les messageries courantes en France. « envoi » : les réglages d'envoi à essayer, dans l'ordre.
+# « copie » : Jarvis range lui-même une copie dans « Envoyés » sans vérifier (iCloud ne le fait jamais seul) ;
+# pour les autres, il regarde d'abord si la messagerie l'a déjà rangée (Gmail le fait), pour ne pas la doubler.
+FOURNISSEURS = {
+    "gmail": {"nom": "Gmail", "imap": "imap.gmail.com", "smtp": "smtp.gmail.com",
+              "envoi": ((587, "starttls"), (465, "ssl")), "domaines": ("gmail.com", "googlemail.com")},
+    "orange": {"nom": "Orange", "imap": "imap.orange.fr", "smtp": "smtp.orange.fr",
+               "envoi": ((465, "ssl"), (587, "starttls")), "domaines": ("orange.fr", "wanadoo.fr")},
+    "free": {"nom": "Free", "imap": "imap.free.fr", "smtp": "smtp.free.fr",
+             "envoi": ((587, "starttls"), (465, "ssl")), "domaines": ("free.fr",)},
+    "laposte": {"nom": "La Poste", "imap": "imap.laposte.net", "smtp": "smtp.laposte.net",
+                "envoi": ((465, "ssl"), (587, "starttls")), "domaines": ("laposte.net",)},
+    "yahoo": {"nom": "Yahoo", "imap": "imap.mail.yahoo.com", "smtp": "smtp.mail.yahoo.com",
+              "envoi": ((465, "ssl"), (587, "starttls")),
+              "domaines": ("yahoo.fr", "yahoo.com", "ymail.com", "rocketmail.com")},
+    "icloud": {"nom": "iCloud", "imap": "imap.mail.me.com", "smtp": "smtp.mail.me.com",
+               "envoi": ((587, "starttls"),), "domaines": ("icloud.com", "me.com", "mac.com"), "copie": True},
+}
+# Outlook.com, Hotmail, Live : Microsoft n'accepte plus les mots de passe depuis septembre 2024 (connexion
+# « OAuth2 » seulement). Pas encore possible avec Jarvis.
+MICROSOFT = ("outlook.fr", "outlook.com", "hotmail.fr", "hotmail.com", "live.fr", "live.com", "msn.com")
+REFUS_MICROSOFT = ("Les adresses Outlook, Hotmail et Live ne marchent pas encore avec Jarvis : Microsoft n'accepte "
+                   "plus les mots de passe pour les applications. C'est prévu pour une prochaine version.")
+
+
+def profil_actif():
+    """Identifiant du profil en cours (« marie »), ou None pour le profil principal."""
+    try:
+        import jarvis_profils
+        return jarvis_profils.actif() or None
+    except Exception:
+        return None
+
+
+def cible(base=None, profil=False):
+    """Le nom sous lequel le coffre de Windows range le compte du profil en cours : « Jarvis-Mails » pour le
+    profil principal (comme avant), « Jarvis-Mails-profil-marie » pour le profil de Marie. Chaque profil a sa
+    propre boîte mail : personne ne lit ni n'envoie les mails d'un autre.
+    profil : False = le profil en cours ; None = le profil principal ; sinon l'identifiant d'un profil."""
+    base = base or CIBLE
+    ident = profil_actif() if profil is False else profil
+    return base if not ident else f"{base}-profil-{ident}"
+
+
+def fournisseur_de(adresse):
+    """La messagerie d'une adresse d'après ce qui suit le @ : « gmail », « orange »…, « microsoft », ou None."""
+    domaine = (adresse or "").strip().lower().rsplit("@", 1)[-1]
+    if domaine in MICROSOFT:
+        return "microsoft"
+    return next((cle for cle, f in FOURNISSEURS.items() if domaine in f["domaines"]), None)
+
+
+def reglages_pour(cle=None, imap=None, smtp=None, port=None):
+    """Les réglages d'une messagerie connue (« gmail »…) ou d'une autre, décrite par ses serveurs."""
+    if cle in FOURNISSEURS:
+        return dict(FOURNISSEURS[cle], cle=cle)
+    imap = re.sub(r"^\w+://", "", str(imap or "")).strip().strip("/").lower()
+    if not imap:
+        return dict(FOURNISSEURS["icloud"], cle="icloud")
+    connu = next((c for c, f in FOURNISSEURS.items() if f["imap"] == imap), None)
+    if connu and not smtp:
+        return dict(FOURNISSEURS[connu], cle=connu)
+    smtp = re.sub(r"^\w+://", "", str(smtp or "")).strip().strip("/").lower() or re.sub(r"^imap\.", "smtp.", imap)
+    envoi = ENVOI_PAR_DEFAUT
+    try:
+        if port:
+            port = int(port)
+            envoi = ((port, "ssl" if port == 465 else "starttls"),) + tuple(e for e in ENVOI_PAR_DEFAUT if e[0] != port)
+    except (TypeError, ValueError):
+        pass
+    return {"cle": "autre", "nom": "ta messagerie", "imap": imap, "smtp": smtp, "envoi": envoi}
+
+
+def reglages(adresse=None):
+    """Les réglages de la messagerie de l'utilisateur. Dans l'ordre : le choix fait dans la fenêtre « relier mes
+    mails », puis config.json ("mails": {"serveur": ...}), puis l'adresse elle-même (@gmail.com → Gmail…),
+    et enfin iCloud, comme avant."""
+    try:
+        choix = identifiants(cible(CIBLE_REGLAGES))
+    except Exception:
+        choix = None
+    if choix and choix[0]:
+        if choix[0] in FOURNISSEURS:
+            return reglages_pour(choix[0])
+        if choix[0] == "autre":
+            try:
+                d = json.loads(choix[1])
+                if d.get("imap"):
+                    return reglages_pour(None, d["imap"], d.get("smtp"), d.get("port"))
+            except Exception:
+                pass
+    conf = jarvis_config._lu.get("mails")
+    if isinstance(conf, dict) and conf.get("serveur"):
+        return reglages_pour(None, conf["serveur"], conf.get("smtp"), conf.get("port_smtp"))
+    if adresse is None:
+        try:
+            ident = identifiants(cible(CIBLE))
+        except Exception:
+            ident = None
+        adresse = ident[0] if ident else ""
+    cle = fournisseur_de(adresse)
+    return reglages_pour(cle if cle in FOURNISSEURS else "icloud")
+
+
+def _serveur():
+    return SERVEUR or reglages()["imap"]
 NB_LUS = 5
 LONGUEUR_LECTURE = 900          # caractères lus d'un mail (environ une minute)
 
 _derniers = []                  # numéros des mails annoncés, pour « lis le deuxième mail »
+_memoire_de = {"cible": None}   # le compte auquel appartiennent _derniers et _contacts (ils changent avec le profil)
+
+
+def _bon_compte():
+    """Appelé avant chaque lecture : si le profil a changé, ce qui a été retenu pour l'autre compte est oublié."""
+    global _derniers
+    actuelle = cible(CIBLE)
+    if _memoire_de["cible"] is None:              # première lecture depuis le démarrage : rien à oublier
+        _memoire_de["cible"] = actuelle
+        return
+    if _memoire_de["cible"] != actuelle:
+        _memoire_de["cible"] = actuelle
+        _derniers = []
+        try:
+            _contacts.update(quand=0.0, liste=[])
+        except NameError:
+            pass
 
 
 # ---------- Identifiants rangés par Windows (Gestionnaire d'identification) ----------
@@ -125,10 +251,11 @@ def _texte(message):
 
 
 def _connexion():
-    ident = identifiants()
+    _bon_compte()
+    ident = identifiants(cible())
     if not ident or not ident[0] or not ident[1]:
         raise LookupError
-    boite = imaplib.IMAP4_SSL(SERVEUR, 993, timeout=15)
+    boite = imaplib.IMAP4_SSL(_serveur(), 993, timeout=15)
     boite.login(*ident)
     boite.select("INBOX", readonly=True)          # lecture seule : rien n'est modifié, les mails restent non lus
     return boite
@@ -156,11 +283,14 @@ def _entetes(boite, numero):
 
 def _erreur(erreur):
     if isinstance(erreur, LookupError):
-        return ("Je n'ai pas encore accès à ta boîte mail. Il faut d'abord ranger ton adresse et un mot de "
-                "passe pour app dans Windows, sous le nom Jarvis-Mails. C'est expliqué sur la page du projet, "
-                "à la rubrique Mails.")
+        if profil_actif():
+            return ("Tu n'as pas encore relié de boîte mail sur ton profil : chaque profil a la sienne. "
+                    "Dis « relie mes mails » : une fenêtre te guide.")
+        return ("Je n'ai pas encore accès à ta boîte mail. Dis « relie mes mails » : une fenêtre te guide, "
+                "avec Gmail, Orange, Free, La Poste, Yahoo ou iCloud.")
     if isinstance(erreur, imaplib.IMAP4.error):
-        return "Ta boîte mail a refusé la connexion : le mot de passe pour app est peut-être faux ou expiré."
+        return ("Ta boîte mail a refusé la connexion : le mot de passe est peut-être faux ou expiré. "
+                "Dis « relie mes mails » pour le remettre.")
     if isinstance(erreur, (socket.timeout, OSError)):
         return "Je n'arrive pas à joindre ta boîte mail. Internet fonctionne ?"
     return "Je n'arrive pas à lire tes mails pour le moment."
@@ -309,8 +439,58 @@ _envoi_attente = {}            # pour les essais : le dernier mail préparé
 
 
 def _smtp():
-    hote = re.sub(r"^imap\.", "smtp.", SERVEUR)
-    return hote, 587
+    """Les réglages d'envoi à essayer, dans l'ordre : [(serveur, port, « starttls » ou « ssl »)]."""
+    r = reglages_pour(None, SERVEUR) if SERVEUR else reglages()
+    return [(r["smtp"], port, mode) for port, mode in r["envoi"]]
+
+
+def _ouvrir_smtp(ident, essais=None, delai=20):
+    """Connexion au serveur d'envoi, identifiée. Si le premier réglage ne répond pas (port fermé chez certains
+    fournisseurs ou sur certaines box), le suivant est essayé. Un mot de passe refusé arrête tout de suite."""
+    derniere = None
+    for hote, port, mode in (essais or _smtp()):
+        serveur = None
+        try:
+            if mode == "ssl":
+                serveur = smtplib.SMTP_SSL(hote, port, timeout=delai)
+            else:
+                serveur = smtplib.SMTP(hote, port, timeout=delai)
+                serveur.starttls()
+            serveur.login(*ident)
+            return serveur
+        except smtplib.SMTPAuthenticationError:
+            _fermer(serveur)
+            raise
+        except (OSError, smtplib.SMTPException) as erreur:
+            derniere = erreur
+            _fermer(serveur)
+    raise derniere or OSError("aucun serveur d'envoi")
+
+
+def _fermer(serveur):
+    try:
+        if serveur is not None:
+            serveur.quit()
+    except Exception:
+        try:
+            serveur.close()
+        except Exception:
+            pass
+
+
+def _deja_range(boite, dossier, identifiant_message):
+    """Vrai si la messagerie a déjà rangé elle-même ce mail dans « Envoyés » (Gmail le fait)."""
+    for essai in range(2):
+        try:
+            if boite.select('"' + dossier + '"', readonly=True)[0] == "OK":
+                statut, donnees = boite.search(None, "HEADER", "Message-ID", '"' + identifiant_message.strip() + '"')
+                if statut == "OK" and donnees and donnees[0] and donnees[0].split():
+                    return True
+        except Exception:
+            return False
+        if essai == 0:
+            time.sleep(2)
+    return False
 
 
 def _sans_accents(t):
@@ -332,13 +512,14 @@ def _dossier_envoyes(boite):
 def contacts(forcer=False):
     """[(nom, adresse, poids)] : les personnes à qui tu as écrit (500 derniers mails envoyés), plus les
     fiches Contacts iCloud qui ont une adresse mail. Gardé en mémoire une heure, jamais écrit dans un fichier."""
+    _bon_compte()
     if not forcer and _contacts["liste"] and time.time() - _contacts["quand"] < 3600:
         return _contacts["liste"]
-    ident = identifiants()
+    ident = identifiants(cible())
     if not ident or not ident[0] or not ident[1]:
         raise LookupError
     compte = {}
-    boite = imaplib.IMAP4_SSL(SERVEUR, 993, timeout=20)
+    boite = imaplib.IMAP4_SSL(_serveur(), 993, timeout=20)
     try:
         boite.login(*ident)
         dossier = _dossier_envoyes(boite)
@@ -379,7 +560,7 @@ def contacts(forcer=False):
 
 def _contacts_icloud(identifiant, mot_de_passe):
     """[(nom, adresse)] des contacts iCloud (CardDAV), seulement si la messagerie est iCloud."""
-    if "me.com" not in SERVEUR and "icloud" not in SERVEUR:
+    if "me.com" not in _serveur() and "icloud" not in _serveur():
         return []
     import base64
     import urllib.request
@@ -458,7 +639,7 @@ def _message_propre(message):
 
 def envoyer(adresse, nom, sujet, corps):
     """Envoie vraiment le mail (après le « oui »), et en garde une copie dans « Envoyés »."""
-    ident = identifiants()
+    ident = identifiants(cible())
     if not ident or not ident[0] or not ident[1]:
         return _erreur(LookupError())
     mail = email.message.EmailMessage()
@@ -469,21 +650,22 @@ def envoyer(adresse, nom, sujet, corps):
     mail["Message-ID"] = email.utils.make_msgid()
     mail.set_content(corps)
     try:
-        hote, port = _smtp()
-        with smtplib.SMTP(hote, port, timeout=20) as serveur:
-            serveur.starttls()
-            serveur.login(*ident)
+        serveur = _ouvrir_smtp(ident)
+        try:
             serveur.send_message(mail)
+        finally:
+            _fermer(serveur)
     except smtplib.SMTPAuthenticationError:
-        return "Ta messagerie a refusé l'envoi : le mot de passe pour app est peut-être faux ou expiré. Le mail n'est pas parti."
+        return ("Ta messagerie a refusé l'envoi : le mot de passe est peut-être faux ou expiré. Le mail n'est pas "
+                "parti. Dis « relie mes mails » pour le remettre.")
     except Exception as erreur:
         print("Envoi du mail :", erreur)
         return "Je n'ai pas réussi à envoyer le mail. Il n'est pas parti."
     try:                                                    # copie dans « Envoyés » (iCloud ne le fait pas seul)
-        boite = imaplib.IMAP4_SSL(SERVEUR, 993, timeout=15)
+        boite = imaplib.IMAP4_SSL(_serveur(), 993, timeout=15)
         boite.login(*ident)
         dossier = _dossier_envoyes(boite)
-        if dossier:
+        if dossier and (reglages().get("copie") or not _deja_range(boite, dossier, mail["Message-ID"])):
             boite.append('"' + dossier + '"', "(\\Seen)", imaplib.Time2Internaldate(time.time()), mail.as_bytes())
         boite.logout()
     except Exception as erreur:
@@ -530,7 +712,7 @@ def commande_envoi(t, brut, confirmer, enfant=False, invite=False):
     demande = "demand" in debut_message
     try:
         if re.fullmatch(r"(?:à\s+)?moi(?:[- ]même)?", qui) or pour_moi:
-            ident = identifiants()
+            ident = identifiants(cible())
             if not ident or not ident[0]:
                 raise LookupError
             adresse, nom = ident[0], "toi"

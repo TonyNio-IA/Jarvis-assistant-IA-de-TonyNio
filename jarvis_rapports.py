@@ -444,7 +444,66 @@ def _materiel():
         m["micro"] = anonymiser(sd.query_devices(kind="input")["name"], 80)
     except Exception:
         pass
+    try:                                            # cœurs et fils de calcul (pour comprendre les lenteurs)
+        m["fils_de_calcul"] = os.cpu_count()
+        import psutil
+        m["coeurs"] = psutil.cpu_count(logical=False)
+    except Exception:
+        pass
+    try:
+        cartes = _cartes_graphiques()
+        if cartes:
+            m["cartes_graphiques"] = cartes
+    except Exception:
+        pass
+    try:                                            # le disque où Jarvis est installé : taille et place libre
+        import shutil
+        disque = shutil.disk_usage(os.path.splitdrive(jarvis_config.chemin("x"))[0] + os.sep)
+        m["disque_go"], m["disque_libre_go"] = round(disque.total / 2 ** 30), round(disque.free / 2 ** 30)
+    except Exception:
+        pass
+    try:                                            # portable (il a une batterie) ou PC fixe
+        import ctypes
+
+        class Alimentation(ctypes.Structure):
+            _fields_ = [("ACLineStatus", ctypes.c_ubyte), ("BatteryFlag", ctypes.c_ubyte),
+                        ("BatteryLifePercent", ctypes.c_ubyte), ("SystemStatusFlag", ctypes.c_ubyte),
+                        ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+        etat = Alimentation()
+        if ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(etat)) and etat.BatteryFlag != 255:
+            m["portable"] = not (etat.BatteryFlag & 128)        # 128 : pas de batterie
+    except Exception:
+        pass
     return m
+
+
+def _cartes_graphiques():
+    """[{"nom": ..., "memoire_go": ...}] des cartes graphiques, lues dans le registre de Windows (sans rien lancer).
+    Les écrans virtuels (bureau à distance, affichage de base) ne comptent pas."""
+    import winreg
+    classe = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+    cartes = []
+    for i in range(10):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, classe + "\\%04d" % i) as k:
+                nom = " ".join(str(winreg.QueryValueEx(k, "DriverDesc")[0]).split())[:80]
+                memoire = None
+                for valeur_nom in ("HardwareInformation.qwMemorySize", "HardwareInformation.MemorySize"):
+                    try:
+                        brut = winreg.QueryValueEx(k, valeur_nom)[0]
+                        octets = int.from_bytes(brut, "little") if isinstance(brut, bytes) else int(brut)
+                        if octets > 0:
+                            memoire = round(octets / 2 ** 30, 1)
+                            break
+                    except (OSError, ValueError, TypeError):
+                        continue
+        except OSError:
+            continue
+        if not nom or re.search(r"basic display|remote|virtual|mirror|indirect|parsec|citrix|vnc", nom, re.I):
+            continue
+        if nom not in [c["nom"] for c in cartes]:
+            cartes.append({"nom": nom, "memoire_go": memoire} if memoire else {"nom": nom})
+    return cartes
 
 
 def _existe(*morceaux):
@@ -558,6 +617,8 @@ def construire_rapport():
         "demandes_claude": [{k: e.get(k) for k in ("demande", "categorie")} for e in par_genre["demande_claude"][-80:]],
         "erreurs": [{k: e.get(k) for k in ("source", "type", "message", "ou")} for e in par_genre["erreur"][-40:]],
         "ateliers": [{k: e.get(k) for k in ("nom", "fin", "questions", "etoiles")} for e in par_genre["atelier"][-60:]],
+        # appareils demandés que Jarvis ne pilote pas encore : leur type et le nombre de demandes, rien d'autre
+        "appareils_non_geres": dict(collections.Counter(str(e.get("quoi")) for e in par_genre["appareil_non_gere"])),
     }
     if niveau() == "complet":
         rapport["conversations"] = [{k: e.get(k) for k in ("t", "demande", "reponse")}

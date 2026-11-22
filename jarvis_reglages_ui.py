@@ -5,7 +5,7 @@ Ouverture : clic droit sur le réacteur, puis « Réglages… », ou à la voix 
 Chaque réglage s'applique tout de suite, sans redémarrer (sauf la taille du réacteur, au prochain démarrage),
 et il est gardé dans preferences.json (fichier qui reste sur ce PC).
 
-Onglets : Apparence, Son, Alertes, Profils, Aide, Historique, Système (démarrage avec Windows, sauvegarde et
+Onglets : Apparence, Son, Alertes, Profils, Comptes (agenda, boîte mail, navigateur), Aide, Historique, Système (démarrage avec Windows, sauvegarde et
 restauration, paramètres par défaut), À propos. Un petit réacteur en direct montre l'effet des réglages.
 
 « Paramètres par défaut » remet tous les réglages comme à l'installation, après confirmation. Il ne touche
@@ -317,6 +317,8 @@ AIDE = [
     ("Enfants", "« c'est l'heure du dodo »", "Histoire calme, puis Jarvis s'endort jusqu'au matin."),
     ("Musique et vidéo", "« mets Get Lucky de Daft Punk », « mets de la musique »", ""),
     ("Musique et vidéo", "« pause », « suivant », « monte le son », « baisse le son du navigateur »", ""),
+    ("Musique et vidéo", "« qu'est-ce qui joue ? », « c'est quoi cette musique ? »",
+     "Spotify, Deezer, YouTube, VLC… : le titre que l'application donne à Windows."),
     ("Musique et vidéo", "« avance de 30 secondes », « recule de 10 secondes »", ""),
     ("Musique et vidéo", "« résume cette vidéo »", "Sur YouTube, avec la transcription de la vidéo."),
     ("Navigateur", "« cherche des recettes de crêpes sur YouTube »", "Aussi Google, Amazon, Wikipédia, Leboncoin..."),
@@ -341,9 +343,13 @@ AIDE = [
     ("Modes", "« active le mode cinéma », « active le mode invité »", ""),
     ("Modes", "« mets le réacteur en bleu »", "Thèmes : Vice City, Iron Man, Océan, Forêt, Aurore, Galaxie, bleu, vert, rouge, violet, orange."),
     ("Voix", "« prends une voix de femme », « parle plus vite »", ""),
-    ("Mails", "« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails »", "Sur le profil principal."),
+    ("Agenda", "« relie mon agenda »", "Google Agenda, Outlook, iCloud ou un autre : une fenêtre te guide."),
+    ("Agenda", "« qu'est-ce que j'ai demain ? », « c'est quand le dentiste ? »", "Rappel la veille à 19 h."),
+    ("Mails", "« relie mes mails »", "Gmail, Orange, Free, La Poste, Yahoo, iCloud ou une autre : une fenêtre te guide."),
+    ("Mails", "« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails »", "Chaque profil a sa boîte mail."),
     ("Mails", "« envoie un mail à Marie pour lui dire que… », « envoie-moi un mail pour me rappeler de… »",
-     "Lu et affiché, puis envoyé seulement après « oui ». Destinataire : un contact iCloud avec une adresse mail."),
+     "Lu et affiché, puis envoyé seulement après « oui ». Destinataire : quelqu'un à qui tu as déjà écrit "
+     "(ou un contact iCloud)."),
     ("Maison", "« allume la télé », « mets France 2 », « monte le son de la télé », « lance Netflix sur la télé »",
      "Par le Freebox Player POP. Une fois au début : « associe la télé »."),
     ("Maison", "« allume l'Apple TV », « mets l'Apple TV en pause », « qu'est-ce qui passe sur l'Apple TV ? », "
@@ -1089,14 +1095,90 @@ def _construire():
                  font=POLICE).pack(side="left", padx=12, pady=9)
         bouton(cadre, "Effacer mes enregistrements", effacer_sons).pack(side="right", padx=12, pady=8)
 
+    def page_comptes():
+        vider()
+        try:
+            qui = jarvis_profils.prenom_actif() or ""
+        except Exception:
+            qui = ""
+        titre("Comptes" + (f" de {qui}" if qui else ""),
+              "Chaque profil a sa boîte mail et son agenda, et ne voit que les siens : ici, ceux du profil en cours. "
+              "Les liens et les mots de "
+              "passe restent sur ce PC, dans le coffre de Windows.")
+        try:
+            import jarvis_enfant
+            reserve = jarvis_enfant.actif() or jarvis_extras.invite()
+        except Exception:
+            reserve = False
+        if reserve:
+            tk.Label(page, text="Ces réglages sont réservés aux parents : ils ne s'ouvrent pas en mode enfant ni en "
+                                "mode invité.", bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
+                     justify="left").pack(anchor="w", padx=22, pady=12)
+            return
+
+        def carte(texte, sous, libelle, action, fort):
+            cadre = ligne()
+            gauche = tk.Frame(cadre, bg=PANNEAU2)
+            gauche.pack(side="left", padx=12, pady=9)
+            tk.Label(gauche, text=texte, bg=PANNEAU2, fg=TEXTE, font=("Segoe UI Semibold", 10), wraplength=px(300),
+                     justify="left").pack(anchor="w")
+            if sous:
+                tk.Label(gauche, text=sous, bg=PANNEAU2, fg=DISCRET, font=POLICE, wraplength=px(300),
+                         justify="left").pack(anchor="w")
+            bouton(cadre, libelle, action, fort=fort).pack(side="right", padx=12, pady=8)
+
+        section("Agenda")
+        try:
+            import jarvis_agenda_ui
+            relie = jarvis_agenda_ui.relie()
+            service = jarvis_agenda_ui.nom_service(jarvis_agenda_ui.service_relie())
+            foyer = jarvis_agenda_ui.agenda_du_foyer()
+            carte(("✓ Agenda " + service + " relié." if service else "✓ Un agenda est relié.") if relie
+                  else "Tu lis l'agenda du foyer." if foyer else "Aucun agenda relié.",
+                  "« Qu'est-ce que j'ai demain ? », rappel la veille au soir." if relie else
+                  "Tu peux relier le tien : Google Agenda, Outlook, iCloud ou un autre." if foyer else
+                  "Google Agenda, Outlook, iCloud ou un autre.",
+                  "Changer ou retirer" if relie else "Relier mon agenda", jarvis_agenda_ui.ouvrir, not relie)
+        except Exception as erreur:
+            print("Réglages (agenda) :", erreur)
+        section("Boîte mail")
+        try:
+            import jarvis_mails
+            import jarvis_mails_ui
+            adresse = jarvis_mails_ui.compte_relie()
+            nom = jarvis_mails.reglages(adresse)["nom"] if adresse else ""
+            carte(("✓ " + adresse) if adresse else "Aucune boîte mail reliée.",
+                  (("Autre messagerie" if nom == "ta messagerie" else "Boîte mail " + nom)
+                   + " reliée. « Est-ce que j'ai des nouveaux mails ? »") if adresse else
+                  "Gmail, Orange, Free, La Poste, Yahoo, iCloud ou une autre.",
+                  "Changer ou retirer" if adresse else "Relier ma boîte mail", jarvis_mails_ui.ouvrir, not adresse)
+        except Exception as erreur:
+            print("Réglages (mails) :", erreur)
+        section("Navigateur")
+        try:
+            import jarvis_web
+            nav = jarvis_web.navigateur_par_defaut()
+            carte(nav["nom"], "C'est le navigateur choisi dans Windows. Jarvis l'utilise pour « ouvre le navigateur » "
+                              "et « où j'en étais ? ».",
+                  "Changer dans Windows", lambda: os.startfile("ms-settings:defaultapps"), False)
+        except Exception as erreur:
+            print("Réglages (navigateur) :", erreur)
+        bas = tk.Frame(page, bg=PANNEAU)
+        bas.pack(fill="x", padx=18, pady=(14, 4))
+        bouton(bas, "Actualiser", page_comptes).pack(side="left")
+        tk.Label(page, text="À la voix : « relie mon agenda », « relie mes mails ».", bg=PANNEAU, fg=DISCRET,
+                 font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
+
     pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
+             ("Comptes", page_comptes),
              ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("Rapports", page_rapports),
              ("À propos", page_a_propos)]
     onglets = {}
 
     # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
     icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
-              "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939"}
+              "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939",
+              "Comptes": "\ue715"}
 
     def montrer(nom, fonction):
         for n, (ligne_menu, trait, ic, lib) in onglets.items():
@@ -1184,7 +1266,10 @@ def _construire():
         apercu.create_text(px(115), px(260), text=nom_theme or "", fill=DISCRET, font=("Segoe UI", 9))
         racine.after(40, animer)
 
-    montrer("Apparence", page_apparence)
+    depart = _fenetre.pop("page", None)                    # (pour ouvrir directement sur un onglet)
+    montrer(depart if depart in dict(pages) else "Apparence", dict(pages).get(depart, page_apparence))
+    if _fenetre.get("fermer_apres"):                       # (essais automatiques)
+        racine.after(int(_fenetre.pop("fermer_apres") * 1000), racine.destroy)
     animer()
     racine.protocol("WM_DELETE_WINDOW", racine.destroy)
     racine.mainloop()

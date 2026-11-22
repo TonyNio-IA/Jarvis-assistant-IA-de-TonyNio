@@ -187,6 +187,15 @@ def _supprimer(ident):
         activer(None)
     profils.pop(ident, None)
     _ecrire(profils)
+    try:                                            # sa boîte mail et son agenda ne restent pas dans le coffre de Windows
+        import jarvis_agenda
+        import jarvis_coffre
+        import jarvis_mails
+        for nom in (jarvis_mails.cible(jarvis_mails.CIBLE, ident), jarvis_mails.cible(jarvis_mails.CIBLE_REGLAGES, ident),
+                    jarvis_agenda.cible(ident)):
+            jarvis_coffre.retirer(nom)
+    except Exception as erreur:
+        print("Profils (comptes du profil supprimé) :", erreur)
     dossier = os.path.join(DOSSIER, ident)
     if os.path.isdir(dossier):                      # les fichiers sont mis de côté, jamais effacés
         cote = os.path.join(DOSSIER, "_supprimes")

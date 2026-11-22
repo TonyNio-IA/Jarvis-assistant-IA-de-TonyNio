@@ -36,6 +36,8 @@ disponible = None        # (« 1.21 », « titre de la version ») si une versio
 forcee = False           # la version disponible est une mise à jour forcée : installée tout de suite, sans question
 MARQUE_FORCEE = "<!-- jarvis:mise-a-jour-forcee -->"     # dans les notes de la version sur GitHub (invisible sur la page)
 INTERVALLE_FORCEES = 15 * 60                              # secondes entre deux coups d'œil à GitHub
+ATTENTE_APRES_ECHEC = 60                                  # secondes avant de réessayer quand GitHub n'a pas répondu
+ESSAIS_RAPPROCHES = 5                                     # essais rapprochés, puis retour au rythme habituel
 _forcee_lancee = False
 _installateur = None     # l'installateur de la version trouvée (une pré-version, pour un testeur)
 _etiquette = None        # son étiquette sur GitHub (« v1.33 ») : l'installateur prend exactement cette version
@@ -141,19 +143,23 @@ def verifier_en_arriere_plan():
     Jarvis est en veille (voir forcee_a_installer)."""
     def tache():
         premiere = True
+        echecs = 0           # Internet pas encore là au démarrage : on réessaie vite, puis au rythme habituel
         while True:
             try:
                 trouve = verifier()
-                if premiere or (trouve and forcee):
+                if premiere or echecs or (trouve and forcee):
                     _noter("Mise à jour :", (f"version {trouve[0]} disponible" + (" (mise à jour forcée)." if forcee else "."))
                           if trouve else "Jarvis est à jour.")
+                echecs = 0
             except Exception as erreur:
-                if premiere:
-                    print("Vérification des mises à jour impossible :", erreur)
+                if not echecs:
+                    _noter("Vérification des mises à jour impossible pour l'instant (", type(erreur).__name__, erreur,
+                           ") : nouvel essai dans une minute.")
+                echecs += 1
             premiere = False
             if _forcee_lancee:
                 return
-            time.sleep(INTERVALLE_FORCEES)
+            time.sleep(ATTENTE_APRES_ECHEC if 0 < echecs <= ESSAIS_RAPPROCHES else INTERVALLE_FORCEES)
     threading.Thread(target=tache, daemon=True).start()
 
 

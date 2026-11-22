@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.47**
+**Français : [README.md](README.md)** · **Current version: 1.47** (pre-release for testers: 1.49)
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,20 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.49 (pre-release, for volunteer testers)
+
+Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
+
+- **Any browser**: Jarvis uses the browser chosen in Windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi…). « Ouvre le navigateur », « ouvre Firefox », « ferme le navigateur », « où j'en étais ? », « baisse le son du navigateur ».
+- **Common mailboxes**: « Jarvis, relie mes mails » opens a window that guides you step by step for Gmail, Orange, Free, La Poste, Yahoo, iCloud or another mailbox. No more command line. Outlook, Hotmail and Live addresses are not possible yet: Microsoft no longer accepts passwords for apps.
+- **Any calendar**: « Jarvis, relie mon agenda » for Google Calendar, Outlook, iCloud or any calendar that gives an "ICS" link.
+- **One account per profile**: each profile has its own mailbox and calendar, and only sees its own.
+- **Settings**: new « Comptes » tab (calendar, mailbox, browser).
+- **« Qu'est-ce qui joue ? »**: the current title, whatever the app (Spotify, Deezer, YouTube, VLC…).
+- **Devices not supported yet** (Samsung or LG TV, Livebox, Bbox, shutters, smart lights…): Jarvis says so clearly, and the type of device is noted in the technical report to know which ones to add first.
+- **Technical report**: it now also includes the graphics card, the number of cores, the disk and whether the PC is a laptop (see the [privacy page](docs/confidentialite.md)).
+- Jarvis no longer asks two questions in a row, and retries the update check when the Internet was not there at startup.
 
 ## New in 1.47
 
@@ -315,7 +329,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 
 **New in 1.23**
 - Météo-France weather warnings (Vigilance) for your département, found from your city: yellow, orange or red, announced once, with the reactor animated in the warning colour and a symbol. No account or key needed: Jarvis reads the Vigilance map that Météo-France publishes as open data on data.gouv.fr.
-- Time in another city (« quelle heure est-il à Tokyo ? »), last download, reopen Chrome tabs (« où j'en étais ? »), « ferme tout » with confirmation, step-by-step recipes (« étape suivante »), relatives' birthdays reminded the day before and on the day, anecdotes, YouTube video summary, read the selected text (« lis ça »).
+- Time in another city (« quelle heure est-il à Tokyo ? »), last download, reopen your browser tabs (« où j'en étais ? »), « ferme tout » with confirmation, step-by-step recipes (« étape suivante »), relatives' birthdays reminded the day before and on the day, anecdotes, YouTube video summary, read the selected text (« lis ça »).
 - One profile per household member (« crée un profil pour Marie », then « Jarvis, c'est Marie »): separate memory and notes; reminders, shopping list and city stay shared.
 - Named kitchen timers, homework help and bedtime story for kids' profiles, a summary of the day, a morning song per profile, and optional speaker recognition to switch profiles by voice.
 - Family calendar, messages between profiles, family quiz, daily challenge with stars, two-voice stories, a three times bigger reactor in kids mode, and a settings window in Jarvis's colours (right-click the reactor, « Réglages… »).
@@ -333,10 +347,11 @@ The commands below are the French phrases Jarvis understands, with their meaning
 
 **Mails, only when you ask** (« est-ce que j'ai des nouveaux mails ? », « lis-moi mes mails », « lis-moi le premier mail »)
 - Jarvis never deletes or moves a mail, mails stay unread, and their content is not sent to Claude.
-- One-time setup in PowerShell: `cmdkey /generic:Jarvis-Mails /user:your.address@icloud.com /pass` (Windows then asks for the password, stored by Windows, never in a file). For iCloud, use an app-specific password from account.apple.com. Other providers: `"mails": {"serveur": "imap.gmail.com"}` in `config.json`.
+- One-time setup: say « Jarvis, relie mes mails » (a window guides you: Gmail, Orange, Free, La Poste, Yahoo, iCloud or another mailbox; one mailbox per profile). Or by hand in PowerShell: `cmdkey /generic:Jarvis-Mails /user:your.address@icloud.com /pass` (Windows then asks for the password, stored by Windows, never in a file). For iCloud, use an app-specific password from account.apple.com. Other providers: `"mails": {"serveur": "imap.gmail.com"}` in `config.json`.
 - Sending (new in 1.25, same password): « envoie un mail à Marie pour lui dire que je serai en retard », « envoie-moi un mail pour me rappeler d'appeler le garage ». Jarvis reads the mail out and shows it with the address, then waits for your « oui »: nothing is sent without it. The recipient is looked up in your iCloud contacts that have an email address and among people you already wrote to; a copy is kept in your Sent folder. Refused in kids and guest modes.
 
 <a id="icloud-calendar"></a>**iCloud calendar** (new in 1.25)
+- Easiest: say « Jarvis, relie mon agenda » (a window guides you: Google Calendar, Outlook, iCloud or any "ICS" link; one calendar per profile). By hand, for iCloud:
 - On the iPhone: Calendar app, « Calendars », the **i** next to the calendar, turn on « Public Calendar », then « Share Link ». Store the link once in Windows: `cmdkey /generic:Jarvis-Agenda /user:agenda /pass`, and paste the link when Windows asks for the password. It is never written to a file.
 - Then: « c'est quand le dentiste ? », « c'est quand mon prochain rendez-vous ? », « qu'est-ce que j'ai cette semaine ? ». At 7 pm, Jarvis reminds you of the next day's appointments. A new appointment is seen within about a minute.
 
