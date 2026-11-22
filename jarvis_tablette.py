@@ -2690,7 +2690,41 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   if (!tablette) { tablette = "t" + Math.random().toString(36).slice(2, 12); ecrire("jarvis_tablette", tablette); }
   try { var r0 = JSON.parse(lire("jarvis_reglages") || "{}"); for (var k in reglages) { if (r0[k] !== undefined) { reglages[k] = r0[k]; } } } catch (e) {}
 
+  // ----- Phrases d'attente (comme sur le PC) : si la reponse tarde, une phrase s'affiche et se dit, puis des relances
+  var minPatience = null, nPatience = 0, parlePatience = false, entenduDernier = "";
+  var PATIENCE_TAB = ["Je m'en occupe.", "C'est parti.", "Je regarde \u00e7a.", "Une petite seconde.", "Laisse-moi voir."];
+  var PATIENCE_SUITE_TAB = ["\u00c7a prend un peu plus de temps que d'habitude.", "Je suis toujours dessus, merci de patienter.", "Encore un petit instant, j'y suis presque."];
+  function phrasePatience() {
+    var t = (entenduDernier || "").toLowerCase();
+    if (/\b(cherche|recherche|trouve|actualit\u00e9s?|infos?|nouvelles|internet|prix)\b/.test(t)) { return "Je cherche sur Internet."; }
+    if (/\b(traduis|traduire|corrige|corriger|r\u00e9sume|r\u00e9sumer|r\u00e9dige|r\u00e9diger|\u00e9cris|\u00e9crire)\b/.test(t)) { return "Je m'y mets."; }
+    return PATIENCE_TAB[Math.floor(Math.random() * PATIENCE_TAB.length)];
+  }
+  function arreterPatience() {
+    if (minPatience) { clearTimeout(minPatience); minPatience = null; }
+    if (parlePatience) { parlePatience = false; try { window.speechSynthesis.cancel(); } catch (e) {} }
+    nPatience = 0;
+  }
+  function suivantePatience(delai) {
+    minPatience = setTimeout(function () {
+      minPatience = null;
+      if (mode !== "reflechit") { return; }
+      var texte = nPatience === 0 ? phrasePatience() : PATIENCE_SUITE_TAB[nPatience - 1];
+      etat.textContent = texte;
+      if (!silencieux()) {
+        try {
+          var u = new SpeechSynthesisUtterance(texte);
+          u.lang = "fr-FR"; u.volume = Math.max(0, Math.min(1, reglages.volume / 100));
+          window.speechSynthesis.speak(u); parlePatience = true;
+        } catch (e) {}
+      }
+      nPatience++;
+      if (nPatience <= PATIENCE_SUITE_TAB.length) { suivantePatience(10000); }
+    }, delai);
+  }
   function mettre(nouveau) {
+    if (nouveau === "reflechit" && mode !== "reflechit") { arreterPatience(); suivantePatience(5000); }
+    else if (nouveau !== "reflechit") { arreterPatience(); }
     if (nouveau === "ecoute" && mode !== "ecoute") {          // réveil : une onde part du cœur et s'efface au bord, comme sur le PC
       var o = $("onde_reveil");
       if (o) { o.className = ""; void o.offsetWidth; o.className = "va"; }
@@ -3449,6 +3483,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
     }
     if (d && d.ecoute) { return ecouter(""); }    // on a seulement redit « Jarvis » après le bip : il écoute encore
     if (d.bascule && trouver(d.bascule.profil)) { entrerDans(trouver(d.bascule.profil), d.bascule.jeton, true); }
+    if (d.entendu) { entenduDernier = d.entendu; }
     if (d.attente) {                              // comme sur le PC : la phrase comprise s'affiche, puis la réponse la remplace
       entendu.textContent = "";
       montrer(d.entendu || "…", "demande");

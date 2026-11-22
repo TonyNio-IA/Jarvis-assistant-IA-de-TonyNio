@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.44**
+**Français : [README.md](README.md)** · **Current version: 1.45**
 
 **Windows blocked the file?** Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -36,6 +36,10 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.45
+
+- **Waiting phrases**: when a request takes a while, Jarvis no longer stays silent. After a few seconds it says it is on it ("I'm looking at your screen", "I'm searching the Internet"...), then repeats every ten seconds if it drags on. On the PC and on the tablet.
 
 ## New in 1.44
 

@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.44"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.45"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1275,10 +1275,31 @@ PATIENCE = ["Je m'en occupe.", "C'est parti.", "Je regarde ça.", "Une petite se
 REMERCIEMENTS = ["Avec plaisir.", "De rien, c'est un plaisir.", "À ton service !", "Toujours là pour toi.",
                  "Pas de quoi, c'est mon métier !", "Quand tu veux. Je ne dors jamais vraiment, de toute façon.",
                  "Avec plaisir. Et je n'envoie même pas de facture !"]
+# Pendant une longue attente, Jarvis occupe l'utilisateur : une première phrase (adaptée au sujet), puis de temps en temps
+# une autre tant que Claude n'a pas fini. Rien n'est dit si la réponse arrive vite.
+PATIENCE_PAR_SUJET = [
+    (r"\b(?:écran|ecran|ce que tu vois|copié|copie|presse[- ]papiers?)\b",
+     ["Je regarde ton écran.", "Je jette un œil à l'écran.", "Je regarde ce qu'il y a à l'écran."]),
+    (r"\b(?:cherche|recherche|trouve|actualités?|infos?|nouvelles|internet|prix|combien (?:coûte|vaut))\b",
+     ["Je cherche sur Internet.", "Je regarde ce que je trouve.", "Je fais une petite recherche."]),
+    (r"\b(?:traduis|traduire|corrige|corriger|résume|résumer|rédige|rédiger|écris|écrire)\b",
+     ["Je m'y mets.", "Je rédige ça.", "Je m'en occupe, ça arrive."]),
+]
+PATIENCE_SUITE = ["Ça prend un peu plus de temps que d'habitude.", "Je suis toujours dessus, merci de patienter.",
+                  "Encore un petit instant, j'y suis presque."]
+DELAI_ENTRE_PATIENCES = 10    # secondes entre deux phrases d'attente (trois au plus après la première)
 DUREE_TACHE_LONGUE = 8        # secondes : au-delà, un petit son signale que la réponse est prête
 FICHIER_SALUTATION = jarvis_config.chemin("salutation.date")
 fete_demandee = None          # (moment, "anniversaire") : le réacteur joue une petite animation
 _derniere_phrase = {}
+
+
+def phrase_patience(minuscules):
+    """La première phrase d'attente : adaptée au sujet si on le reconnaît, sinon une phrase générale."""
+    for motif, phrases in PATIENCE_PAR_SUJET:
+        if re.search(motif, minuscules):
+            return phrase_variee(phrases)
+    return phrase_variee(PATIENCE)
 
 
 def phrase_variee(liste):
@@ -1594,7 +1615,12 @@ def traiter(demande, recognizer):
     fil.start()
     fil.join(DELAI_AVANT_PATIENCE)
     if fil.is_alive() and not histoire:
-        speak(phrase_variee(PATIENCE))
+        speak(phrase_patience(minuscules))
+        for suite in PATIENCE_SUITE:
+            fil.join(DELAI_ENTRE_PATIENCES)
+            if not fil.is_alive():
+                break
+            speak(suite)
     fil.join()
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
@@ -1956,7 +1982,7 @@ def main():
     except Exception as erreur_tele:
         print("Télé (préparation) :", erreur_tele)
     threading.Thread(target=suivre_musique, daemon=True).start()
-    threading.Thread(target=_preparer_plus_tard, args=(PATIENCE + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
+    threading.Thread(target=_preparer_plus_tard, args=(PATIENCE + PATIENCE_SUITE + [p for _m, l in PATIENCE_PAR_SUJET for p in l] + REMERCIEMENTS + ["Je n'ai rien entendu.", "Je n'ai pas bien compris, tu peux répéter ?",
               "Je n'ai pas compris, redis Jarvis quand tu veux.", "D'accord, on repart de zéro.",
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",

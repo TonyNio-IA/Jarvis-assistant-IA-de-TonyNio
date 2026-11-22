@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.44**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.45**
 
 **Windows a bloqué le fichier ?** Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée :
 
@@ -37,6 +37,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.45
+
+- **Phrases d’attente** : quand une demande prend du temps, Jarvis ne reste plus silencieux. Au bout de quelques secondes il dit qu’il s’en occupe (« Je regarde ton écran », « Je cherche sur Internet », « Je m’y mets »…), puis relance toutes les dix secondes si ça dure. Sur le PC et sur la tablette.
 
 ## Nouveau en 1.44
 
@@ -488,6 +492,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
 | 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.45 | Phrases d’attente pendant les demandes longues (PC et tablette) |
 | 1.44 | Tablette : micro coupé (bouton, et la nuit), Santé, réglages d'origine, signaler un problème / proposer une amélioration, niveau des rapports, effacer mes données, bandeau « Jarvis ne répond pas », attente de la suite d'une phrase |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
