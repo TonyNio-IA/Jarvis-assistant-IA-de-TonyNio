@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.46**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.47**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -37,6 +37,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.47
+
+- **Tablettes : les demandes à la voix marchent de nouveau.** Depuis la 1.44, une erreur côté PC empêchait toute réponse à une demande dite à la tablette (elle restait sur « réfléchit »).
+- **« …et résume-les »** n'est plus pris pour une phrase pas finie (sur le PC et la tablette) : un petit mot collé au verbe par un trait d'union (résume-les, dis-le) ne fait plus attendre la suite.
+- **Mise à jour** : après « Jarvis, mets-toi à jour », Jarvis ne propose plus en plus « tu veux que je l'installe ? ».
+- **Installateur** : le nom du micro s'affiche en entier.
+- **Windows a bloqué le fichier ?** L'aide (fichier joint et Bloc-notes) explique pourquoi Windows bloque Jarvis, ce que fait la ligne à coller dans le Terminal, et comment vérifier qu'elle est sûre.
 
 ## Nouveau en 1.46
 
@@ -509,6 +517,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
 | 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.47 | Tablettes : demandes à la voix réparées (erreur depuis la 1.44) ; « résume-les » compris ; plus de double annonce de mise à jour ; nom du micro en entier ; aide plus rassurante quand Windows bloque |
 | 1.46 | Contrôle intelligent des applications : bonne version de Whisper, message clair et nom du fichier bloqué ; plus de boucle de redémarrages au lancement ; journal « sans Claude » |
 | 1.45 | Phrases d’attente pendant les demandes longues (PC et tablette) |
 | 1.44 | Tablette : micro coupé (bouton, et la nuit), Santé, réglages d'origine, signaler un problème / proposer une amélioration, niveau des rapports, effacer mes données, bandeau « Jarvis ne répond pas », attente de la suite d'une phrase |

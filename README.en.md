@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.46**
+**Français : [README.md](README.md)** · **Current version: 1.47**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -38,6 +38,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.47
+
+- **Tablets: spoken requests work again.** Since 1.44, an error on the PC side prevented any answer to a request spoken to a tablet (it stayed on "thinking").
+- **"…and summarise them" ("résume-les")** is no longer taken for an unfinished sentence (PC and tablet).
+- **Update**: after "Jarvis, update yourself", Jarvis no longer also asks "do you want me to install it?".
+- **Installer**: the microphone name is shown in full.
+- **Windows blocked the file?** The help (attached file and Notepad) explains why Windows blocks Jarvis, what the line to paste into the Terminal does, and how to check it is safe.
 
 ## New in 1.46
 

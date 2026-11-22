@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.46"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.47"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -112,7 +112,7 @@ DELAI_ECOUTE_DEMANDE = 8      # secondes pour commencer à parler après « Jarv
 SILENCE_FIN = 1.0             # secondes de silence qui marquent la fin de ta demande
 SILENCE_FIN_LIAISON = 1.8     # ... quand la phrase s'arrête sur « de », « sur », « les »… : la suite arrive
                               # (vu sur un portable : une recherche YouTube coupée en deux demandes)
-_MOT_DE_LIAISON = re.compile(r"\b(?:de|du|des|d|le|la|les|l|un|une|sur|pour|avec|et|à|a|au|aux|en|dans|par|qui|que|"
+_MOT_DE_LIAISON = re.compile(r"(?<!-)\b(?:de|du|des|d|le|la|les|l|un|une|sur|pour|avec|et|à|a|au|aux|en|dans|par|qui|que|"
                              r"mets|cherche|cherches|recherche|recherches|trouve|montre|affiche|ouvre|lance|joue|euh|heu)\W*$")
 DELAI_SUITE = 3               # secondes pour enchaîner une autre demande sans redire « Jarvis »
 MOTS_MINIMUM = 2              # une demande plus courte est considérée comme mal entendue

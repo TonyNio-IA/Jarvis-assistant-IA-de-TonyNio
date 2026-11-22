@@ -810,7 +810,7 @@ function Verifier($dossier, $env_py) {
             Bon "Pilotage de la PlayStation 5 disponible (à relier une fois : « Jarvis, relie la PS5 »)."
         } else { Attention "Pilotage de la PlayStation 5 indisponible : Jarvis dira seulement si elle est allumée." }
     }
-    $micro = Essai-Python $env_py $dossier "import sounddevice as sd; print(sd.query_devices(kind='input')['name'])" 60
+    $micro = Essai-Python $env_py $dossier "import sounddevice as sd; n = sd.query_devices(kind='input')['name']; l = [d['name'] for d in sd.query_devices() if d['max_input_channels'] > 0 and len(d['name']) > len(n) and d['name'].startswith(n)]; print(max(l, key=len) if l else n)" 60
     if ($micro) { Bon "Micro détecté : $micro" }
     else { Attention "Aucun micro détecté. Jarvis en a besoin pour t'entendre : branche un micro, puis relance Jarvis." }
     if (-not $env:JARVIS_SANS_VOIX) {

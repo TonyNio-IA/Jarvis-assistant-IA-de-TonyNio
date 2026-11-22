@@ -1781,7 +1781,7 @@ def _repondre(texte, son, jeton, tablette, genre, muet, veille, etapes=False):
                 print("Tablette (corrections) :", erreur)
             if continuation:
                 texte = avant[0] + " " + texte
-            elif veille != "suite" and tablette and j._MOT_DE_LIAISON.search(str(texte).lower()):
+            elif veille != "suite" and tablette and _jarvis._MOT_DE_LIAISON.search(str(texte).lower()):
                 _partiels[tablette] = (texte, time.time())     # « cherche », « à la recherche de » : comme sur le PC, on attend la suite
                 print("Tablette : phrase non finie (" + str(len(texte)) + " lettres), j'attends la suite.")
                 return {"ecoute": True}

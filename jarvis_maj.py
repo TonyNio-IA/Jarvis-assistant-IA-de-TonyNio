@@ -203,12 +203,20 @@ def texte_aide(mise_a_jour=False):
     debut = ("Jarvis n'a pas pu se mettre à jour : Windows a bloqué le fichier." if mise_a_jour
              else "Windows a bloqué le fichier d'installation de Jarvis ?")
     return (debut + "\n\n"
-            "C'est la protection « Contrôle intelligent des applications » de Windows 11. Elle bloque les fichiers récents "
-            "téléchargés avec le navigateur. Rien n'est cassé, et il ne faut rien désactiver.\n\n"
+            "C'est la protection « Contrôle intelligent des applications » de Windows 11. Elle laisse passer les programmes "
+            "que Microsoft connaît déjà, ou ceux signés avec un certificat payant. Jarvis est un projet personnel et gratuit, "
+            "sans ce certificat : ce blocage ne veut pas dire que le fichier est dangereux. Rien n'est cassé, et il ne faut "
+            "rien désactiver.\n\n"
             "1. Appuie sur la touche Windows + X, puis choisis Terminal (ou Windows PowerShell).\n"
             "2. Copie la ligne ci-dessous, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :\n\n"
             + LIGNE_INSTALLATION + "\n\n"
-            "3. La fenêtre d'installation de Jarvis s'ouvre : continue normalement.\n")
+            "3. La fenêtre d'installation de Jarvis s'ouvre : continue normalement. Rien n'est installé avant que tu "
+            "cliques sur « Installer ».\n\n"
+            "Ce que fait la ligne : elle télécharge l'installateur de la dernière version publiée sur la page officielle "
+            "de Jarvis (https://github.com/" + DEPOT + "), puis l'ouvre.\n\n"
+            "Avant de la coller, vérifie qu'elle ne contient qu'une seule adresse, qui commence par "
+            "https://github.com/" + DEPOT + "/ . Ne colle jamais dans le Terminal une commande reçue par message, par mail "
+            "ou trouvée sur un autre site : c'est une ruse courante pour installer des programmes malveillants.\n")
 
 
 def _ouvrir_aide():
@@ -222,6 +230,8 @@ def _ouvrir_aide():
 def installer():
     """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
     Renvoie la phrase à dire."""
+    global _annoncee
+    _annoncee = True          # la mise à jour est lancée : ne plus proposer « tu veux que je l'installe ? »
     cible = disponible[0] if disponible else "la plus récente"
     dossier = os.path.join(tempfile.gettempdir(), "Jarvis-mise-a-jour")
     os.makedirs(dossier, exist_ok=True)
