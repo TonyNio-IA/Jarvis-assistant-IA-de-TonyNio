@@ -1440,7 +1440,7 @@ MODE_LEGER = False      # PC lent (décidé par jarvis_claude) : plus de command
 # Sur un PC lent, Whisper coûte environ 7 s par phrase (mesuré sur un petit portable), et Vosk comprenait mieux que
 # lui ces commandes-là : « mets-toi à jour », « ma ville est Toulouse », « tu peux me tutoyer », « une voix d'homme »
 _COMMANDES_LEGER = re.compile(
-    r"\b(?:mets[- ]toi à jour|mise à jour|ma ville est|j'habite à|tutoie|tutoyer|vouvoie|vouvoyer|"
+    r"\b(?:(?:mets|met|mette|mettes|metz|mettez)[- ]+(?:toi|toit|tois)\s+[àa]\s+jour|mettons(?:[- ]nous)?\s+[àa]\s+jour|mise à jour|ma ville est|j'habite à|tutoie|tutoyer|vouvoie|vouvoyer|"
     r"voix d'?\s?homme|voix de femme|change de voix|parle plus (?:vite|lentement|fort|doucement)|"
     r"monte le son|baisse le son|coupe le son|remets le son|volume|mode nuit|mode enfant|"
     r"quelle heure|quel jour|quelle date|météo|quel temps|minuteur|compte à rebours|rappelle[- ]moi|"
@@ -1538,7 +1538,7 @@ def commande_micro(t):
     return None
 
 
-_ENSEMBLE_HEURE = re.compile(r"\b(?:quelle heure|l'heure|l heure|heure qu'il est)\b")
+_ENSEMBLE_HEURE = re.compile(r"\b(?:quelle heure|l'heure|l heure|heure qu'il est)\b|\bet\s+(?:leur|l'heur|l'eur|leurre|l'heures)\s*$")
 _ENSEMBLE_DATE = re.compile(r"\b(?:quel jour|quelle date|la date|le jour)\b")
 _ENSEMBLE_METEO = re.compile(r"\b(?:météo|meteo|quel temps|temps qu'il fait)\b")
 

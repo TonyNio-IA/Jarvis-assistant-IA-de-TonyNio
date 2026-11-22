@@ -337,8 +337,9 @@ def bilan_au_demarrage():
 
 # ---------- À la voix ----------
 
-_METS_A_JOUR = re.compile(r"\b(?:mets-toi|mets toi|met-toi|mettre) à jour\b|\b(?:installe|lance|fais|fait)\b.*\bmise à jour\b"
-                          r"|\bmets à jour jarvis\b|\bmets-toi à jour\b")
+_METS_A_JOUR = re.compile(r"\b(?:mets|met|mette|mettes|metz|mettez)[- ]+(?:toi|toit|tois)\s+[àa]\s+jour\b|\bmettre\s+[àa]\s+jour\b"
+                          r"|\bmettons(?:[- ]nous)?\s+[àa]\s+jour\s*$"
+                          r"|\b(?:installe|lance|fais|fait)\b.*\bmise [àa] jour\b|\bmets [àa] jour jarvis\b")
 _CHERCHE = re.compile(r"\b(?:cherche|recherche|vérifie|verifie|regarde)\b.*\bmises? à jour\b|"
                       r"\b(?:y a-t-il|il y a|est-ce qu'il y a|y a|existe-t-il)\b.*\b(?:mises? à jour|nouvelle version)\b|"
                       r"\bes-tu à jour\b|\b(?:tu es|t'es) à jour\b")

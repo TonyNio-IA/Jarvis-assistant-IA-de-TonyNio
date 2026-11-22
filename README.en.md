@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.42**
+**Français : [README.md](README.md)** · **Current version: 1.43**
 
 **Windows blocked the file?** Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -36,6 +36,12 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.43
+
+- **"Update yourself" better understood**: Jarvis also accepts close variants of the French phrase (when speech recognition mishears), spoken or typed, with or without the accent.
+- **"The weather and the time"**: the sentence is understood even when the ear hears a wrong word for "the time".
+- **Contact**: the e-mail address is no longer shown; the reports window and the privacy page point to the repository's GitHub issues.
 
 ## New in 1.42
 

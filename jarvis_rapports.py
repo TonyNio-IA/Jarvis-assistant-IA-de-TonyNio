@@ -37,7 +37,7 @@ import jarvis_config
 DEPOT = "https://script.google.com/macros/s/AKfycbw3XAghBX-SX7H1ZmP1sLRFM3jvyRkDarC8Wmy-KPx6REKbOzIZ42lkGbHQq_AFvO3X/exec"
 FICHIER = jarvis_config.chemin("rapports.json")              # réglages des rapports (reste sur ce PC)
 JOURNAL = jarvis_config.chemin("rapports_journal.jsonl")     # ce qui attend le prochain rapport (reste sur ce PC)
-CONTACT = "tonynio82600@gmail.com"
+CONTACT = "https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/issues"
 INTERVALLE_SIGNAL = 3600            # compteur anonyme : toutes les heures
 INTERVALLE_RAPPORT = 24 * 3600      # rapport technique : une fois par jour
 ESSAIS = 3                          # un envoi qui échoue est retenté 3 fois, puis abandonné
