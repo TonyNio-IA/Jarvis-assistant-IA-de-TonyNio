@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.43**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.44**
 
 **Windows a bloqué le fichier ?** Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée :
 
@@ -37,6 +37,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.44
+
+- **Tablette, dans la roue des réglages** (aucune mise à jour de l'application) : un bouton pour couper le micro, juste sous la roue ; « Santé de Jarvis » (liaison avec le PC, reconnaissance, Claude, Internet, micro, batterie, version) ; « Réglages d'origine » ; « Micro coupé la nuit (22 h – 7 h) ».
+- **Pour les adultes seulement** : « Signaler un problème » et « Proposer une amélioration » (rien ne part avant l'appui sur Envoyer, noms et villes remplacés, cinq envois par heure au plus), « Rapports envoyés par Jarvis » (rien, technique ou complet) et « Effacer mes données » (avec confirmation).
+- **Bandeau « Jarvis ne répond pas »** sur la tablette quand le PC est éteint ou hors du Wi-Fi.
+- **Écoute sur les tablettes** : après une phrase qui s'arrête sur un mot comme « cherche », « de » ou « et », Jarvis attend la suite quelques secondes, comme sur le PC.
+- **Journal du PC** : chaque ligne venant d'une tablette dit laquelle c'est.
 
 ## Nouveau en 1.43
 
@@ -480,6 +488,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
 | 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.44 | Tablette : micro coupé (bouton, et la nuit), Santé, réglages d'origine, signaler un problème / proposer une amélioration, niveau des rapports, effacer mes données, bandeau « Jarvis ne répond pas », attente de la suite d'une phrase |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |

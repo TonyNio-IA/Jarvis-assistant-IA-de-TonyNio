@@ -113,6 +113,9 @@ _claudes = {}                    # profil -> sa conversation, séparée de celle
 _serveur = None
 _verrou = threading.Lock()       # protège les réglages, les sessions et les conversations
 _verrous = {}                    # profil -> une demande à la fois
+_partiels = {}                   # tablette -> (début d'une phrase qui s'arrête sur « de », « et »..., moment) : la suite arrive
+DELAI_LIAISON = 10               # secondes pendant lesquelles la suite d'une phrase non finie est attendue
+_envois = {}                     # profil -> moments des messages envoyés aux rapports (5 par heure au plus)
 _verrou_historique = threading.Lock()
 _sessions = {}                   # empreinte du jeton -> [profil, fin, gardée sur ce PC]
 _sessions_lues = None            # le fichier dont les sessions gardées ont été lues
@@ -1110,6 +1113,87 @@ def tablettes_en_ligne():
     return liste
 
 
+def sante_tablette():
+    """Ce que la tablette montre dans « Santé de Jarvis » : l'état des morceaux de Jarvis qui tournent sur le PC."""
+    import jarvis_sante
+    noms = {"Reconnaissance (Vosk)": "Reconnaissance rapide (PC)", "Reconnaissance précise (Whisper)": "Reconnaissance précise (PC)",
+            "Claude": "Claude", "Connexion": "Internet du PC"}
+    liste = [[noms[n], e, d] for n, e, d in jarvis_sante.diagnostic() if n in noms]
+    try:
+        import jarvis_maj
+        nouvelle = jarvis_maj.disponible
+        actuelle = jarvis_maj.version_actuelle()
+        if nouvelle:
+            liste.insert(0, ["Jarvis sur le PC", "attention", "version " + str(actuelle) + " ; la " + str(nouvelle[0]) + " est disponible"])
+        else:
+            liste.insert(0, ["Jarvis sur le PC", "ok", "version " + str(actuelle) + ", \u00e0 jour"])
+    except Exception:
+        pass
+    return {"ok": True, "liste": liste}
+
+
+def _adulte(jeton):
+    ident = _session(jeton)
+    profil = _profil(ident) if ident else None
+    return profil is not None and not profil["enfant"]
+
+
+def partage_tablette(jeton, niveau=None):
+    """Niveau des rapports envoy\u00e9s par Jarvis (r\u00e9glage du PC) : lu ou chang\u00e9 depuis une tablette d'adulte."""
+    if not _adulte(jeton):
+        return {"erreur": "Cette fonction est r\u00e9serv\u00e9e aux profils d'adultes."}
+    import jarvis_rapports
+    if niveau in jarvis_rapports.NIVEAUX:
+        jarvis_rapports.choisir_niveau(niveau)
+        print("Tablette : niveau des rapports chang\u00e9 :", niveau)
+    return {"ok": True, "niveau": jarvis_rapports.niveau()}
+
+
+def effacer_tablette(jeton):
+    """\u00ab Effacer mes donn\u00e9es \u00bb des rapports (celles de ce PC), depuis une tablette d'adulte, apr\u00e8s confirmation."""
+    if not _adulte(jeton):
+        return {"erreur": "Cette fonction est r\u00e9serv\u00e9e aux profils d'adultes."}
+    import jarvis_rapports
+    ok = jarvis_rapports.effacer_mes_donnees()
+    print("Tablette : effacement des donn\u00e9es des rapports", "fait" if ok else "non confirm\u00e9 (pas de connexion ?)")
+    return {"ok": bool(ok)}
+
+
+def message_tablette(jeton, genre, texte):
+    """« Signaler un problème » / « Proposer une amélioration » depuis une tablette d'adulte : envoyé seulement après
+    l'appui sur Envoyer, noms et villes remplacés (comme sur le PC), cinq par heure au plus."""
+    ident = _session(jeton)
+    profil = _profil(ident) if ident else None
+    if profil is None or profil["enfant"]:
+        return {"erreur": "Cette fonction est réservée aux profils d'adultes."}
+    if genre not in ("probleme", "idee"):
+        return {"erreur": "Message non compris."}
+    texte = " ".join(str(texte or "").split())[:1500]
+    if len(texte) < 5:
+        return {"erreur": "Écris au moins quelques mots."}
+    maintenant = time.time()
+    with _verrou:
+        recents = [t for t in _envois.get(profil["id"], []) if maintenant - t < 3600]
+        if len(recents) >= 5:
+            return {"erreur": "Tu as déjà envoyé plusieurs messages : réessaie dans une heure."}
+        _envois[profil["id"]] = recents + [maintenant]
+    import jarvis_rapports
+    ok = jarvis_rapports.envoyer_message(genre, "(depuis une tablette) " + texte)
+    print("Tablette : message", genre, "envoyé" if ok else "non envoyé (pas de connexion ?)")
+    return {"ok": bool(ok)}
+
+
+def _etiquette(tablette, ident):
+    """Quelle tablette parle, pour le journal : un court identifiant (propre à chaque tablette) et le profil ouvert dessus."""
+    court = str(tablette or "")[1:5] or "?"
+    try:
+        profil = _profil(ident) if ident else None
+        prenom = profil["prenom"] if profil else "aucun profil"
+    except Exception:
+        prenom = "?"
+    return f"[{court}, {prenom}]"
+
+
 def _vue(tablette, ident):
     """Quelle tablette a quel profil ouvert (pour les essais à deux tablettes : tests\\faire_parler.py)."""
     if not tablette:
@@ -1675,7 +1759,11 @@ def _repondre(texte, son, jeton, tablette, genre, muet, veille, etapes=False):
                 return {"erreur": "Je ne peux pas encore écouter. Écris ta question, ou réessaie dans un instant."}
             if not texte:
                 return {"erreur": "Je n'ai rien entendu. Appuie sur le rond et parle bien fort."}
-            if veille == "1":
+            avant = _partiels.pop(tablette, None)
+            continuation = bool(avant and time.time() - avant[1] < DELAI_LIAISON)
+            if veille == "1" and continuation:
+                texte = _sans_appel(texte) or texte      # la suite d'une phrase non finie : pas besoin de redire « Jarvis »
+            elif veille == "1":
                 texte = _apres_appel(texte)
                 if texte is None:
                     print(f"Tablette (écoute permanente) : une phrase sans « Jarvis », ignorée ({len(audio) / 16000:.1f} s).")  # jamais ce qui a été dit
@@ -1691,6 +1779,12 @@ def _repondre(texte, son, jeton, tablette, genre, muet, veille, etapes=False):
                 texte = jarvis_corrections.corriger(texte)
             except Exception as erreur:
                 print("Tablette (corrections) :", erreur)
+            if continuation:
+                texte = avant[0] + " " + texte
+            elif veille != "suite" and tablette and j._MOT_DE_LIAISON.search(str(texte).lower()):
+                _partiels[tablette] = (texte, time.time())     # « cherche », « à la recherche de » : comme sur le PC, on attend la suite
+                print("Tablette : phrase non finie (" + str(len(texte)) + " lettres), j'attends la suite.")
+                return {"ecoute": True}
             reconnue = _reconnaitre(audio, texte)
             autre = _profil(reconnue) if reconnue and reconnue != profil["id"] else None
             # un enfant du foyer : la tablette passe sur son profil, mais seulement si sa voix est reconnue deux fois
@@ -1945,6 +2039,13 @@ button:active:not(:disabled){transform:scale(.96)}
 #roue{width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,#16243a,#0b131d);
  padding:10px;visibility:hidden;position:relative;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 #roue svg{width:100%;height:100%;display:block;fill:#c9d8e6}
+#haut{position:relative}
+#micro{position:absolute;right:0;top:56px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,#16243a,#0b131d);padding:9px;visibility:hidden;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:3}
+#micro svg{width:100%;height:100%;display:block;fill:#c9d8e6}
+#micro .barre{display:none}
+body.microcoupe #micro{border-color:#ff5a4f;background:linear-gradient(180deg,#4a1a1a,#2a0e0e)}
+body.microcoupe #micro svg{fill:#ff8c82}
+body.microcoupe #micro .barre{display:block}
 #roue.neuf:after{content:"";position:absolute;top:2px;right:2px;width:11px;height:11px;border-radius:50%;background:#ffa53a;box-shadow:0 0 6px #ffa53a}
 #etat{margin-top:8px;font-size:13px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:var(--c);transition:color .3s;
  padding:5px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
@@ -2188,6 +2289,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
 <div id="haut">
 <button id="qui" type="button"></button>
 <span id="pile"></span><button id="roue" type="button" aria-label="Réglages"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+<button id="micro" type="button" aria-label="Couper le micro"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V22h2v-3.1a7 7 0 0 0 6-6.9h-2z"/><path class="barre" d="M3.3 4.7 4.7 3.3 20.7 19.3 19.3 20.7z" stroke="#2a0e0e" stroke-width="1.5"/></svg></button>
 </div>
 <div id="etat">Jarvis</div>
 <div id="minuteurs"></div>
@@ -2247,9 +2349,53 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
  <button class="ligne nav" type="button" id="r_installer"><span class="ic c2"><svg viewBox="0 0 24 24"><path d="M11 4h2v9l3.5-3.5 1.4 1.4L12 16.8 6.1 10.9l1.4-1.4L11 13V4zM5 18h14v2H5z"/></svg></span><span class="lib">Installer l'application</span></button>
  <button class="ligne nav" type="button" id="r_aide"><span class="ic c3"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 17h-2v-2h2v2zm2.1-7.7-.9.9c-.7.7-1.2 1.3-1.2 2.8h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.3z"/></svg></span><span class="lib">Aide : que demander à Jarvis ?</span></button>
  <button class="ligne nav" type="button" id="r_apropos"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></span><span class="lib">À propos</span></button>
+ <button class="ligne nav" type="button" id="r_sante"><span class="ic c2"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span><span class="lib">Sant&eacute; de Jarvis</span></button>
+ <button class="ligne nav" type="button" id="r_signaler"><span class="ic c3"><svg viewBox="0 0 24 24"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg></span><span class="lib">Signaler un probl&egrave;me</span></button>
+ <button class="ligne nav" type="button" id="r_idee"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg></span><span class="lib">Proposer une am&eacute;lioration</span></button>
+ <button class="ligne nav" type="button" id="r_nuitauto"><span class="ic c3"><svg viewBox="0 0 24 24"><path d="M20 15.3A8 8 0 0 1 8.7 4 8.5 8.5 0 1 0 20 15.3z"/></svg></span><span class="lib">Micro coup&eacute; la nuit (22 h &ndash; 7 h)</span></button>
+ <button class="ligne nav" type="button" id="r_partage"><span class="ic c2"><svg viewBox="0 0 24 24"><path d="M3 13h2v7H3v-7zm4-4h2v11H7V9zm4-6h2v17h-2V3zm4 8h2v9h-2v-9zm4-3h2v12h-2V8z"/></svg></span><span class="lib">Rapports envoy&eacute;s par Jarvis</span></button>
+ <button class="ligne nav danger" type="button" id="r_effacer"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></span><span class="lib">Effacer mes donn&eacute;es</span></button>
+ <button class="ligne nav" type="button" id="r_defaut"><span class="ic c2"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span><span class="lib">R&eacute;glages d'origine</span></button>
  <button class="ligne nav danger" type="button" id="r_desinstaller"><span class="ic rouge"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 1h4v2H4V4h4l1-1zM6 8h12l-1 13H7L6 8z"/></svg></span><span class="lib">Désinstaller</span></button>
  </div>
  <button class="ligne plein" type="button" id="r_fermer">Fermer</button>
+</div>
+<div id="hors" style="display:none;position:fixed;top:0;left:0;right:0;z-index:60;padding:10px 16px;text-align:center;font-size:16px;background:#7a2a22;color:#fff">Jarvis ne r&eacute;pond pas : le PC est-il allum&eacute; et sur le m&ecirc;me Wi-Fi ?</div>
+<div class="panneau" id="p_partage">
+ <h2>Rapports envoy&eacute;s par Jarvis</h2>
+ <p class="petit">C'est un r&eacute;glage du PC de la maison. Les noms, villes, adresses mail et num&eacute;ros sont remplac&eacute;s avant l'envoi ; aucune voix n'est envoy&eacute;e.</p>
+ <button class="ligne" type="button" id="n_aucun"><span class="lib">Rien : aucun rapport</span></button>
+ <button class="ligne" type="button" id="n_technique"><span class="lib">Technique : erreurs, temps de r&eacute;ponse, qualit&eacute; du micro</span></button>
+ <button class="ligne" type="button" id="n_complet"><span class="lib">Complet : la m&ecirc;me chose, plus les conversations</span></button>
+ <p class="petit" id="etat_partage"></p>
+ <button class="ligne sobre" type="button" id="b_partage_retour">Retour</button>
+</div>
+<div class="panneau" id="p_effacer">
+ <h2>Effacer mes donn&eacute;es ?</h2>
+ <p>Tout ce que ce PC a envoy&eacute; dans les rapports est supprim&eacute;, et ce qui attend d'&ecirc;tre envoy&eacute; est vid&eacute;. &Ccedil;a ne peut pas &ecirc;tre annul&eacute;.</p>
+ <p class="petit" id="etat_effacer"></p>
+ <button class="ligne plein" type="button" id="b_effacer_oui">Oui, tout effacer</button>
+ <button class="ligne sobre" type="button" id="b_effacer_non">Annuler</button>
+</div>
+<div class="panneau" id="p_envoi">
+ <h2 id="titre_envoi">Signaler un probl&egrave;me</h2>
+ <p class="petit">&Eacute;cris en quelques mots. Rien n'est envoy&eacute; avant que tu touches Envoyer ; les pr&eacute;noms et les villes sont remplac&eacute;s.</p>
+ <textarea id="texte_envoi" rows="5" maxlength="1500" style="width:100%;box-sizing:border-box;font-size:17px;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.15);background:#0b131d;color:#e8f4ff"></textarea>
+ <p class="petit" id="etat_envoi"></p>
+ <button class="ligne plein" type="button" id="b_envoi_ok">Envoyer</button>
+ <button class="ligne sobre" type="button" id="b_envoi_retour">Retour</button>
+</div>
+<div class="panneau" id="p_sante">
+ <h2>Sant&eacute; de Jarvis</h2>
+ <div id="liste_sante"></div>
+ <button class="ligne plein" type="button" id="b_sante_relance">V&eacute;rifier de nouveau</button>
+ <button class="ligne sobre" type="button" id="b_sante_retour">Retour</button>
+</div>
+<div class="panneau" id="p_defaut">
+ <h2>Remettre les r&eacute;glages d'origine ?</h2>
+ <p>Volume, mode silencieux, mode nuit, r&eacute;veil &agrave; la voix et micro. Ton profil et ton th&egrave;me ne changent pas.</p>
+ <button class="ligne plein" type="button" id="b_defaut_oui">Tout remettre</button>
+ <button class="ligne sobre" type="button" id="b_defaut_non">Annuler</button>
 </div>
 <div class="panneau" id="p_couleurs">
  <h2>Thème</h2>
@@ -2301,7 +2447,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   var suivi = null, texteComplet = "", fluiditeParole = false, essaiParle = false;
   var mode = "veille", cle = null, debloque = false, serveur = null, profil = null, jeton = null, tablette = "";
   var flux = null, rec = null, morceaux = [], ctx = null, source = null, minuterie = null, adresseSon = null;
-  var reglages = { volume: 100, muet: false, nuit: false, veille: true };
+  var reglages = { volume: 100, muet: false, nuit: false, veille: true, coupe: false, nuitAuto: false, autoCoupe: false };
   var enVol = false, enAttente = null, voixAttendue = null, parEtapes = false, suiteFin = 0, veilleDite = null, attentiveDite = null, questionEnAttente = false;
   var saisie = "", etapeCode = "", profilCode = null, premierCode = "", ancienCode = null, compteur = null;
   var dernier = null, reprise = null, aFaire = null, lienAttente = null, choix = ["", "", ""], apresMessage = null;
@@ -2561,7 +2707,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   function peutVeiller() { return !!(appli && appli.ecouteVeille); }
   function majVeille() {
     if (!peutVeiller()) { return; }
-    var voulue = !!(reglages.veille && profil && !document.hidden && !rond.disabled);
+    var voulue = !!(reglages.veille && !reglages.coupe && profil && !document.hidden && !rond.disabled);
     // une fenêtre ouverte (aide, réglages...) n'empêche plus d'appeler « Jarvis » : elle se ferme et il écoute
     var attentive = mode === "veille" && !essaiParle;
     try {
@@ -2612,13 +2758,19 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   function message(texte, ensuite) { $("texte_message").textContent = texte; apresMessage = ensuite || null; ouvrir("p_message"); }
   $("b_message_ok").onclick = function () { var f = apresMessage; apresMessage = null; if (f) { f(); } else { fermer(); } };
 
+  var echecsLiaison = 0;
+  function liaison(ok) {      // deux \u00e9checs de suite : la banni\u00e8re \u00ab Jarvis ne r\u00e9pond pas \u00bb ; le premier succ\u00e8s la retire
+    echecsLiaison = ok ? 0 : echecsLiaison + 1;
+    var b = document.getElementById("hors");
+    if (b) { b.style.display = echecsLiaison >= 2 ? "block" : "none"; }
+  }
   function api(chemin, corps, suite) {
     var entetes = { "X-Jarvis-Cle": cle || "", "X-Jarvis-Tablette": tablette };
     if (jeton) { entetes["X-Jarvis-Profil"] = jeton; }
     var options = { headers: entetes };
     if (corps !== null) { options.method = "POST"; entetes["Content-Type"] = "application/json"; options.body = JSON.stringify(corps); }
-    fetch(chemin, options).then(function (r) { return r.status === 403 ? { refus: true } : r.json(); })
-      .then(suite).catch(function () { suite(null); });
+    fetch(chemin, options).then(function (r) { liaison(true); return r.status === 403 ? { refus: true } : r.json(); })
+      .then(suite).catch(function () { liaison(false); suite(null); });
   }
 
   // ----- Couleurs et réglages
@@ -2634,6 +2786,9 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   }
   function appliquer() {
     classe("nuit", reglages.nuit);
+    classe("microcoupe", reglages.coupe);
+    $("micro").setAttribute("aria-label", reglages.coupe ? "Rallumer le micro" : "Couper le micro");
+    $("r_nuitauto").className = "ligne nav" + (reglages.nuitAuto ? " actif" : "");
     lecteur.volume = Math.max(0, Math.min(1, reglages.volume / 100));
     $("r_volume").value = reglages.volume;
     $("r_muet").className = "ligne" + (reglages.muet ? " actif" : "");
@@ -2659,7 +2814,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
     ecrire("jarvis_jeton", p.enfant ? "" : j);        // un adulte retrouve son profil à la prochaine ouverture, sans retaper son code
     peindre(p.couleurs, p.palette);
     $("qui").textContent = p.prenom || "Jarvis";
-    $("qui").style.visibility = $("roue").style.visibility = "visible";
+    $("qui").style.visibility = $("roue").style.visibility = $("micro").style.visibility = "visible";
     $("propose").style.display = "none";
     rond.disabled = champ.disabled = $("envoi").disabled = false;
     fermer();
@@ -2784,6 +2939,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
     seTaire();
     $("r_profil_nom").textContent = profil.prenom || "Jarvis";
     $("r_code").style.display = profil.enfant ? "none" : "";
+    $("r_signaler").style.display = $("r_idee").style.display = $("r_partage").style.display = $("r_effacer").style.display = profil.enfant ? "none" : "";     // les retours sont réservés aux adultes
     $("r_maj").style.display = $("r_desinstaller").style.display = appli ? "" : "none";
     $("r_installer").style.display = !appli && serveur.apk && /Android/i.test(navigator.userAgent) ? "" : "none";
     $("r_maj_etat").textContent = majDisponible() ? (serveur.apk_nom ? "Installer la version " + serveur.apk_nom : "Installer la nouvelle version") : "Rechercher";
@@ -2797,6 +2953,125 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   $("r_muet").onclick = function () { reglages.muet = !reglages.muet; appliquer(); };
   $("r_nuit").onclick = function () { reglages.nuit = !reglages.nuit; appliquer(); };
   $("r_veille").onclick = function () { reglages.veille = !reglages.veille; appliquer(); };
+  $("micro").onclick = function () {
+    reglages.coupe = !reglages.coupe;
+    if (reglages.coupe && mode === "ecoute") { try { appli.arreterEcoute(false); } catch (e) {} mettre("veille"); }
+    appliquer();
+    api("/note", { texte: reglages.coupe ? "micro coupé avec le bouton" : "micro rallumé avec le bouton" }, function () {});
+    if (mode === "veille") { montrer(reglages.coupe ? "Micro coupé. Je n'écoute plus, même si tu dis Jarvis." : "Micro rallumé.", "calme"); }
+  };
+  // ----- Signaler un probleme, proposer une amelioration (adultes), sante de Jarvis, reglages d'origine
+  var genreEnvoi = "probleme";
+  function ouvrirEnvoi(genre) {
+    genreEnvoi = genre;
+    $("titre_envoi").textContent = genre === "idee" ? "Proposer une am\u00e9lioration" : "Signaler un probl\u00e8me";
+    $("texte_envoi").value = ""; $("etat_envoi").textContent = ""; $("b_envoi_ok").disabled = false;
+    ouvrir("p_envoi");
+  }
+  $("r_signaler").onclick = function () { ouvrirEnvoi("probleme"); };
+  $("r_idee").onclick = function () { ouvrirEnvoi("idee"); };
+  $("b_envoi_retour").onclick = function () { ouvrir("p_reglages"); };
+  $("b_envoi_ok").onclick = function () {
+    var t = $("texte_envoi").value.replace(/\s+/g, " ").trim();
+    if (t.length < 5) { $("etat_envoi").textContent = "\u00c9cris au moins quelques mots."; return; }
+    $("b_envoi_ok").disabled = true; $("etat_envoi").textContent = "Envoi\u2026";
+    api("/message", { genre: genreEnvoi, texte: t }, function (d) {
+      if (d && d.ok) { $("etat_envoi").textContent = "Merci, c'est envoy\u00e9."; $("texte_envoi").value = ""; return; }
+      $("b_envoi_ok").disabled = false;
+      $("etat_envoi").textContent = d && d.erreur ? d.erreur : "Je n'ai pas r\u00e9ussi \u00e0 l'envoyer. R\u00e9essaie plus tard.";
+    });
+  };
+  var COULEURS_SANTE = { ok: "#3ecf8e", attention: "#ffa53a", erreur: "#ff5a4f", inconnu: "#9fb4c8" };
+  function ligneSante(nom, etat, detail) {
+    var l = document.createElement("div"); l.className = "ligne";
+    var p = document.createElement("span");
+    p.style.cssText = "display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:12px;flex:none;background:" + (COULEURS_SANTE[etat] || COULEURS_SANTE.inconnu);
+    var t = document.createElement("span"); t.className = "lib"; t.textContent = nom + " : " + detail;
+    l.appendChild(p); l.appendChild(t);
+    return l;
+  }
+  function verifierSante() {
+    var liste = $("liste_sante"); liste.textContent = "Je v\u00e9rifie\u2026";
+    var debut = Date.now();
+    api("/note", { texte: "" }, function (r) {
+      var ping = Date.now() - debut;
+      if (!r || r.refus || !r.ok) {
+        liste.textContent = "";
+        liste.appendChild(ligneSante("Liaison avec le PC", "erreur", "pas de r\u00e9ponse (le PC est-il allum\u00e9, sur le m\u00eame Wi-Fi ?)"));
+        return;
+      }
+      api("/sante", {}, function (d) {
+        liste.textContent = "";
+        liste.appendChild(ligneSante("Liaison avec le PC", ping > 2500 ? "attention" : "ok", ping > 2500 ? "lente (" + ping + " ms)" : "bonne (" + ping + " ms)"));
+        var l = d && d.liste ? d.liste : [];
+        for (var i = 0; i < l.length; i++) { liste.appendChild(ligneSante(l[i][0], l[i][1], l[i][2])); }
+        liste.appendChild(ligneSante("Micro de la tablette", reglages.coupe ? "attention" : "ok", reglages.coupe ? "coup\u00e9 avec le bouton" : "ouvert"));
+        if (typeof pileVue === "number" && pileVue >= 0) { liste.appendChild(ligneSante("Batterie", pileVue <= 15 ? "attention" : "ok", pileVue + " %")); }
+        if (appli) { liste.appendChild(ligneSante("Application", majDisponible() ? "attention" : "ok", majDisponible() ? "une nouvelle version est disponible (r\u00e9glages, Mise \u00e0 jour)" : "\u00e0 jour")); }
+      });
+    });
+  }
+  $("r_sante").onclick = function () { ouvrir("p_sante"); verifierSante(); };
+  $("b_sante_relance").onclick = verifierSante;
+  $("b_sante_retour").onclick = function () { ouvrir("p_reglages"); };
+  // ----- Micro coupe la nuit, niveau des rapports, effacement des donnees
+  var etaitNuit = null;
+  function estNuit() { var h = new Date().getHours(); return h >= 22 || h < 7; }
+  function couperMicro(oui, auto) {
+    reglages.coupe = oui; reglages.autoCoupe = oui && auto;
+    if (oui && mode === "ecoute") { try { appli.arreterEcoute(false); } catch (e) {} mettre("veille"); }
+    appliquer();
+    api("/note", { texte: oui ? "micro coup\u00e9 pour la nuit" : "micro rallum\u00e9 au matin" }, function () {});
+  }
+  function majNuitAuto() {
+    var nuit = estNuit(), avant = etaitNuit;
+    etaitNuit = nuit;
+    if (!reglages.nuitAuto) { if (reglages.autoCoupe) { couperMicro(false, false); } return; }
+    if (nuit && avant === false && !reglages.coupe) { couperMicro(true, true); }
+    else if (!nuit && reglages.autoCoupe) { couperMicro(false, false); }
+  }
+  $("r_nuitauto").onclick = function () {
+    reglages.nuitAuto = !reglages.nuitAuto;
+    if (reglages.nuitAuto && estNuit() && !reglages.coupe) { couperMicro(true, true); }
+    else if (!reglages.nuitAuto && reglages.autoCoupe) { couperMicro(false, false); }
+    else { appliquer(); }
+    etaitNuit = estNuit();
+  };
+  setInterval(majNuitAuto, 30000);
+  var NIVEAUX_RAPPORT = ["aucun", "technique", "complet"];
+  function marquerNiveau(n) { for (var i = 0; i < 3; i++) { $("n_" + NIVEAUX_RAPPORT[i]).className = "ligne" + (NIVEAUX_RAPPORT[i] === n ? " actif" : ""); } }
+  $("r_partage").onclick = function () {
+    ouvrir("p_partage"); $("etat_partage").textContent = "";
+    api("/partage", {}, function (d) {
+      if (d && d.niveau) { marquerNiveau(d.niveau); } else { $("etat_partage").textContent = d && d.erreur ? d.erreur : "Jarvis ne r\u00e9pond pas."; }
+    });
+  };
+  NIVEAUX_RAPPORT.forEach(function (n) {
+    $("n_" + n).onclick = function () {
+      api("/partage", { niveau: n }, function (d) {
+        if (d && d.niveau) { marquerNiveau(d.niveau); $("etat_partage").textContent = "C'est not\u00e9."; }
+        else { $("etat_partage").textContent = d && d.erreur ? d.erreur : "Jarvis ne r\u00e9pond pas."; }
+      });
+    };
+  });
+  $("b_partage_retour").onclick = function () { ouvrir("p_reglages"); };
+  $("r_effacer").onclick = function () { $("etat_effacer").textContent = ""; $("b_effacer_oui").disabled = false; ouvrir("p_effacer"); };
+  $("b_effacer_non").onclick = function () { ouvrir("p_reglages"); };
+  $("b_effacer_oui").onclick = function () {
+    $("b_effacer_oui").disabled = true; $("etat_effacer").textContent = "Effacement\u2026";
+    api("/effacer", {}, function (d) {
+      if (d && d.ok) { $("etat_effacer").textContent = "C'est effac\u00e9."; return; }
+      $("b_effacer_oui").disabled = false;
+      $("etat_effacer").textContent = d && d.erreur ? d.erreur : "Pas r\u00e9ussi : le PC n'a pas pu joindre le d\u00e9p\u00f4t. R\u00e9essaie plus tard.";
+    });
+  };
+  $("r_defaut").onclick = function () { ouvrir("p_defaut"); };
+  $("b_defaut_non").onclick = function () { ouvrir("p_reglages"); };
+  $("b_defaut_oui").onclick = function () {
+    reglages.volume = 100; reglages.muet = false; reglages.nuit = false; reglages.veille = true; reglages.coupe = false;
+    appliquer();
+    ouvrir("p_reglages");
+  };
   $("r_nouvelle").onclick = function () {
     api("/nouvelle", {}, function (d) {
       fermer(); entendu.textContent = "";
@@ -3335,6 +3610,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
   }
   var ecouteDepuis = 0;                           // moment où l'écoute a commencé (double appui d'un enfant)
   function ecouter(pourquoi) {
+    if (reglages.coupe) { return; }                  // micro coupe avec le bouton : on n'ecoute pas, meme apres une question
     ecouteDepuis = Date.now();
     if (voile.className === "ouvert") { fermer(); }   // on parle à Jarvis : la fenêtre ouverte (aide, réglages) se ferme
     seTaire();
@@ -3378,6 +3654,7 @@ body.veille #idee.on{display:inline-block} body.atelier #idee.on{display:none} #
     if (mode === "ecoute") { return arreter(); }
     if (mode === "repond") { return seTaire(); }  // on lui coupe la parole ; un nouvel appui, et il écoute
     if (mode === "reflechit") { return annuler(); }
+    if (reglages.coupe) { montrer("Le micro est coupé. Touche le micro, sous la roue, pour le rallumer, ou écris-moi.", "calme"); return; }
     if (peutEcouter()) { ecouter(""); } else { champ.focus(); }
   });
   forme.addEventListener("submit", function (e) {
@@ -3546,7 +3823,7 @@ class _Requete(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         chemin = self.path.split("?")[0]
-        if chemin not in ("/demande", "/resultat", "/voix", "/profil", "/code", "/couleurs", "/nouvelle", "/applis", "/note", "/sonne", "/batterie"):
+        if chemin not in ("/demande", "/resultat", "/voix", "/profil", "/code", "/couleurs", "/nouvelle", "/applis", "/note", "/sonne", "/batterie", "/sante", "/message", "/partage", "/effacer"):
             return self._envoyer(404, b"", "text/plain")
         try:
             longueur = int(self.headers.get("Content-Length") or 0)
@@ -3585,9 +3862,18 @@ class _Requete(http.server.BaseHTTPRequestHandler):
                     resultat = choisir_code(str(recu.get("id") or ""), recu.get("code"), recu.get("ancien"))
                 elif chemin == "/applis":
                     resultat = garder_applis(tablette, recu.get("applis"))
+                elif chemin == "/sante":
+                    resultat = sante_tablette()
+                elif chemin == "/partage":
+                    resultat = partage_tablette(jeton, recu.get("niveau"))
+                elif chemin == "/effacer":
+                    resultat = effacer_tablette(jeton)
+                elif chemin == "/message":
+                    resultat = message_tablette(jeton, recu.get("genre"), recu.get("texte"))
                 elif chemin == "/note":              # ce qui n'a pas marché sur la tablette (micro refusé...), pour le journal du PC
+                    ouvert = _session(jeton)
                     if recu.get("texte"):
-                        print("Tablette (note) :", re.sub(r"[^\w :.,'()\-éèêàùç]", "?", str(recu.get("texte")))[:200])
+                        print(f"Tablette {_etiquette(tablette, ouvert)} (note) :", re.sub(r"[^\w :.,'()\-éèêàùç]", "?", str(recu.get("texte")))[:200])
                     ouvert = _session(jeton)
                     _vue(tablette, ouvert)
                     if tablette:                     # pour les voyants du panneau du PC : qui est en ligne, sa batterie
