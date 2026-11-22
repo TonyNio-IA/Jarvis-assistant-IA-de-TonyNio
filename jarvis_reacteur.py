@@ -61,6 +61,16 @@ except OSError:
     print("Jarvis est déjà lancé.")
     sys.exit(0)
 
+if sys.platform == "win32":
+    # Un fichier que Windows refuse de charger (Contrôle intelligent des applications) ouvre une fenêtre « Image
+    # incorrecte » qui peut bloquer Jarvis tant qu'on ne clique pas sur OK : on demande à Windows de ne pas l'ouvrir.
+    try:
+        import ctypes
+        _k = ctypes.windll.kernel32
+        _k.SetErrorMode(_k.GetErrorMode() | 0x0001 | 0x8000)     # + SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX
+    except Exception:
+        pass
+
 sys.path.insert(0, DOSSIER)
 import jarvis_claude  # noqa: E402
 import jarvis_voix    # noqa: E402

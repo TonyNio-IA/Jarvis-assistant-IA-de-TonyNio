@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.45"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.46"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -99,6 +99,7 @@ SAMPLE_RATE = 16000
 # silence que sur de la parole). Elle repart au premier son, avec les 0,8 s qui le précèdent.
 ECONOMIE_SILENCE = True
 MICRO_MUET = 10               # secondes sans aucun son du micro avant de relancer Jarvis (micro débranché)
+MICRO_MUET_DEMARRAGE = 90     # au lancement, tant qu'aucun son n'est arrivé : Windows peut être occupé, on attend plus longtemps
 REPOS_APRES = 3.0             # secondes de silence avant le repos
 SEUIL_SON_MIN = 0.008         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
                               # (mesuré : la voix dépasse toujours 0,024 ; à 0,003, les petits bruits de la
@@ -632,6 +633,32 @@ def reparer_volumes():
 LANCE_A = time.time()          # pour noter dans le journal le temps de démarrage (« prêt en … s »)
 
 
+def _fichier_bloque(erreur):
+    """Fichier (.dll ou .pyd) que Windows a refusé de charger, ou ''. Python le donne pour un module (« path ») ;
+    sinon, on le lit là où l'erreur est née (le dernier appel de la trace), jamais plus haut."""
+    try:
+        chemin = getattr(erreur, "path", None) or getattr(erreur, "filename", None)
+        if isinstance(chemin, str) and chemin:
+            return chemin
+        t = erreur.__traceback__
+        while t is not None and t.tb_next is not None:
+            t = t.tb_next
+        if t is not None:
+            for v in list(t.tb_frame.f_locals.values()):
+                if isinstance(v, str) and v.lower().endswith((".dll", ".pyd")):
+                    return v
+    except Exception:
+        pass
+    return ""
+
+
+def _bloque_par_windows(erreur):
+    """Vrai si Windows (Contrôle intelligent des applications) a refusé un fichier : numéro 4551 ou texte de l'erreur."""
+    texte = str(erreur).lower().replace("\u2019", "'")
+    return (getattr(erreur, "winerror", None) == 4551 or "4551" in texte
+            or "contrôle d'application" in texte or "application control" in texte)
+
+
 def charger_whisper():
     global whisper
     try:
@@ -643,6 +670,11 @@ def charger_whisper():
     except Exception as erreur:
         whisper = None
         print("Whisper indisponible, Vosk seul sera utilisé :", erreur)
+        fichier = _fichier_bloque(erreur)
+        if _bloque_par_windows(erreur):       # Contrôle intelligent des applications : un fichier non reconnu est refusé
+            print("(Windows bloque un fichier de la reconnaissance précise" + (" : " + fichier if fichier else "") + ".)")
+        elif fichier:
+            print("(Fichier en cause : " + fichier + ".)")
 
 
 def _ecrire_wav(chemin, octets):
@@ -1083,7 +1115,7 @@ class ClaudeContinu:
 
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
                "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres. "
-               "Pour ajouter Claude, relance le fichier Installer Jarvis, rangé dans mon dossier, et choisis Ajouter Claude.")
+               "Pour ajouter Claude, relance le fichier Installer Jarvis, rangé dans mon dossier, et choisis Ajouter Claude, le troisième choix de la liste.")
 claude = ClaudeContinu()
 
 
@@ -1901,6 +1933,24 @@ def conversation(demande, recognizer):
     etat("veille")
 
 
+def _prochain_bloc(file_audio, debut, deja_recu):
+    """Attend le prochain bloc de son du micro. Renvoie (bloc, True), ou (None, False) si le micro n'a encore rien envoyé
+    depuis le lancement (Windows peut être occupé : on attend jusqu'à MICRO_MUET_DEMARRAGE secondes).
+    Lève RuntimeError si le micro se tait en cours de route (débranché), ou si rien n'est jamais arrivé dans ce délai."""
+    try:
+        return file_audio.get(timeout=MICRO_MUET), True
+    except queue.Empty:
+        if not deja_recu and time.time() - debut < MICRO_MUET_DEMARRAGE:
+            if not _prochain_bloc.attente_dite:
+                _prochain_bloc.attente_dite = True
+                print("(Le micro n'a encore rien envoyé : j'attends encore un peu, Windows est peut-être occupé.)")
+            return None, False
+        raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
+
+
+_prochain_bloc.attente_dite = False
+
+
 def attendre_micro():
     """Sans micro, Jarvis attend qu'on en branche un, au lieu de s'arrêter et d'être relancé toutes les minutes."""
     annonce = False
@@ -2009,7 +2059,9 @@ def main():
     etat("veille")
     if reprise:
         sous_titre("Je redémarre.", reponse=True)
-    print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE (relié à Claude).")
+    avec_claude = os.path.exists(CLAUDE_EXE)       # Jarvis installé sans Claude : commandes immédiates seulement
+    print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE "
+          f"({'relié à Claude' if avec_claude else 'sans Claude : commandes immédiates seulement'}).")
     print("Dis : « Jarvis », puis ta demande.\n")
 
     tampon = bytearray()             # audio de la phrase en cours
@@ -2034,11 +2086,12 @@ def main():
             channels=1,
             callback=audio_callback,
         ):
+            debut_ecoute = time.time()
+            premier_son_recu = False
             while True:
-                try:
-                    data = audio_queue.get(timeout=MICRO_MUET)
-                except queue.Empty:
-                    raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
+                data, premier_son_recu = _prochain_bloc(audio_queue, debut_ecoute, premier_son_recu)
+                if data is None:               # le micro n'a encore rien envoyé : on attend encore, sans relancer Jarvis
+                    continue
                 claude.entretenir()
 
                 # Mise à jour forcée publiée sur GitHub : installée sans question, après une minute de veille

@@ -470,7 +470,7 @@ function Installer-VC {
         Attention "Pour corriger plus tard : relance ce fichier et choisis 1 (mettre à jour ou réparer)."
         return
     }
-    Dire "  Windows va te demander l'autorisation de les installer : réponds Oui." 'White'
+    Dire "  Windows va te demander l'autorisation de les installer : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'White'
     try {
         $p = Start-Process -FilePath $programme -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
         if ($p.ExitCode -in 0, 3010) { Noter 'VCInstalle' }       # 1638 : une version plus récente était déjà là
@@ -742,9 +742,9 @@ function Verifier-Modules($env_py, $dossier) {
     $script = Join-Path $env:TEMP 'jarvis-essai-modules.py'
     $sortie = Join-Path $env:TEMP 'jarvis-essai-modules.txt'
     $erreurs = Join-Path $env:TEMP 'jarvis-essai-modules-erreurs.txt'
-    $code = "import os, sys, time`nos.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'`nsys.path.insert(0, os.getcwd())`nfor nom in ['" + ($modules -join "','") + "']:`n" +
+    $code = "import ctypes, os, sys, time`nk = ctypes.windll.kernel32`nk.SetErrorMode(k.GetErrorMode() | 0x8001)`nos.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'`nsys.path.insert(0, os.getcwd())`nfor nom in ['" + ($modules -join "','") + "']:`n" +
             "    debut = time.time()`n    try:`n        __import__(nom)`n        print('OK', nom, round(time.time() - debut, 1), flush=True)`n" +
-            "    except BaseException as e:`n        print('ECHEC', nom, type(e).__name__, str(e).replace(chr(10), ' ')[:300], flush=True)`n"
+            "    except BaseException as e:`n        fichier = getattr(e, 'path', None) or ''`n        t = e.__traceback__`n        while t is not None and t.tb_next is not None:`n            t = t.tb_next`n        if not fichier and t is not None:`n            for v in list(t.tb_frame.f_locals.values()):`n                if isinstance(v, str) and v.lower().endswith(('.dll', '.pyd')): fichier = v`n        print('ECHEC', nom, type(e).__name__, str(e).replace(chr(10), ' ')[:300], fichier, flush=True)`n"
     [IO.File]::WriteAllText($script, $code, $UTF8)
     Remove-Item -LiteralPath $sortie, $erreurs -Force -ErrorAction SilentlyContinue
     $debut = Get-Date
@@ -788,7 +788,12 @@ function Verifier-Modules($env_py, $dossier) {
         $noms = ($autres | ForEach-Object { ($_ -split ' ')[1] }) -join ', '
         Attention "Module de Jarvis qui ne se charge pas : $noms. Relance ce fichier et choisis 1 (mettre à jour ou réparer)."
     } else { Bon "Les modules de Jarvis se chargent." }
-    if ($whisper.Count) { Attention "Reconnaissance précise (Whisper) indisponible : il manque sans doute les composants Microsoft Visual C++. Jarvis utilisera la reconnaissance simple." }
+    if ($whisper.Count) {
+        if (($whisper -join ' ') -match '4551|contr.le d.application|application control') {
+            Attention "Reconnaissance précise (Whisper) indisponible : Windows (Contrôle intelligent des applications) bloque un de ses fichiers."
+            Attention "Jarvis utilisera la reconnaissance simple : les commandes courantes (heure, météo, minuteur) marchent, les phrases libres seront moins bien comprises."
+        } else { Attention "Reconnaissance précise (Whisper) indisponible : il manque sans doute les composants Microsoft Visual C++. Jarvis utilisera la reconnaissance simple." }
+    }
     else { Bon "Reconnaissance précise (Whisper) disponible." }
     if ($duree -ge 60) {
         Dire ("  Cette première vérification a pris {0} min {1:00} s. C'est normal sur un PC neuf : les protections de Windows" -f [int][Math]::Floor($duree / 60), ($duree % 60))
@@ -854,7 +859,7 @@ function Autoriser-Tablettes {
     if ($LASTEXITCODE -eq 0) { return }
     if ($AUTO) { return }                          # mise à jour automatique : personne pour répondre à Windows
     Titre "Tablettes"
-    Dire "  Pour que les tablettes de la maison puissent joindre Jarvis, Windows va demander une autorisation : réponds Oui." 'White'
+    Dire "  Pour que les tablettes de la maison puissent joindre Jarvis, Windows va demander une autorisation : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'White'
     $regle = 'advfirewall firewall add rule name="' + $nom + '" dir=in action=allow protocol=TCP localport=47826 ' +
              'remoteip=LocalSubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 profile=any'
     try {
@@ -1030,7 +1035,7 @@ function Installer($dossierExistant) {
     Dire '  ------------------------------------------------------------' 'Cyan'
     if (-not $env:JARVIS_SANS_LANCEMENT) {
         Start-Process -FilePath (Join-Path $dossier 'Jarvis.lnk')
-        Dire "  Jarvis démarre (le premier lancement prend une minute ou deux : il télécharge Whisper)." 'Green'
+        Dire "  Jarvis démarre (le premier lancement prend une minute ou deux : il prépare sa reconnaissance vocale)." 'Green'
     }
     try { Copy-Item -LiteralPath $JOURNAL -Destination (Join-Path $dossier 'installation.log') -Force } catch {}
     if ($FEN) {                             # la fenêtre attend : on lit « À RETENIR », puis Terminer

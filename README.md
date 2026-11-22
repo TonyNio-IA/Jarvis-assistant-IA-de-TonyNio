@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.45**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.46**
 
 **Windows a bloqué le fichier ?** Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée :
 
@@ -37,6 +37,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.46
+
+- **Contrôle intelligent des applications** (réglage de sécurité de Windows) : Jarvis installe la version de la reconnaissance précise (Whisper) que ce réglage a laissé passer lors de nos essais. Si Windows bloque quand même un fichier, l'installateur et le journal le disent clairement, avec le nom du fichier, au lieu de parler à tort de Visual C++.
+- **Démarrage plus sûr** : Jarvis demande à Windows de ne plus ouvrir la fenêtre d'erreur qui pouvait le bloquer, et au lancement il attend que le micro soit prêt (jusqu'à 90 secondes) au lieu de redémarrer en boucle.
+- **Sans Claude** : le journal ne dit plus « relié à Claude », et Jarvis précise où ajouter Claude (le troisième choix de l'installateur).
+- **Installateur** : « clique sur le bouton Oui » pour les demandes d'autorisation de Windows.
 
 ## Nouveau en 1.45
 
@@ -492,6 +499,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 | 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
 | 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
 | 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.46 | Contrôle intelligent des applications : bonne version de Whisper, message clair et nom du fichier bloqué ; plus de boucle de redémarrages au lancement ; journal « sans Claude » |
 | 1.45 | Phrases d’attente pendant les demandes longues (PC et tablette) |
 | 1.44 | Tablette : micro coupé (bouton, et la nuit), Santé, réglages d'origine, signaler un problème / proposer une amélioration, niveau des rapports, effacer mes données, bandeau « Jarvis ne répond pas », attente de la suite d'une phrase |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |

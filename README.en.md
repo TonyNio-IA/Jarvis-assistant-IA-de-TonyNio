@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.45**
+**Français : [README.md](README.md)** · **Current version: 1.46**
 
 **Windows blocked the file?** Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -36,6 +36,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.46
+
+- **Smart App Control** (a Windows security setting): Jarvis installs the version of precise recognition (Whisper) that this setting let through in our tests. If Windows still blocks a file, the installer and the log say so clearly, with the file name, instead of wrongly mentioning Visual C++.
+- **Safer start**: Jarvis asks Windows not to open the error window that could block it, and at launch it waits for the microphone to be ready (up to 90 seconds) instead of restarting in a loop.
+- **Without Claude**: the log no longer says "linked to Claude", and Jarvis says where to add Claude (the third choice of the installer).
+- **Installer**: "click the Yes button" for Windows permission requests.
 
 ## New in 1.45
 
