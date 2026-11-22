@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.35**
+**Français : [README.md](README.md)** · **Current version: 1.41**
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
@@ -30,6 +30,33 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.41
+
+- **A muted microphone stays muted**: if you mute Jarvis's microphone (by voice, from the reactor menu or with the command), it stays muted after Jarvis or Windows restarts, until you turn it back on. All the other settings were already kept as you left them; a test now checks each one.
+
+## New in 1.40
+
+- **Clearer automatic update**: during an update started by Jarvis, a window shows the progress (instead of a black console) and closes by itself. On a PC protected by Windows "Smart App Control", Jarvis warns you before Windows may show a blocking message, and if everything is refused it copies the installation line to paste into the Terminal. The log notes the time of each step.
+
+## New in 1.39
+
+- **Clearer update log**: Jarvis notes in its log which installer it started (.exe or .bat) and whether Windows refused it, to understand a block quickly.
+
+## New in 1.38
+
+- **Installing on a PC protected by "Smart App Control"**: the README now gives a line to paste into the Terminal that gets around the block without turning anything off. The installer file also keeps its Windows line endings when downloaded from GitHub.
+
+## New in 1.37
+
+- **Update when Windows blocks the installer**: if "Smart App Control" refuses the .exe file, Jarvis starts the same installer as a .bat file. If everything is refused, it says so aloud and opens the folder instead of staying silent.
+
+## New in 1.36
+
+- **Installation without a black window**: the installer now opens like a real program, with a clear window: your three short questions, then a progress bar and simple text (no more scrolling lines of code). The window waits at the end so you can read "REMEMBER". If something goes wrong, a message explains what to do.
+- **Faster small PCs**: in light mode, short commands (time, weather, timer, volume...) are understood without the slow recognition; Jarvis logs how many seconds it took to be ready at startup.
+- **Listening**: "GTA 6", "PS5", "YouTube Kids", "Netflix" and "Spotify" are better recognised; Jarvis waits a little longer after a word like "et", "puis" or "mais" before deciding your sentence is finished; fewer false wake-ups.
+- **Your voice recordings**: the settings (Reports page) explain what they are for and have a "Delete my recordings" button.
 
 ## New in 1.35
 
