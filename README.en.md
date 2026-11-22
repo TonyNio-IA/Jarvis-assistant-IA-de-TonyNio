@@ -12,6 +12,8 @@ This line downloads the installer of the latest release published on this page (
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 
+**▶ Installing Jarvis step by step, on video (8 min, in French): [the full tutorial](https://youtu.be/ZbBA3TN2o9E)**
+
 **▶ Everything it can do, on video (20 min, in French): [I built my own JARVIS: everything it can do](https://www.youtube.com/watch?v=xOM06Lr_elk)** · the first demo (6 min): [watch on YouTube](https://www.youtube.com/watch?v=3Xd91q7618U)
 
 **Jarvis is a voice assistant for Windows 11 that speaks and understands French.** Say "Jarvis", then your request: it answers aloud and acts on your PC. It opens apps, manages windows, plays music, sets reminders, reads or translates copied text, and describes what is on screen. Simple requests are handled on the PC in about a second; everything else is sent to Claude.
@@ -219,6 +221,8 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - Nothing else to pay for: speech recognition and the voice use free tools.
 
 ## Installation
+
+**On video:** [the installation tutorial, step by step (8 min, in French)](https://youtu.be/ZbBA3TN2o9E), one chapter per step, including what to do if Windows blocks the file.
 
 1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 200 KB).
 2. **Double-click it.** Windows will probably show a blue screen, "Windows protected your PC": this is normal for a small free program that is not signed by a paid publisher. Click **More info**, then **Run anyway**.

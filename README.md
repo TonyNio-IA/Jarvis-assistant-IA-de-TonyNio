@@ -10,6 +10,8 @@ $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-as
 
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
+**▶ Installer Jarvis pas à pas, en vidéo (8 min) : [le tutoriel complet](https://youtu.be/ZbBA3TN2o9E)**
+
 **▶ Tout ce qu'il sait faire, en vidéo (20 min) : [J'ai créé mon propre JARVIS : tout ce qu'il sait faire](https://www.youtube.com/watch?v=xOM06Lr_elk)** · la première démo (6 min) : [Je parle à mon PC et il m'obéit](https://www.youtube.com/watch?v=3Xd91q7618U)
 
 **Jarvis est un assistant vocal en français pour Windows 11.** Tu dis « Jarvis », il comprend ta demande, y répond à voix haute et agit sur ton PC : ouvrir une application, gérer les fenêtres, lancer de la musique, poser un rappel, lire ou traduire un texte copié, décrire ce qui est à l'écran. Les demandes simples sont traitées sur le PC en une seconde ; les autres sont confiées à Claude.
@@ -219,6 +221,8 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 - Rien d'autre à payer : la reconnaissance vocale et la voix utilisent des outils gratuits.
 
 ## Installation
+
+**En vidéo :** [le tutoriel d'installation, pas à pas (8 min)](https://youtu.be/ZbBA3TN2o9E), avec un chapitre par étape, y compris quoi faire si Windows bloque le fichier.
 
 1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 200 Ko).
 2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
