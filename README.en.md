@@ -2,11 +2,13 @@
 
 **Français : [README.md](README.md)** · **Current version: 1.46**
 
-**Windows blocked the file?** Open Terminal (Windows key + X), paste this line, then press Enter:
+**Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
 ```
+
+This line downloads the installer of the latest release published on this page (the same file as [`installateur/Installer-Jarvis.bat`](installateur/Installer-Jarvis.bat), which you can read) and opens it; nothing is installed before you click "Installer". Only paste it if you copied it from this official page and it contains a single address starting with `https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/`. Never paste into the Terminal a command received by message or email or found on another site: it is a common trick to install malware.
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>
 

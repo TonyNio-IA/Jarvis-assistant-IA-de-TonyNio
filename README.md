@@ -2,7 +2,7 @@
 
 **English: [README.en.md](README.en.md)** · **Version actuelle : 1.46**
 
-**Windows a bloqué le fichier ?** Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée :
+**Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
@@ -225,16 +225,26 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
 
-**Si Windows affiche « Contrôle intelligent des applications a bloqué un fichier potentiellement dangereux » :** c'est une protection de Windows 11 (elle n'est pas active sur tous les PC). Elle bloque les fichiers récents téléchargés avec le navigateur, et il n'y a pas de bouton « Exécuter quand même ». Voici le moyen le plus simple de contourner le problème, sans rien désactiver :
+<a id="bloque-par-windows"></a>**Si Windows affiche « Contrôle intelligent des applications a bloqué un fichier potentiellement dangereux » :** c'est une protection de Windows 11 (elle n'est pas active sur tous les PC). Elle laisse passer les programmes que Microsoft connaît déjà, ou ceux signés avec un certificat payant. Jarvis n'est ni l'un ni l'autre : c'est un projet personnel et gratuit. Ce blocage ne veut pas dire que le fichier est dangereux, et il n'y a pas de bouton « Exécuter quand même ». Pour installer Jarvis sans passer par le navigateur, et sans rien désactiver :
 
 1. Appuie sur la touche Windows + X, puis choisis **Terminal** (ou **Windows PowerShell**).
 2. Copie cette ligne, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :
 
 ```
-$ProgressPreference='SilentlyContinue'; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile "$env:TEMP\Installer-Jarvis.bat"; Start-Process "$env:TEMP\Installer-Jarvis.bat"
+$f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
 ```
 
-3. La fenêtre d'installation de Jarvis s'ouvre : continue comme ci-dessus à partir de l'étape 3.
+3. La fenêtre d'installation de Jarvis s'ouvre : continue comme ci-dessus à partir de l'étape 3. Rien n'est installé avant que tu cliques sur « Installer ».
+
+**Avant de coller la ligne, vérifie :**
+- que tu l'as copiée depuis cette page officielle (`github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio`), ou depuis le fichier « Lisez-moi-si-Windows-bloque.txt » joint aux versions de cette page ;
+- qu'elle ne contient qu'une seule adresse, qui commence par `https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/`.
+
+Ne colle jamais dans le Terminal une commande reçue par message, par mail ou trouvée sur un autre site : c'est une ruse courante pour installer des programmes malveillants.
+
+**Ce que fait la ligne, morceau par morceau :**
+- `iwr https://github.com/…/releases/latest/download/Installer-Jarvis.bat -OutFile $f` télécharge l'installateur de la dernière version publiée sur cette page, dans le dossier temporaire de Windows (`$f`) ;
+- `Start-Process $f` l'ouvre. C'est exactement le même fichier que celui des versions publiées : tu peux lire tout son contenu ici, dans [`installateur/Installer-Jarvis.bat`](installateur/Installer-Jarvis.bat).
 
 Ça marche parce que le fichier est téléchargé par Windows lui-même, sans la marque « venu d'Internet » que le navigateur ajoute. Ne désactive pas le Contrôle intelligent des applications : une fois désactivé, Windows ne permet plus de le réactiver sans réinitialiser le PC.
 
