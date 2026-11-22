@@ -569,7 +569,7 @@ class Affichage:
             except Exception as erreur:
                 print("Fenêtre de message indisponible :", erreur)
         elif choix == 4:
-            jarvis_claude.micro_coupe = not jarvis_claude.micro_coupe
+            jarvis_claude.regler_micro(not jarvis_claude.micro_coupe)
             print("(Micro coupé par le menu du réacteur.)" if jarvis_claude.micro_coupe else "(Micro rallumé par le menu.)")
         elif choix == 2:
             print("(Arrêt demandé par le menu du réacteur.)")

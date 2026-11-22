@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.40"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.41"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -367,6 +367,17 @@ reveil_par_whisper = False
 derniere_reponse = ""         # pour « Jarvis, répète »
 niveau_micro = 0.0            # volume du micro à cet instant (0 à 1), lu par le réacteur
 micro_coupe = False           # « coupe le micro » : Jarvis n'écoute plus (le réacteur affiche un micro barré)
+
+def regler_micro(coupe):
+    """Coupe ou rallume le micro et le retient : après un arrêt ou un redémarrage, il reste comme on l'a laissé."""
+    global micro_coupe
+    micro_coupe = bool(coupe)
+    try:
+        import jarvis_reglages_ui
+        jarvis_reglages_ui.regler("micro_coupe", micro_coupe)
+    except Exception as erreur:
+        print("Micro : réglage non enregistré :", erreur)
+
 derniers_textes = []          # les retranscriptions (Whisper, Vosk) de la dernière demande
 rec_stop = None               # reconnaissance réduite aux mots « stop »
 rec_coupure = None            # reconnaissance complète, pour entendre « Jarvis » pendant qu'il parle
@@ -2061,7 +2072,7 @@ def main():
                     if recognizer.AcceptWaveform(data):
                         dite = json.loads(recognizer.Result()).get("text", "").lower()
                         if _RALLUMER_MICRO.search(dite):
-                            micro_coupe = False
+                            regler_micro(False)
                             print("(Micro rallumé à la voix.)")
                             etat("reponse")
                             parler("C'est fait, je t'écoute de nouveau.")

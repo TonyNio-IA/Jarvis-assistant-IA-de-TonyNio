@@ -149,6 +149,12 @@ def _appliquer(cle, val):
         m = _module("jarvis_claude")
         for attr, v in SENSIBILITE_REVEIL[val].items():
             setattr(m, attr, v)
+    elif cle == "micro_coupe":
+        m = _module("jarvis_claude")
+        if m is not None:
+            m.micro_coupe = bool(val)
+            if val:
+                print("(Micro coupé : réglage retrouvé au démarrage.)")
     elif cle == "nuit_auto" and val in NUIT_AUTO:
         jarvis_config.HEURES_NUIT = NUIT_AUTO[val]
     elif cle == "jauges":
@@ -173,7 +179,7 @@ def charger():
             m = _module(mod)
             if m is not None and hasattr(m, attr):
                 DEFAUTS[c] = getattr(m, attr)
-        DEFAUTS.update(micro="normale", reveil="normale", nuit_auto="non")
+        DEFAUTS.update(micro="normale", reveil="normale", nuit_auto="non", micro_coupe=False)
         m = _module("jarvis_affichage")
         if m is not None:
             DEFAUTS["jauges"] = list(m.JAUGES)

@@ -1526,13 +1526,13 @@ def commande_micro(t):
     clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
     import jarvis_claude
     if _MICRO_COUPER.search(t):
-        jarvis_claude.micro_coupe = True
+        jarvis_claude.regler_micro(True)
         print("(Micro coupé à la demande.)")
         return ("D'accord, je n'écoute plus. Ton micro reste allumé pour le reste du PC. Pour me rallumer, "
                 "dis « Jarvis, rallume ton micro », ou fais un clic droit sur le réacteur.")
     if _MICRO_RALLUMER.search(t):
         deja = not jarvis_claude.micro_coupe
-        jarvis_claude.micro_coupe = False
+        jarvis_claude.regler_micro(False)
         print("(Micro rallumé.)")
         return "Mon micro est déjà allumé, je t'écoute." if deja else "C'est fait, je t'écoute de nouveau."
     return None
