@@ -62,4 +62,4 @@ Si l'envoi échoue (pas d'Internet), Jarvis réessaie trois fois, puis abandonne
 
 ## Contact
 
-tonynio82600@gmail.com
+Pour toute question ou demande (y compris l’effacement de vos données), ouvrez un ticket : https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/issues

@@ -389,7 +389,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_tts.py` | The fallback Windows voice |
 | `jarvis_config.py` | Reads the personal settings (`config.json`) |
 | `config.exemple.json` | The template for personal settings |
-| `installateur/` | The installer: `Installer-Jarvis.bat` does all the work; `lanceur.cs` is the small `.exe` program that carries the reactor icon and runs that `.bat` |
+| `installateur/` | The installer: `Installer-Jarvis.bat` does all the work; `lanceur.cs` is the small `.exe` program that carries the reactor icon and runs that `.bat`; `Lisez-moi-si-Windows-bloque.txt` is the help sheet if Windows blocks the install |
 | `requirements.txt` | The required Python modules |
 | `LICENSE.md` | The license (PolyForm Strict 1.0.0) |
 

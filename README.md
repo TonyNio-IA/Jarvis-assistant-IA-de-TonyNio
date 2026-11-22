@@ -434,7 +434,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tts.py` | La voix Windows de secours |
 | `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
-| `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` |
+| `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` ; `Lisez-moi-si-Windows-bloque.txt` est l'aide en cas de blocage par Windows |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |
 | `README.en.md` | La présentation en anglais |
