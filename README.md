@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.47** (pré-version pour les testeurs : 1.49)
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.50**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -40,9 +40,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
-## Nouveau en 1.49 (pré-version, pour les testeurs volontaires)
+## Nouveau en 1.50
 
 Jarvis s'adapte à ce que tu utilises, au lieu de demander Chrome et iCloud.
+
+- **Ouverture des applications** : « Ouvre … » trouve aussi les applications du Microsoft Store et les raccourcis posés sur le Bureau, pas seulement ceux du menu Démarrer.
+- **Pas de doublon** : un message identique envoyé plusieurs fois de suite (clics répétés) n'est plus envoyé en double.
+- **Phrases d'exemple** : les suggestions qui défilent dans la fenêtre ne contiennent que des phrases vérifiées une par une.
+- **Première installation** : le fichier `installation-stable.txt` indique sur quelle version stable démarre une nouvelle installation. Les mises à jour, elles, vont toujours vers la dernière version.
 
 - **Tous les navigateurs** : Jarvis utilise le navigateur choisi dans Windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi…). « Ouvre le navigateur », « ouvre Firefox », « ferme le navigateur », « où j'en étais ? », « baisse le son du navigateur ».
 - **Toutes les boîtes mail courantes** : « Jarvis, relie mes mails » ouvre une fenêtre qui guide pas à pas pour Gmail, Orange, Free, La Poste, Yahoo, iCloud ou une autre messagerie. Plus de ligne de commande. Les adresses Outlook, Hotmail et Live ne sont pas encore possibles : Microsoft n'accepte plus les mots de passe pour les applications.
@@ -504,6 +509,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tts.py` | La voix Windows de secours |
 | `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
+| `installation-stable.txt` | Une ligne : la version stable sur laquelle démarre une nouvelle installation (les mises à jour vont toujours vers la dernière version) |
 | `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` ; `Lisez-moi-si-Windows-bloque.txt` est l'aide en cas de blocage par Windows |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |

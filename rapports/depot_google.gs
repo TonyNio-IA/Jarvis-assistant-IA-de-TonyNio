@@ -87,10 +87,32 @@ function signal(id, d) {
     var version = String(d.version || '').slice(0, 20);
     var windows = String(d.windows || '').slice(0, 40);
     var niveau = String(d.niveau || '').slice(0, 20);
+    var ligne;
     if (trouve) {
-      f.getRange(trouve.getRow(), 3, 1, 4).setValues([[maintenant, version, windows, niveau]]);
+      ligne = trouve.getRow();
+      f.getRange(ligne, 3, 1, 4).setValues([[maintenant, version, windows, niveau]]);
     } else {
       f.appendRow([id, maintenant, maintenant, version, windows, niveau]);
+      ligne = f.getLastRow();
+    }
+    // Depuis la 1.50 : le nom que l'utilisateur a donné lui-même à son PC (colonne G, seulement s'il y en a un)
+    // et le type de matériel envoyé par le compteur anonyme (colonne I). La colonne H reste libre pour les notes.
+    if (f.getRange(1, 9).getValue() === '') f.getRange(1, 9).setValue('Matériel (compteur anonyme)');
+    var nom = String(d.nom || '').replace(/[\r\n\t]/g, ' ').trim().slice(0, 40);
+    if (nom) f.getRange(ligne, 7).setValue(nom);
+    var m = d.materiel;
+    if (m && typeof m === 'object') {
+      var morceaux = [];
+      if (m.processeur) morceaux.push(String(m.processeur).slice(0, 80) + (m.coeurs ? ' (' + m.coeurs + ' cœurs)' : ''));
+      if (m.memoire_go) morceaux.push(m.memoire_go + ' Go');
+      if (m.carte_graphique) morceaux.push(String(m.carte_graphique).slice(0, 120));
+      else if (m.cartes_graphiques && m.cartes_graphiques.length) {        // (rapport technique : liste de cartes)
+        morceaux.push(m.cartes_graphiques.map(function (c) { return String((c && c.nom) || ''); })
+          .filter(String).join(' + ').slice(0, 120));
+      }
+      if (m.portable === true) morceaux.push('portable');
+      if (m.portable === false) morceaux.push('fixe');
+      if (morceaux.length) f.getRange(ligne, 9).setValue(morceaux.join(', ').slice(0, 300));
     }
   } finally {
     verrou.releaseLock();

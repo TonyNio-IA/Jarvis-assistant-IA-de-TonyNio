@@ -338,6 +338,32 @@ def _telecharger_lot(dossier):
         return None
 
 
+def nouveautes_de(version, notes=None):
+    """Les titres des nouveautés d'une version, en une courte phrase (« tous les navigateurs, toutes les boîtes
+    mail et tous les agendas »), lus dans ses notes sur GitHub (les lignes « - **Titre** : … »). « » si rien."""
+    if notes is None:
+        try:
+            requete = urllib.request.Request(f"https://api.github.com/repos/{DEPOT}/releases/tags/v{version}",
+                                             headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(requete, timeout=4) as r:
+                notes = str(json.load(r).get("body") or "")
+        except Exception:
+            return ""
+    titres = []
+    for titre in re.findall(r"(?m)^\s*[-*]\s+\*\*([^*\n]{3,60})\*\*", notes or ""):
+        titre = titre.strip(" :.")
+        if "«" in titre or "?" in titre or "(" in titre:
+            continue                                   # une phrase à dire telle quelle, pas un titre
+        if len(titre) > 1 and not titre[1].isupper():
+            titre = titre[0].lower() + titre[1:]
+        titres.append(titre)
+        if len(titres) == 3:
+            break
+    if not titres:
+        return ""
+    return titres[0] if len(titres) == 1 else ", ".join(titres[:-1]) + " et " + titres[-1]
+
+
 def bilan_au_demarrage():
     """Après une mise à jour lancée par Jarvis : la phrase qui dit si elle a réussi, ou None."""
     try:
@@ -348,7 +374,9 @@ def bilan_au_demarrage():
         return None
     actuelle = version_actuelle()
     if _nombres(actuelle) > _nombres(suivi.get("depuis")):
-        return f"Mise à jour terminée : je suis maintenant en version {actuelle}."
+        nouveautes = nouveautes_de(actuelle)
+        return (f"Mise à jour terminée : je suis maintenant en version {actuelle}."
+                + (f" Les nouveautés : {nouveautes}." if nouveautes else ""))
     return (f"La mise à jour n'a pas abouti : je suis toujours en version {actuelle}. "
             "Le détail est dans le fichier installation.log, dans mon dossier.")
 

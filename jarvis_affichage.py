@@ -80,20 +80,19 @@ LONGUEUR_SAISIE = 400    # caractères au plus dans une demande écrite
 ABANDON_SAISIE = 60      # secondes sans frappe avant d'abandonner une demande commencée
 INVITE_SAISIE = "Clique ici pour écrire à Jarvis"
 # Des idées de demandes, qui défilent dans la fenêtre de discussion quand elle est vide
-IDEES = ("Quelle heure est-il ?", "Quel temps fera-t-il demain ?", "Mets un minuteur pâtes de 10 minutes",
-         "Rappelle-moi demain à 9 heures d'appeler le garage", "Combien font 17 fois 23 ?", "Convertis 30 miles en kilomètres",
-         "Ajoute du lait à la liste de courses", "Qu'est-ce qu'il y a sur ma liste de courses ?", "Réveille-moi à 7 heures",
-         "Quelle heure est-il à New York ?", "Y a-t-il une alerte météo ?", "C'est quand les prochaines vacances scolaires ?",
-         "C'est quand le prochain jour férié ?", "Ouvre le bloc-notes", "Monte la luminosité", "Active le mode sombre",
-         "Baisse le son de Spotify", "Cherche des vidéos de chats sur YouTube", "Cherche un casque audio sur Amazon",
-         "Résume ce que j'ai copié", "Traduis en anglais ce que j'ai copié", "Corrige ce que j'ai copié",
-         "Qu'est-ce qu'il y a à l'écran ?", "Fais une capture d'écran", "Est-ce que mon PC va bien ?",
-         "Est-ce que j'ai des nouveaux mails ?", "C'est quand mon prochain rendez-vous ?", "Qu'est-ce que j'ai demain ?",
-         "Est-ce qu'Internet fonctionne ?", "Qui m'a appelé ?", "Allume la télé", "Raconte-moi une blague",
-         "Raconte-moi une anecdote", "Retiens que mon plat préféré, ce sont les lasagnes", "Note que je dois racheter du café",
-         "Lance un chrono", "Mets les couleurs Aurore", "Prends une voix de femme", "Parle plus vite",
-         "Active le mode nuit", "Ouvre les réglages", "Qu'est-ce que tu sais faire ?", "Combien coûte le gazole près de chez moi ?",
-         "Donne-moi la recette des crêpes", "Coupe le micro")
+IDEES = ("Quelle heure est-il ?", "Quel jour sommes-nous ?", "Mets un minuteur pâtes de 10 minutes",
+         "Annule le minuteur", "Rappelle-moi demain à 9 heures d'appeler le garage", "Quels sont mes rappels ?",
+         "Réveille-moi à 7 heures", "Lance un chrono", "Combien font 17 fois 23 ?", "Convertis 30 miles en kilomètres",
+         "Ajoute du lait à la liste de courses", "Qu'est-ce qu'il y a sur ma liste de courses ?",
+         "Retiens que mon plat préféré, ce sont les lasagnes", "Note que je dois racheter du café",
+         "Ouvre le navigateur", "Où j'en étais ?", "Baisse le son du navigateur", "Ouvre l'explorateur de fichiers",
+         "Ouvre le bloc-notes", "Ouvre le gestionnaire des tâches", "Ouvre les paramètres de Windows",
+         "Ouvre le dossier téléchargements", "Ouvre le dernier téléchargement", "Mets le son à 30 pour cent",
+         "Active le mode sombre", "Cherche des vidéos de chats sur YouTube", "Cherche un casque audio sur Amazon",
+         "Relie ma boîte mail", "Relie mon agenda", "Montre-moi les premiers pas", "Quelle est ta version ?",
+         "Mets les couleurs Aurore", "Mets les couleurs Vice City", "Prends une voix de femme", "Mets la voix d'homme",
+         "Parle plus vite", "Parle plus lentement", "Active le mode nuit", "Ouvre les réglages",
+         "Qu'est-ce que tu sais faire ?", "Coupe le micro")
 DUREE_IDEE = 6.0          # secondes par idée affichée
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p

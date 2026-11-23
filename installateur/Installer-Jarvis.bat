@@ -535,8 +535,30 @@ function Reprendre-Fichiers($source, $dossier) {
 }
 
 # ---------- Récupérer les fichiers de Jarvis ----------
+function Version-Stable-Choisie($client) {
+    # installation-stable.txt (à la racine du dépôt, branche main) : l'étiquette de la version publiée par laquelle commence
+    # une PREMIÈRE installation (ex. v1.47). Rien d'exploitable (fichier absent, illisible, « latest », étiquette inconnue,
+    # pas de réseau) : on renvoie $null et l'installateur prend la dernière version publiée, comme avant.
+    $adresse = if ($env:JARVIS_URL_VERSION_STABLE) { $env:JARVIS_URL_VERSION_STABLE } else { "https://raw.githubusercontent.com/$DEPOT/main/installation-stable.txt" }
+    try {
+        $lignes = @($client.DownloadString($adresse) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
+        $choisie = if ($lignes.Count) { [string]$lignes[0] } else { '' }
+        if ($choisie -match '^v\d+(\.\d+){1,3}$') {
+            # la version existe-t-elle ? (son archive répond : pas l'API de GitHub, limitée à 60 appels par heure et par adresse)
+            $p = Start-Process -FilePath curl.exe -ArgumentList ('-L --head --fail --silent --connect-timeout 20 --max-time 40 -o NUL "https://github.com/' + $DEPOT + '/archive/refs/tags/' + $choisie + '.zip"') -WindowStyle Hidden -PassThru -Wait
+            if ($p.ExitCode -eq 0) {
+                Journal "Première installation : version stable choisie $choisie."
+                return $choisie
+            }
+            Journal "La version stable choisie ($choisie) est introuvable (code curl $($p.ExitCode)) : dernière version publiée à la place."
+        } elseif ($choisie) { Journal "installation-stable.txt : « $choisie » n'est pas une étiquette de version : dernière version publiée à la place." }
+    } catch { Journal "Version stable non lue ($($_.Exception.Message)) : dernière version publiée à la place." }
+    return $null
+}
+
 function Copier-Programme($dossier) {
     New-Item -ItemType Directory -Path $dossier -Force | Out-Null
+    $miseAJour = Test-Path -LiteralPath (Join-Path $dossier 'jarvis_gardien.py')       # Jarvis est déjà là : c'est une mise à jour
     $source = $env:JARVIS_SOURCE                       # dossier local (essais avant publication)
     $etiquette = 'copie locale'
     if (-not $source) {
@@ -547,7 +569,13 @@ function Copier-Programme($dossier) {
             $client.Encoding = [Text.Encoding]::UTF8
             # JARVIS_ETIQUETTE : la version voulue (une pre-version pour un testeur volontaire) ; sinon la derniere publiee
             if ($env:JARVIS_ETIQUETTE) { $etiquette = $env:JARVIS_ETIQUETTE }
-            else { $etiquette = ($client.DownloadString("https://api.github.com/repos/$DEPOT/releases/latest") | ConvertFrom-Json).tag_name }
+            else {
+                if (-not $miseAJour) {                 # première installation : la version stable choisie, sinon la dernière
+                    $choisie = Version-Stable-Choisie $client
+                    if ($choisie) { $etiquette = $choisie }
+                }
+                if ($etiquette -eq 'main') { $etiquette = ($client.DownloadString("https://api.github.com/repos/$DEPOT/releases/latest") | ConvertFrom-Json).tag_name }
+            }
         } catch { Journal "Dernière version introuvable par l'API GitHub : $($_.Exception.Message)" }
         $adresse = if ($etiquette -eq 'main') { "https://github.com/$DEPOT/archive/refs/heads/main.zip" } else { "https://github.com/$DEPOT/archive/refs/tags/$etiquette.zip" }
         $zip = Join-Path $TEMP 'jarvis.zip'

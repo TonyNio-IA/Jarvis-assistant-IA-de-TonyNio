@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.47** (pre-release for testers: 1.49)
+**Français : [README.md](README.md)** · **Current version: 1.50**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -41,9 +41,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
-## New in 1.49 (pre-release, for volunteer testers)
+## New in 1.50
 
 Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
+
+- **Opening applications**: « Ouvre … » also finds Microsoft Store apps and shortcuts on the Desktop, not only those in the Start menu.
+- **No duplicates**: an identical message sent several times in a row (repeated clicks) is no longer sent twice.
+- **Example phrases**: the suggestions scrolling in the window only contain phrases checked one by one.
+- **First install**: the `installation-stable.txt` file says which stable version a new installation starts on. Updates always go to the latest version.
 
 - **Any browser**: Jarvis uses the browser chosen in Windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi…). « Ouvre le navigateur », « ouvre Firefox », « ferme le navigateur », « où j'en étais ? », « baisse le son du navigateur ».
 - **Common mailboxes**: « Jarvis, relie mes mails » opens a window that guides you step by step for Gmail, Orange, Free, La Poste, Yahoo, iCloud or another mailbox. No more command line. Outlook, Hotmail and Live addresses are not possible yet: Microsoft no longer accepts passwords for apps.
@@ -443,6 +448,7 @@ The commands below are the French phrases Jarvis understands, with their meaning
 | `jarvis_tts.py` | The fallback Windows voice |
 | `jarvis_config.py` | Reads the personal settings (`config.json`) |
 | `config.exemple.json` | The template for personal settings |
+| `installation-stable.txt` | One line: the stable version a new installation starts on (updates always go to the latest version) |
 | `installateur/` | The installer: `Installer-Jarvis.bat` does all the work; `lanceur.cs` is the small `.exe` program that carries the reactor icon and runs that `.bat`; `Lisez-moi-si-Windows-bloque.txt` is the help sheet if Windows blocks the install |
 | `requirements.txt` | The required Python modules |
 | `LICENSE.md` | The license (PolyForm Strict 1.0.0) |

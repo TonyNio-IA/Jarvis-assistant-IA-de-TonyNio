@@ -37,6 +37,35 @@ def ranger(cible, utilisateur, secret):
         return False
 
 
+def noms(prefixe="Jarvis-"):
+    """Les noms rangés dans le coffre de Windows qui commencent par ce préfixe."""
+    try:
+        advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+        advapi.CredEnumerateW.argtypes = [wt.LPCWSTR, wt.DWORD, ctypes.POINTER(wt.DWORD),
+                                          ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(_CREDENTIAL)))]
+        advapi.CredEnumerateW.restype = wt.BOOL
+        advapi.CredFree.argtypes = [ctypes.c_void_p]
+        nombre, liste = wt.DWORD(0), ctypes.POINTER(ctypes.POINTER(_CREDENTIAL))()
+        if not advapi.CredEnumerateW(prefixe + "*", 0, ctypes.byref(nombre), ctypes.byref(liste)):
+            return []
+        try:
+            return [liste[i].contents.TargetName for i in range(nombre.value)
+                    if (liste[i].contents.TargetName or "").startswith(prefixe)]
+        finally:
+            advapi.CredFree(liste)
+    except Exception as erreur:
+        print("Coffre :", type(erreur).__name__, erreur)
+        return []
+
+
+def tout_retirer(prefixe="Jarvis-"):
+    """Retire du coffre de Windows tout ce que Jarvis y a rangé (mots de passe, liens d'agenda, jetons).
+    Appelé à la désinstallation quand l'utilisateur ne garde pas ses fichiers. Renvoie le nombre de retraits."""
+    if len(prefixe) < 7:                  # garde-fou : jamais un préfixe qui toucherait autre chose que Jarvis
+        return 0
+    return sum(1 for nom in noms(prefixe) if retirer(nom))
+
+
 def retirer(cible):
     """Retire le secret rangé sous « cible ». Renvoie True s'il n'y est plus (retiré, ou déjà absent)."""
     try:

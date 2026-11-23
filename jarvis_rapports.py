@@ -396,6 +396,50 @@ def _erreurs_du_journal_precedent():
             i += 1
     if d:
         noter("erreur", source="gardien", message=f"{d} arrêt(s) inattendu(s), Jarvis relancé")
+    for arret in arrets_inattendus(session)[:5]:
+        noter("erreur", source="arrêt inattendu", type=arret["code"], message=arret["explication"], ou=arret["avant"])
+
+
+# Codes de sortie de Windows qu'on rencontre quand un programme s'arrête brutalement
+_CODES_ARRET = {
+    "1": "erreur Python non rattrapée",
+    "3221225477": "accès mémoire interdit (0xC0000005), souvent un module audio, graphique ou de reconnaissance",
+    "3221226505": "arrêt d'urgence du programme (0xC0000409)",
+    "3221225725": "pile dépassée (0xC00000FD)",
+    "3221225786": "fenêtre fermée ou Ctrl+C (0xC000013A)",
+    "3221225794": "un composant n'a pas pu se charger (0xC0000142)",
+    "3221225781": "une bibliothèque manque (0xC0000135)",
+    "3221226356": "mémoire saturée (0xC0000374)",
+    "3221225495": "plus assez de mémoire (0xC0000017)",
+}
+# Lignes du journal qui contiennent ce que la personne a dit ou ce que Jarvis a répondu : jamais dans ce relevé
+_LIGNE_PERSONNELLE = re.compile(r"^\s*(?:Entendu|Demande|JARVIS\s*:|Whisper\s*:|Vosk|Commande instantanée|Tablette, réponse"
+                                r"|Tablette, demande|Claude\s*:|Note|Rappel|Mail|Agenda\s*:)", re.I)
+
+
+def arrets_inattendus(lignes):
+    """Dans les lignes d'une session du journal : chaque arrêt inattendu noté par le gardien, avec son code de sortie,
+    ce qu'il veut dire, et les 8 dernières lignes techniques qui le précèdent (nettoyées ; jamais ce qui a été dit)."""
+    arrets = []
+    for i, ligne in enumerate(lignes):
+        m = re.search(r"s'est arrêté tout seul \(code (-?\d+)\) après (\d+) s", ligne)
+        if not m:
+            continue
+        code = m.group(1)
+        if code.startswith("-"):                       # certains Windows donnent le code en négatif
+            code = str(int(code) + 2 ** 32)
+        avant = []
+        for precedente in reversed(lignes[max(0, i - 60):i]):
+            precedente = precedente.strip()
+            if not precedente or precedente.startswith("[gardien") or _LIGNE_PERSONNELLE.match(precedente):
+                continue
+            avant.append(anonymiser(precedente, 120))
+            if len(avant) == 8:
+                break
+        arrets.append({"code": code, "apres_s": int(m.group(2)),
+                       "explication": _CODES_ARRET.get(code, "code inconnu") + f", après {m.group(2)} s de marche",
+                       "avant": list(reversed(avant))})
+    return arrets
 
 
 # ---------- Le PC, les réglages, les appareils ----------
@@ -650,8 +694,55 @@ def _envoyer(donnees):
 def _signal():
     if not valeur("compteur", True) or _invite():
         return False
-    return _envoyer({"genre": "signal", "id": valeur("id"), "version": _version_jarvis(), "windows": _windows(),
-                     "niveau": niveau() + (" + testeur" if valeur("testeur") else "")})
+    signal = {"genre": "signal", "id": valeur("id"), "version": _version_jarvis(), "windows": _windows(),
+              "niveau": niveau() + (" + testeur" if valeur("testeur") else "")}
+    try:                                   # le type de matériel seulement : rien qui dise qui est la personne
+        signal["materiel"] = materiel_du_compteur()
+    except Exception:
+        pass
+    nom = str(valeur("etiquette") or "").strip()
+    if nom:                                # un nom que l'utilisateur a donné lui-même à ce PC (« nomme ce PC … »)
+        signal["nom"] = nom[:40]
+    return _envoyer(signal)
+
+
+def materiel_du_compteur():
+    """Ce que le compteur anonyme dit du PC : processeur, cœurs, mémoire, carte graphique, portable ou fixe.
+    Ni le nom du micro, ni le disque, ni aucun réglage : ceux-là restent réservés au rapport technique."""
+    m = _materiel()
+    resume = {cle: m[cle] for cle in ("processeur", "coeurs", "fils_de_calcul", "memoire_go", "portable") if cle in m}
+    cartes = [c.get("nom") + (f" ({c['memoire_go']} Go)" if c.get("memoire_go") else "")
+              for c in m.get("cartes_graphiques", []) if c.get("nom")]
+    if cartes:
+        resume["carte_graphique"] = " + ".join(cartes)[:120]
+    return resume
+
+
+_NOMMER = re.compile(r"^\W*(?:jarvis\W+)?(?:nomme|appelle|baptise)\s+ce\s+(?:pc|p\.c\.|ordinateur|ordi)\W+(.{2,60}?)\W*$", re.I)
+_OUBLIER_NOM = re.compile(r"^\W*(?:jarvis\W+)?(?:oublie|efface|retire|enl[eè]ve|supprime)\s+le\s+nom\s+de\s+ce\s+"
+                          r"(?:pc|ordinateur|ordi)\W*$", re.I)
+
+
+def commande_nom_pc(brut):
+    """« Nomme ce PC PC du salon » : un nom choisi par l'utilisateur, envoyé avec le compteur anonyme pour que le
+    créateur de Jarvis reconnaisse ce PC (utile pour ses propres PC d'essai). « Oublie le nom de ce PC » l'enlève."""
+    brut = (brut or "").replace("’", "'").strip()
+    if _OUBLIER_NOM.match(brut):
+        regler("etiquette", "")
+        threading.Thread(target=_signal, daemon=True).start()
+        return "C'est fait : ce PC n'a plus de nom dans mes rapports."
+    m = _NOMMER.match(brut)
+    if not m:
+        return None
+    nom = " ".join(m.group(1).split()).strip(" .!?«»\"'")[:40]
+    if len(nom) < 2:
+        return None
+    if _invite():
+        return "En mode invité, je ne change pas ce réglage."
+    regler("etiquette", nom)
+    threading.Thread(target=_signal, daemon=True).start()
+    return (f"C'est noté : ce PC s'appelle « {nom} » dans mes rapports. Ce nom est envoyé avec le compteur anonyme. "
+            "Pour l'enlever, dis : oublie le nom de ce PC.")
 
 
 def envoyer_rapport(force=False):

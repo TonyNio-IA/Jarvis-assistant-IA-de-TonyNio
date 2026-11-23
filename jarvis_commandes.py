@@ -901,6 +901,10 @@ def _commande_ouvrir(t):
         if choix is None and len(demande) >= 3:
             proches = difflib.get_close_matches(demande, list(raccourcis), 1, cutoff=0.82)
             choix = raccourcis[proches[0]] if proches else None
+        if choix is None and len(demande) >= 3:
+            choix = _menu_demarrer(True).get(demande)        # un programme installé depuis la dernière lecture
+        if choix is None and len(demande) >= 3:
+            choix = _application_windows(demande)            # les applications du Microsoft Store, entre autres
         if choix:
             nom, chemin = choix
             os.startfile(chemin)
@@ -912,6 +916,47 @@ def _commande_ouvrir(t):
 _raccourcis = None
 FICHIER_APPLICATIONS = jarvis_config.chemin("applications.json")   # applications déjà ouvertes (reste sur ce PC)
 _connues = None
+
+
+_store = None
+
+
+def _applications_store():
+    """Les applications que Windows liste dans son menu Démarrer, celles du Microsoft Store comprises :
+    nom simplifié -> (nom affiché, « shell:AppsFolder\\identifiant »). Lue une seule fois (1 à 3 s), sans droits spéciaux."""
+    global _store
+    if _store is None:
+        _store = {}
+        try:
+            sortie = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                 "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json -Compress"],
+                capture_output=True, timeout=15, creationflags=0x08000000)
+            donnees = json.loads(sortie.stdout.decode("utf-8", "replace").strip() or "[]")
+            if isinstance(donnees, dict):
+                donnees = [donnees]
+            for appli in donnees:
+                nom = str(appli.get("Name") or "").strip()
+                identifiant = str(appli.get("AppID") or "").strip()
+                if nom and identifiant and not re.search(
+                        r"uninst|d[ée]sinstall|manual|manuel|docs|notes|aide|nouveaut|registry|jarvis", nom, re.I):
+                    _store.setdefault(_sans_accents(nom), (nom, "shell:AppsFolder\\" + identifiant))
+        except Exception as erreur:
+            print("Applications Windows : liste impossible :", type(erreur).__name__)
+    return _store
+
+
+def _application_windows(demande):
+    """(nom, adresse) de l'application que Windows connaît sous ce nom, ou None. Un nom proche suffit (un peu
+    mal entendu), mais plus strictement que pour le menu Démarrer : on n'ouvre pas la première venue."""
+    liste = _applications_store()
+    if demande in liste:
+        return liste[demande]
+    if len(demande) >= 4:
+        proches = difflib.get_close_matches(demande, list(liste), 1, cutoff=0.85)
+        if proches:
+            return liste[proches[0]]
+    return None
 
 
 def applications_connues():
@@ -961,21 +1006,34 @@ def noms_applications(maximum=10):
         return []
 
 
-def _menu_demarrer():
-    """Applications du menu Démarrer : nom simplifié -> (nom affiché, raccourci)."""
+def _menu_demarrer(rafraichir=False):
+    """Applications du menu Démarrer et raccourcis du Bureau (.lnk et .url, ce qui couvre les jeux Steam ou Epic) :
+    nom simplifié -> (nom affiché, raccourci). rafraichir=True relit les dossiers (un programme installé depuis)."""
     global _raccourcis
-    if _raccourcis is None:
+    if _raccourcis is None or rafraichir:
         _raccourcis = {}
-        for racine in (os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"),
-                       os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs")):
+        bureau_onedrive = os.path.join(os.environ.get("OneDrive", ""), "Desktop") if os.environ.get("OneDrive") else ""
+        racines = ((os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"), True),
+                   (os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"), True),
+                   (os.path.expandvars(r"%PUBLIC%\Desktop"), False),
+                   (os.path.join(os.path.expanduser("~"), "Desktop"), False),
+                   (bureau_onedrive, False))
+        for racine, sous_dossiers in racines:
+            if not racine or not os.path.isdir(racine):
+                continue
             for dossier, _, fichiers in os.walk(racine):
                 for fichier in fichiers:
-                    nom = fichier[:-4]
-                    if not fichier.lower().endswith(".lnk") or re.search(
+                    nom, extension = os.path.splitext(fichier)
+                    if extension.lower() not in (".lnk", ".url") or re.search(
                             r"uninst|d[ée]sinstall|manual|manuel|docs|notes|aide|nouveaut|registry|jarvis",
                             nom, re.I):
                         continue
-                    _raccourcis[_sans_accents(nom)] = (nom, os.path.join(dossier, fichier))
+                    if sous_dossiers:                       # le menu Démarrer d'abord ; le Bureau seulement s'il manque
+                        _raccourcis[_sans_accents(nom)] = (nom, os.path.join(dossier, fichier))
+                    else:
+                        _raccourcis.setdefault(_sans_accents(nom), (nom, os.path.join(dossier, fichier)))
+                if not sous_dossiers:                       # sur le Bureau : seulement le premier niveau
+                    break
     return _raccourcis
 
 
@@ -1502,7 +1560,11 @@ _COMMANDES_LEGER = re.compile(
     r"voix d'?\s?homme|voix de femme|change de voix|parle plus (?:vite|lentement|fort|doucement)|"
     r"monte le son|baisse le son|coupe le son|remets le son|volume|mode nuit|mode enfant|"
     r"quelle heure|quel jour|quelle date|météo|quel temps|minuteur|compte à rebours|rappelle[- ]moi|"
-    r"stop|arrête|pause|reprends|suivante?|précédente?|ouvre les réglages|ferme les réglages)\b")
+    r"stop|arrête|pause|reprends|suivante?|précédente?|ouvre les réglages|ferme les réglages|"
+    r"où j'en étais|rouvre mes onglets|(?:ouvre|ferme) (?:le navigateur|internet|chrome|edge|firefox|brave|opera)|"
+    r"qu'est[- ]ce qui (?:se )?(?:joue|passe)|c'est quoi cette (?:musique|chanson)|"
+    r"relie (?:mes mails|ma bo[iî]te mail|mon agenda)|coupe (?:le|ton) micro|"
+    r"signale un probl[eè]me)\b")
 
 
 def sans_whisper(texte_vosk):
@@ -1619,6 +1681,26 @@ def _commande_appareil_inconnu(t, teles_seulement=False):
         return None
 
 
+def _commande_nom_pc(brut):
+    """« Nomme ce PC … » : un nom donné par l'utilisateur lui-même, envoyé avec le compteur anonyme."""
+    try:
+        import jarvis_rapports
+        return jarvis_rapports.commande_nom_pc(brut)
+    except Exception as erreur:
+        print("Rapports (nom du PC) :", erreur)
+        return None
+
+
+def _commande_premiers_pas(t):
+    """« Jarvis, premiers pas » : la fenêtre qui montre comment lui parler et quoi essayer."""
+    try:
+        import jarvis_premiers_pas
+        return jarvis_premiers_pas.commande(t)
+    except Exception as erreur:
+        print("Premiers pas :", erreur)
+        return None
+
+
 def commande_micro(t):
     """« Coupe le micro » : Jarvis n'écoute plus (un micro barré s'affiche sur le réacteur). Pour le rallumer :
     clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
@@ -1705,6 +1787,8 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
                              lambda: _commande_rapports(t),
+                             lambda: _commande_nom_pc(brut),
+                             lambda: _commande_premiers_pas(t),
                              lambda: _commande_agenda_relier(t),
                              lambda: _commande_mails_relier(t),
                              lambda: _commande_musique_en_cours(t),

@@ -293,6 +293,7 @@ AIDE = [
     ("Bases", "« nouvelle conversation »", "Repart de zéro."),
     ("Bases", "« qu'est-ce que tu sais faire ? »", "Le résumé des commandes."),
     ("Bases", "« quand tu entends mes mots, c'est mets-moi »", "Jarvis retient la correction pour la suite. « oublie la correction mes mots »."),
+    ("Bases", "« premiers pas »", "Rouvre la fenêtre de bienvenue : comment me parler et quoi essayer."),
     ("Bases", "« fais un diagnostic »", "Vérifie le micro, le son, Whisper, Claude et la connexion (onglet Santé)."),
     ("Heure et météo", "« quelle heure est-il ? », « quel jour sommes-nous ? »", ""),
     ("Heure et météo", "« quelle heure est-il à Tokyo ? »", "L'heure dans une autre ville."),
@@ -858,6 +859,48 @@ def _construire():
         bouton(cadre, "Relancer le diagnostic", lancer, fort=True).pack(side="right", padx=12, pady=5)
         lancer()
 
+    def carte_mode_leger():
+        """Mode léger (petits PC) : automatique, toujours ou jamais. Pris en compte au prochain démarrage."""
+        import json as _json
+        fichier = jarvis_config.chemin("mode_leger.json")
+        try:
+            with open(fichier, encoding="utf-8") as f:
+                etat = _json.load(f)
+            etat = etat if isinstance(etat, dict) else {}
+        except (OSError, ValueError):
+            etat = {}
+        noms = {"auto": "Automatique", "toujours": "Toujours", "jamais": "Jamais"}
+        cadre = ligne()
+        gauche = tk.Frame(cadre, bg=PANNEAU2)
+        gauche.pack(side="left", padx=12, pady=9)
+        tk.Label(gauche, text="Mode léger (pour les PC peu puissants)", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(anchor="w")
+        actif = etat.get("choix") == "toujours" or (etat.get("choix") != "jamais" and etat.get("actif"))
+        detail = ("En ce moment : activé" + (f" depuis le {etat['depuis']}" if etat.get("depuis") else "") if actif
+                  else "En ce moment : désactivé") + ". Jarvis répond plus vite, en comprenant un peu moins bien."
+        note = tk.Label(gauche, text=detail, bg=PANNEAU2, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(330),
+                        justify="left")
+        note.pack(anchor="w")
+
+        def changer(nom):
+            cle = next(k for k, v in noms.items() if v == nom)
+            try:
+                with open(fichier, encoding="utf-8") as f:
+                    d = _json.load(f)
+                d = d if isinstance(d, dict) else {}
+            except (OSError, ValueError):
+                d = {}
+            d["choix"] = cle
+            if cle == "jamais":
+                d["actif"] = False
+            try:
+                with open(fichier, "w", encoding="utf-8") as f:
+                    _json.dump(d, f, ensure_ascii=False)
+                note.configure(text="Pris en compte au prochain démarrage de Jarvis (dis « Jarvis, redémarre »).")
+            except OSError:
+                note.configure(text="Je n'ai pas pu enregistrer ce choix.")
+        choix(cadre, noms.get(etat.get("choix", "auto"), "Automatique"), list(noms.values()), changer).pack(
+            side="right", padx=12, pady=4)
+
     def page_systeme():
         vider()
         titre("Système", "Démarrage, sauvegarde et remise à zéro des réglages.")
@@ -865,6 +908,11 @@ def _construire():
         cadre = ligne()
         tk.Label(cadre, text="Lancer Jarvis avec Windows", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
         interrupteur(cadre, demarrage_actif(), demarrage_windows).pack(side="right", padx=12)
+        section("Vitesse")
+        try:
+            carte_mode_leger()
+        except Exception as erreur:
+            print("Réglages (mode léger) :", erreur)
         section("Sauvegarde")
         cadre = ligne()
         tk.Label(cadre, text="Réglages, profils, mémoires, rappels, notes et listes", bg=PANNEAU2, fg=TEXTE, font=POLICE,
@@ -1018,7 +1066,7 @@ def _construire():
         choix(cadre, jarvis_rapports.NIVEAUX[jarvis_rapports.niveau()], noms,
               lambda n: jarvis_rapports.choisir_niveau(cles[noms.index(n)])).pack(side="right", padx=12, pady=4)
         cadre = ligne()
-        tk.Label(cadre, text="Compteur anonyme (combien de personnes utilisent Jarvis)", bg=PANNEAU2, fg=TEXTE,
+        tk.Label(cadre, text="Compteur anonyme (combien de personnes utilisent Jarvis, et sur quel type de PC)", bg=PANNEAU2, fg=TEXTE,
                  font=POLICE).pack(side="left", padx=12, pady=9)
         interrupteur(cadre, jarvis_rapports.valeur("compteur", True),
                      lambda v: jarvis_rapports.regler("compteur", bool(v))).pack(side="right", padx=12)

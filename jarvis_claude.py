@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.49"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.50"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -151,6 +151,7 @@ WHISPER_TEMPERATURES = (0.0, 0.4)   # deux essais au plus quand la voix est peu 
 # d'après ses trois dernières retranscriptions, et s'en souvient (mode_leger.json, à effacer pour revenir au normal).
 MODE_LEGER_FICHIER = jarvis_config.chemin("mode_leger.json")
 WHISPER_LENT = 7.0                  # secondes de calcul (médiane des 3 dernières phrases) au-delà : mode léger
+WHISPER_TRES_LENT = 10.0            # deux phrases de suite au-delà : mode léger sans attendre la troisième
 _durees_whisper = collections.deque(maxlen=3)
 
 
@@ -160,30 +161,67 @@ def _appliquer_mode_leger():
     jarvis_commandes.MODE_LEGER = True    # les commandes connues sont prises telles que Vosk les a entendues
 
 
-def noter_duree_whisper(calcul):
-    """Après chaque retranscription sur le PC : si ce PC est nettement lent, Jarvis passe en mode léger."""
-    if WHISPER_FAISCEAU == 1:
-        return
-    _durees_whisper.append(calcul)
-    if len(_durees_whisper) < 3 or sorted(_durees_whisper)[1] <= WHISPER_LENT:
-        return
-    _appliquer_mode_leger()
+def etat_mode_leger():
+    """Le contenu de mode_leger.json : {"choix": "auto" | "toujours" | "jamais", "actif": ..., "mesures": [...]}."""
+    try:
+        with open(MODE_LEGER_FICHIER, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _ecrire_mode_leger(**changements):
+    """Met à jour mode_leger.json sans perdre le reste (le choix fait dans les réglages, en particulier)."""
+    d = etat_mode_leger()
+    d.update(changements)
     try:
         with open(MODE_LEGER_FICHIER, "w", encoding="utf-8") as f:
-            json.dump({"actif": True, "depuis": time.strftime("%d/%m/%Y %H:%M"),
-                       "secondes": [round(d, 1) for d in _durees_whisper]}, f, ensure_ascii=False)
+            json.dump(d, f, ensure_ascii=False)
     except OSError:
         pass
-    print(f"Mode léger activé : ce PC met environ {sorted(_durees_whisper)[1]:.0f} s à comprendre une phrase. "
-          "Jarvis compare désormais une seule hypothèse : les réponses seront nettement plus rapides.")
 
 
-try:                                    # décidé lors d'un lancement précédent
-    with open(MODE_LEGER_FICHIER, encoding="utf-8") as _f:
-        if json.load(_f).get("actif"):
-            _appliquer_mode_leger()
-            print("Mode léger (PC lent) : Whisper compare une seule hypothèse.")
-except (OSError, ValueError):
+def noter_duree_whisper(calcul):
+    """Après chaque retranscription sur le PC : si ce PC est nettement lent, Jarvis passe en mode léger
+    (sauf si l'utilisateur a choisi « jamais » dans les réglages)."""
+    if WHISPER_FAISCEAU == 1 or etat_mode_leger().get("choix") == "jamais":
+        return
+    _durees_whisper.append(calcul)
+    if not pc_lent(list(_durees_whisper)):
+        # les mesures sont gardées d'un lancement à l'autre : sur un petit PC, on parle peu à Jarvis à chaque fois
+        _ecrire_mode_leger(actif=False, mesures=[round(d, 1) for d in _durees_whisper])
+        return
+    _appliquer_mode_leger()
+    _ecrire_mode_leger(actif=True, depuis=time.strftime("%d/%m/%Y %H:%M"),
+                       secondes=[round(d, 1) for d in _durees_whisper])
+    print(f"Mode léger activé : ce PC met environ {sorted(_durees_whisper)[len(_durees_whisper) // 2]:.0f} s à "
+          "comprendre une phrase. Jarvis compare désormais une seule hypothèse : les réponses seront nettement "
+          "plus rapides.")
+
+
+def pc_lent(mesures):
+    """Vrai si les dernières retranscriptions montrent un PC nettement lent : la médiane des trois dernières
+    dépasse 7 s, ou les deux dernières dépassent toutes les deux 10 s (inutile d'attendre une troisième)."""
+    mesures = [float(m) for m in mesures][-3:]
+    if len(mesures) >= 3 and sorted(mesures)[1] > WHISPER_LENT:
+        return True
+    return len(mesures) >= 2 and min(mesures[-2:]) > WHISPER_TRES_LENT
+
+
+try:                                    # décidé lors d'un lancement précédent, ou choisi dans les réglages
+    _etat_leger = etat_mode_leger()
+    _choix_leger = _etat_leger.get("choix", "auto")
+    if _choix_leger == "toujours" or (_choix_leger != "jamais" and _etat_leger.get("actif")):
+        _appliquer_mode_leger()
+        print("Mode léger (PC lent) : Whisper compare une seule hypothèse."
+              + (" (choisi dans les réglages)" if _choix_leger == "toujours" else ""))
+    elif _choix_leger == "jamais":
+        print("Mode léger : désactivé dans les réglages.")
+    else:                               # pas encore décidé : les mesures des lancements précédents comptent
+        _durees_whisper.extend(float(m) for m in (_etat_leger.get("mesures") or [])[-3:]
+                               if isinstance(m, (int, float)) and 0 < m < 600)
+except (OSError, ValueError, TypeError):
     pass
 # Whisper lit cette phrase avant d'écouter : elle lui donne le genre de demandes attendues et les
 # noms propres. Mesuré sur des enregistrements réels : avec elle et un court silence ajouté
@@ -403,6 +441,23 @@ _crete_spectre = 4.0     # plus fort niveau vu récemment : le spectre reste lis
 
 sons_perdus = 0         # morceaux de son perdus par le micro (« input overflow ») pendant la demande en cours
 duree_whisper = 0.0     # temps pris par Whisper pour la dernière demande
+
+
+def _ouvrir_micro():
+    """Ouvre le micro. Sur un PC lent (mode léger), la réserve de son demandée à Windows est plus grande (une
+    demi-seconde) : le micro perd moins de son (« input overflow ») quand le processeur est occupé. Si Windows
+    refuse cette réserve, on revient au réglage habituel."""
+    essais = ((0.5,) if WHISPER_FAISCEAU == 1 else ()) + ("high",)
+    derniere = None
+    for latence in essais:
+        try:
+            return sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=BLOC_AUDIO, latency=latence, device=None,
+                                     dtype="int16", channels=1, callback=audio_callback)
+        except Exception as erreur:
+            derniere = erreur
+            if latence != "high":
+                print("(Micro : réserve de son agrandie refusée, réglage habituel :", type(erreur).__name__, ")")
+    raise derniere
 
 
 def audio_callback(indata, frames, time_info, status):
@@ -1108,13 +1163,14 @@ class ClaudeContinu:
                     print("Claude (erreur) :", ligne[:500])
                     if "limit" in ligne.lower():
                         return ("La limite d'utilisation de Claude est atteinte pour le moment. Je réponds quand "
-                                "même tout de suite à l'heure, la météo, les minuteurs, la musique et les fenêtres."), True
+                                "même tout de suite à l'heure, la météo, les minuteurs, la musique, les fenêtres et l'ouverture des "
+                                "applications."), True
                     return "Claude a rencontré un problème avec cette demande.", True
                 return reponse, False
 
 
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
-               "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres. "
+               "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres, l'ouverture des applications. "
                "Pour ajouter Claude, relance le fichier Installer Jarvis, rangé dans mon dossier, et choisis Ajouter Claude, le troisième choix de la liste.")
 claude = ClaudeContinu()
 
@@ -1564,7 +1620,7 @@ def traiter(demande, recognizer):
                 etape=f"whisper {whisper_ici:.1f} s" if whisper_ici else "")
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
         etat("reponse")
-        interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil())
+        interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil(reponse))
         if not interrompu and jarvis_locuteur.guide_demande():     # « apprends ma voix » : phrase par phrase
             interrompu = apprendre_voix_guidee(recognizer)
         preparer_ecoute(recognizer)
@@ -1675,7 +1731,7 @@ def traiter(demande, recognizer):
     if not erreur:
         if time.time() - debut_traitement > DUREE_TACHE_LONGUE:
             jarvis_voix.son_fini()                 # une longue tâche est finie : petit son avant la réponse
-        reponse = avec_salutation(bonjour_profil + reponse) + _question_accueil()
+        reponse = avec_salutation(bonjour_profil + reponse) + _question_accueil(reponse)
     interrompu = parler(reponse)
     preparer_ecoute(recognizer)
     return interrompu
@@ -1748,11 +1804,17 @@ def apprendre_voix_guidee(recognizer):
     return parler(jarvis_locuteur.terminer_guide(prenom))
 
 
-def _question_accueil():
+_REPONSE_RATEE = re.compile(r"^\W*(?:Je ne (?:trouve|sais|vois|peux|comprends)|Je n'(?:ai|arrive)|Désolé|Impossible|"
+                            r"Il faut d'abord|Ce n'est pas|Rien ne |.{0,60}n'est pas install)", re.I)
+
+
+def _question_accueil(reponse=""):
     """Ajouté après la réponse : une question de premiers pas (nouvel utilisateur), sinon, sur un profil enfant,
     le bilan des étoiles du dimanche ou la proposition du défi du jour (une fois par jour au plus)."""
     if getattr(jarvis_maj, "lancee", False):     # « je lance la mise à jour » : Jarvis s'arrête, la réponse serait perdue
         return ""
+    if reponse and _REPONSE_RATEE.match(str(reponse)):   # après un « je ne trouve pas… », pas de question ni de visite :
+        return ""                                        # elle attendra la prochaine réponse
     try:
         question = jarvis_accueil.question()
         if question:
@@ -2011,6 +2073,11 @@ def main():
         jarvis_rapports_ui.au_demarrage()
     except Exception as erreur_fenetres:
         print("Rapports (fenêtres) :", erreur_fenetres)
+    try:                                         # nouvel utilisateur : la fenêtre « Premiers pas », une seule fois
+        import jarvis_premiers_pas
+        jarvis_premiers_pas.au_demarrage()
+    except Exception as erreur_fenetres:
+        print("Premiers pas :", erreur_fenetres)
     jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
@@ -2081,15 +2148,7 @@ def main():
     reveil_son_bloque = 0.0
 
     try:
-        with sd.RawInputStream(
-            samplerate=SAMPLE_RATE,
-            blocksize=BLOC_AUDIO,
-            latency="high",            # réserve de son plus grande : plus de « input overflow » quand le PC est occupé
-            device=None,
-            dtype="int16",
-            channels=1,
-            callback=audio_callback,
-        ):
+        with _ouvrir_micro():
             debut_ecoute = time.time()
             premier_son_recu = False
             while True:

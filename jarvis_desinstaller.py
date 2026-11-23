@@ -590,6 +590,12 @@ def ouvrir(parent=None):
                 messagebox.showerror("Jarvis", f"La désinstallation n'a pas commencé : {erreur}\n\nRien n'a été supprimé.", parent=f)
                 fermer(f)
                 return
+            if not choix["garder"]:               # rien de Jarvis ne reste dans le coffre de Windows (mots de passe
+                try:                              # de la boîte mail, lien de l'agenda, jetons des appareils)
+                    import jarvis_coffre
+                    jarvis_coffre.tout_retirer()
+                except Exception as erreur:
+                    print("Désinstallation (coffre de Windows) :", erreur)
             etat.configure(text="Jarvis s'arrête. Une fenêtre montre la suite, puis un message te dira que c'est fini.")
             f.update_idletasks()
             lancer(commande)
