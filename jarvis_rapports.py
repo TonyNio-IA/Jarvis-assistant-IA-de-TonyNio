@@ -44,6 +44,11 @@ ESSAIS = 3                          # un envoi qui échoue est retenté 3 fois, 
 JOURS_QUESTIONNAIRE = 7
 JOURS_RAPPEL = 14                   # un seul rappel, deux semaines après un « non merci »
 MAX_EVENEMENTS = 3000
+DELAI_NOUVEL_ESSAI = 6 * 3600       # un envoi qui a échoué (pas de réseau...) est retenté 6 h plus tard, pas le lendemain
+# Combien d'événements récents on garde par sorte : une sorte très bavarde (faux réveils, réponses) ne chasse plus les autres
+PLAFONDS = {"reponse": 1200, "conversation": 300, "demande_claude": 200, "faux_reveil": 200, "incompris": 200,
+            "erreur": 300, "refaite": 100, "annulation": 100, "atelier": 100, "appareil_non_gere": 100}
+PLAFOND_DEFAUT = 200
 
 NIVEAUX = {"aucun": "Rien", "technique": "Technique", "complet": "Complet"}      # (noms courts : liste des réglages)
 
@@ -218,6 +223,19 @@ def a_encourager_complet():
         return False
 
 
+_version_notee = []
+
+
+def _version_en_cours():
+    """La version de Jarvis qui tourne (lue une seule fois : Jarvis redémarre après une mise à jour)."""
+    if not _version_notee:
+        try:
+            _version_notee.append(_version_jarvis())
+        except Exception:
+            return "?"
+    return _version_notee[0]
+
+
 def noter(genre, **infos):
     """Ajoute un événement au journal local, seulement si l'utilisateur a accepté les rapports."""
     if niveau() == "aucun" or _invite():
@@ -226,6 +244,8 @@ def noter(genre, **infos):
         return
     infos["genre"] = genre
     infos["t"] = round(time.time())
+    if "version" not in infos:
+        infos["version"] = _version_en_cours()
     try:
         with _verrou:
             with open(JOURNAL, "a", encoding="utf-8") as f:
@@ -242,7 +262,9 @@ def _vider_journal():
             pass
 
 
-def _lire_journal():
+def _lire_journal(ignores=None):
+    """Les événements en attente, dans l'ordre. Pour chaque sorte, seuls les plus récents sont gardés (PLAFONDS) ;
+    ce qui est écarté est compté dans « ignores » (un dictionnaire, si on en passe un)."""
     evenements = []
     try:
         with open(JOURNAL, encoding="utf-8") as f:
@@ -253,7 +275,17 @@ def _lire_journal():
                     pass
     except OSError:
         pass
-    return evenements[-MAX_EVENEMENTS:]
+    restants = collections.Counter(e.get("genre") for e in evenements)
+    gardes = []
+    for e in evenements:
+        genre = e.get("genre")
+        if restants[genre] > PLAFONDS.get(genre, PLAFOND_DEFAUT):
+            restants[genre] -= 1
+            if ignores is not None:
+                ignores[genre] = ignores.get(genre, 0) + 1
+            continue
+        gardes.append(e)
+    return gardes[-MAX_EVENEMENTS:]
 
 
 # Catégories des demandes (statistiques d'usage) : le premier mot-clé trouvé décide
@@ -386,6 +418,9 @@ def _erreurs_du_journal_precedent():
         return
     session = lignes[debuts[-2]:debuts[-1]]
     vu = d = 0
+    deja = collections.Counter(                         # plantages déjà notés sur le moment (crochets d'erreurs)
+        (e.get("type"), tuple(e.get("ou") or [])) for e in _lire_journal()
+        if e.get("genre") == "erreur" and (e.get("source") == "plantage" or str(e.get("source", "")).startswith("fil ")))
     i = 0
     while i < len(session) and vu < 20:
         if session[i].startswith("Traceback"):
@@ -398,9 +433,13 @@ def _erreurs_du_journal_precedent():
                 k += 1
             derniere = session[k] if k < len(session) else ""
             type_ = derniere.split(":")[0].strip()[:60]
-            noter("erreur", source="plantage (session précédente)", type=type_,
-                  message=anonymiser(derniere[len(type_) + 1:], 200), ou=ou[-3:])
-            vu += 1
+            cle = (type_, tuple(ou[-3:]))
+            if deja[cle] > 0:
+                deja[cle] -= 1                          # déjà noté au moment du plantage : pas deux fois
+            else:
+                noter("erreur", source="plantage (session précédente)", type=type_,
+                      message=anonymiser(derniere[len(type_) + 1:], 200), ou=ou[-3:])
+                vu += 1
             i = k
         else:
             if "s'est arrêté tout seul" in session[i]:
@@ -518,6 +557,17 @@ def _materiel():
         m["disque_go"], m["disque_libre_go"] = round(disque.total / 2 ** 30), round(disque.free / 2 ** 30)
     except Exception:
         pass
+    try:                                            # l'écran tel que Jarvis le voit : taille, échelle de Windows, nombre d'écrans
+        import ctypes
+        u = ctypes.windll.user32
+        ecran = {"largeur": u.GetSystemMetrics(0), "hauteur": u.GetSystemMetrics(1), "ecrans": u.GetSystemMetrics(80)}
+        try:
+            ecran["echelle_pct"] = round(u.GetDpiForSystem() * 100 / 96)
+        except Exception:
+            pass
+        m["ecran"] = ecran
+    except Exception:
+        pass
     try:                                            # portable (il a une batterie) ou PC fixe
         import ctypes
 
@@ -580,6 +630,15 @@ def _compte_json(*morceaux):
         return 0
 
 
+def _claude_installe():
+    """Claude est-il installé ? Le même test que Jarvis (~\\.local\\bin\\claude.exe) : seul ce Claude-là lui sert."""
+    try:
+        import jarvis_claude_reglages
+        return bool(jarvis_claude_reglages.installe())
+    except Exception:
+        return os.path.exists(os.path.expanduser(r"~\.local\bin\claude.exe"))
+
+
 def _reglages():
     """Les réglages faits ou jamais faits (oui / non, rien de leur contenu)."""
     import shutil
@@ -590,7 +649,7 @@ def _reglages():
     except OSError:
         pass
     return {"prenom": bool(jarvis_config.PRENOM), "ville": _existe("ville.txt"),
-            "claude": bool(shutil.which("claude")), "profils": _compte_json("profils.json"), "voix_apprises": voix,
+            "claude": _claude_installe(), "profils": _compte_json("profils.json"), "voix_apprises": voix,
             "mode_nuit_auto": bool(jarvis_config.HEURES_NUIT), "point_du_jour": bool(jarvis_config.SUJETS),
             "couleurs_choisies": _existe("apparence.json"), "reglages_modifies": _existe("preferences.json")}
 
@@ -644,8 +703,39 @@ def _mediane(valeurs):
     return round(statistics.median(valeurs), 2) if valeurs else None
 
 
+def _grouper_erreurs(liste, maximum=40):
+    """Les erreurs identiques (même source, type, message, endroit, version) sont regroupées avec un compteur :
+    une même erreur répétée 40 fois ne cache plus les autres, et le rapport reste léger."""
+    groupes = {}
+    for e in liste:
+        cle = tuple(json.dumps(e.get(k), ensure_ascii=False, sort_keys=True)
+                    for k in ("source", "type", "message", "ou", "version"))
+        g = groupes.get(cle)
+        if g is None:
+            g = groupes[cle] = {k: e.get(k) for k in ("source", "type", "message", "ou", "version")}
+            g["nombre"] = 0
+        g["nombre"] += 1
+        g["derniere_fois"] = e.get("t")
+    return list(groupes.values())[-maximum:]
+
+
+def _erreurs_a_plat(groupes, maximum=40):
+    """Les erreurs au format que lit le dépôt Google (une ligne par erreur, 40 au plus : son résumé du lundi les
+    compte une à une). On prend tour à tour une erreur de chaque sorte : une erreur répétée ne cache plus les autres.
+    Les compteurs exacts sont dans « erreurs_groupees »."""
+    restes = [dict(g) for g in groupes]
+    plat = []
+    while len(plat) < maximum and any(g["nombre"] > 0 for g in restes):
+        for g in restes:
+            if g["nombre"] > 0 and len(plat) < maximum:
+                plat.append({k: g.get(k) for k in ("source", "type", "message", "ou")})
+                g["nombre"] -= 1
+    return plat
+
+
 def construire_rapport():
-    ev = _lire_journal()
+    ignores = {}
+    ev = _lire_journal(ignores)
     par_genre = collections.defaultdict(list)
     for e in ev:
         par_genre[e.get("genre")].append(e)
@@ -653,12 +743,14 @@ def construire_rapport():
     local = [e["duree_s"] for e in reponses if e.get("par") == "local"]
     claude = [e["duree_s"] for e in reponses if e.get("par") == "claude"]
     lents = sorted(reponses, key=lambda e: -e.get("duree_s", 0))[:10]
+    groupes_erreurs = _grouper_erreurs(par_genre["erreur"])
     rapport = {
         "genre": "rapport", "id": valeur("id"), "niveau": niveau(), "testeur": valeur("testeur"),
         "version": _version_jarvis(), "windows": _windows(),
         "periode": {"debut": min((e["t"] for e in ev), default=None), "fin": max((e["t"] for e in ev), default=None)},
         "materiel": _materiel(), "reglages": _reglages(), "appareils": _appareils(), "micro": _micro(),
         "statistiques": {"demandes": len(reponses), "locales": len(local), "claude": len(claude),
+                         "en_erreur": sum(1 for e in reponses if e.get("erreur")),
                          "par_categorie": dict(collections.Counter(e.get("categorie") for e in reponses)),
                          "par_origine": dict(collections.Counter(e.get("origine", "pc") for e in reponses))},
         "temps": {"local_median_s": _mediane(local), "claude_median_s": _mediane(claude),
@@ -671,20 +763,28 @@ def construire_rapport():
         "refaites": [{k: e.get(k) for k in ("demande", "apres_s")} for e in par_genre["refaite"][-40:]],
         "annulations": [{k: e.get(k) for k in ("demande", "apres_s")} for e in par_genre["annulation"][-40:]],
         "demandes_claude": [{k: e.get(k) for k in ("demande", "categorie")} for e in par_genre["demande_claude"][-80:]],
-        "erreurs": [{k: e.get(k) for k in ("source", "type", "message", "ou")} for e in par_genre["erreur"][-40:]],
+        "erreurs": _erreurs_a_plat(groupes_erreurs),
+        "erreurs_groupees": groupes_erreurs,
         "ateliers": [{k: e.get(k) for k in ("nom", "fin", "questions", "etoiles")} for e in par_genre["atelier"][-60:]],
         # appareils demandés que Jarvis ne pilote pas encore : leur type et le nombre de demandes, rien d'autre
         "appareils_non_geres": dict(collections.Counter(str(e.get("quoi")) for e in par_genre["appareil_non_gere"])),
     }
+    rapport["versions"] = dict(collections.Counter(e.get("version") for e in ev if e.get("version")))
+    if ignores:
+        rapport["evenements_ignores"] = ignores           # trop nombreux : seuls les plus récents de leur sorte sont là
     if niveau() == "complet":
         rapport["conversations"] = [{k: e.get(k) for k in ("t", "demande", "reponse")}
                                     for e in par_genre["conversation"][-150:]]
     return rapport, len(ev)
 
 
+_dernier_envoi = {"refus": False}       # le dépôt a-t-il répondu « non » (et pas seulement : pas de réseau) ?
+
+
 def _envoyer(donnees):
     """Envoie au dépôt. Trois essais espacés, puis abandon. Renvoie True si c'est parti."""
     corps = json.dumps(donnees, ensure_ascii=False).encode("utf-8")
+    _dernier_envoi["refus"] = False
     for essai in range(ESSAIS):
         try:
             req = urllib.request.Request(DEPOT, data=corps, headers={"Content-Type": "application/json",
@@ -694,6 +794,7 @@ def _envoyer(donnees):
             if reponse_.get("ok"):
                 return True
             print("(Rapports : envoi refusé :", reponse_.get("raison"), ")")
+            _dernier_envoi["refus"] = True
             return False
         except Exception as e:
             if essai < ESSAIS - 1:
@@ -764,18 +865,40 @@ def envoyer_rapport(force=False):
     with _verrou:
         if not force and time.time() - valeur("dernier_rapport", 0) < INTERVALLE_RAPPORT:
             return False
+        octets = os.path.getsize(JOURNAL) if os.path.exists(JOURNAL) else 0
         rapport, n = construire_rapport()
     if not n and not force:
         return False
     ok = _envoyer(rapport)
     with _verrou:
-        regler("dernier_rapport", time.time())          # même en cas d'échec : on ne réessaie pas en boucle
         if ok:
-            _vider_journal()
+            regler("dernier_rapport", time.time())
+            _retirer_envoyes(octets)                    # ce qui a été noté pendant l'envoi reste pour le prochain
             print(f"(Rapports : rapport envoyé, {n} événements.)")
-        elif os.path.exists(JOURNAL) and os.path.getsize(JOURNAL) > 2_000_000:
-            _vider_journal()                            # rien ne s'accumule sur le PC
+        else:                                           # on réessaiera dans quelques heures, pas en boucle
+            delai = INTERVALLE_RAPPORT if _dernier_envoi["refus"] else DELAI_NOUVEL_ESSAI
+            regler("dernier_rapport", time.time() - INTERVALLE_RAPPORT + delai)
+            if os.path.exists(JOURNAL) and os.path.getsize(JOURNAL) > 2_000_000:
+                _vider_journal()                        # rien ne s'accumule sur le PC
     return ok
+
+
+def _retirer_envoyes(octets):
+    """Retire du journal les « octets » premiers octets (ce qui vient d'être envoyé), pas ce qui a été noté depuis."""
+    with _verrou:
+        try:
+            with open(JOURNAL, "rb") as f:
+                f.seek(octets)
+                reste = f.read()
+            if not reste.strip():
+                _vider_journal()
+                return
+            provisoire = JOURNAL + ".tmp"
+            with open(provisoire, "wb") as f:
+                f.write(reste)
+            os.replace(provisoire, JOURNAL)
+        except OSError:
+            pass
 
 
 def envoyer_message(genre, texte, joindre_journal=False):
@@ -807,8 +930,10 @@ def _dernieres_lignes_log(n=80):
         return []
     garder = []
     for l in lignes:
-        if re.match(r"^(Entendu|Demande|Demande écrite|Claude|JARVIS|Whisper)\b", l) and niveau() != "complet":
-            l = l.split(":")[0] + " : [texte non joint]"
+        if niveau() != "complet":
+            perso = _LIGNE_PERSONNELLE.match(l)
+            if perso:                                   # on ne garde que le début de la ligne, jamais la suite
+                l = perso.group(0).strip().rstrip(":").strip() + " : [texte non joint]"
         garder.append(anonymiser(l, 240))
     return garder
 

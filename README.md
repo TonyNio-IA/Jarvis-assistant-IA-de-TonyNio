@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.57**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.58**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.58
+
+- **Rapports plus clairs et plus justes** : les erreurs qui se répètent sont regroupées (combien de fois, dernière fois, version de Jarvis) au lieu d'une ligne par occurrence qui noyait les autres ; chaque événement du journal porte la version de Jarvis ; un plantage n'est plus compté deux fois.
+- **Rien n'est perdu pendant l'envoi** : ce qui arrive pendant qu'un rapport part est gardé pour le suivant, et si l'envoi échoue (pas de réseau), Jarvis réessaie 6 heures plus tard au lieu de 24.
+- **Plus de discrétion** : sauf au niveau « Complet », les lignes du journal technique qui contiennent du texte personnel (commandes, notes, rappels, mails, ce que Jarvis a entendu) sont masquées avant l'envoi.
+- **Informations mieux vérifiées** : Claude est détecté partout de la même façon (rapports, premiers pas, aide), et le rapport technique indique aussi la taille de l'écran, l'échelle d'affichage de Windows et le nombre d'écrans, pour mieux adapter Jarvis aux petits écrans (voir la [page de confidentialité](docs/confidentialite.md)).
 
 ## Nouveau en 1.57
 

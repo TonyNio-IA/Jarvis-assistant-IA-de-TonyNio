@@ -38,7 +38,8 @@ _COMMANDE = re.compile(r"\bpremiers pas\b|^\W*(?:jarvis\W+)?comment (?:[çc]a|tu
 def claude_relie():
     """Vrai si Claude Code est installé sur ce PC."""
     try:
-        return bool(shutil.which("claude"))
+        import jarvis_claude_reglages          # le même test que celui de Jarvis (~\\.local\\bin\\claude.exe)
+        return bool(jarvis_claude_reglages.installe())
     except Exception:
         return False
 

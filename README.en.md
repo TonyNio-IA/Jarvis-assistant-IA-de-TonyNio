@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.57**
+**Français : [README.md](README.md)** · **Current version: 1.58**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.58
+
+- **Clearer and more accurate reports**: repeated errors are now grouped (how many times, last time, Jarvis version) instead of one line per occurrence drowning the others; every log event carries the Jarvis version; a crash is no longer counted twice.
+- **Nothing is lost while sending**: what happens while a report is leaving is kept for the next one, and if sending fails (no network) Jarvis retries 6 hours later instead of 24.
+- **More discretion**: except at the "Complet" (full) level, technical log lines containing personal text (commands, notes, reminders, mails, what Jarvis heard) are masked before sending.
+- **Better-checked information**: Claude is detected the same way everywhere (reports, first steps, help), and the technical report also gives the screen size, Windows display scale and number of screens, to adapt Jarvis to small screens (see the [privacy page](docs/confidentialite.md)).
 
 ## New in 1.57
 

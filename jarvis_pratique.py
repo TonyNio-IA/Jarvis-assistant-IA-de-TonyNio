@@ -568,8 +568,8 @@ _AIDE = re.compile(r"\b(qu'est-ce que tu sais faire|que sais-tu faire|tu sais fa
 def _claude_installe():
     """Vrai si Claude Code est installé sur ce PC (sans lui, certaines demandes ne peuvent pas être traitées)."""
     try:
-        import shutil
-        return bool(shutil.which("claude"))
+        import jarvis_claude_reglages          # le même test que celui de Jarvis (~\\.local\\bin\\claude.exe)
+        return bool(jarvis_claude_reglages.installe())
     except Exception:
         return False
 
