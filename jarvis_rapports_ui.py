@@ -60,13 +60,62 @@ def _lancer(nom, construire):
     threading.Thread(target=fil, daemon=True).start()
 
 
+_CLASSE_CORPS = {}
+
+
+def _classe_corps():
+    """Le « corps » d'une fenêtre : un cadre qui défile quand la fenêtre est plus petite que son contenu."""
+    if "c" in _CLASSE_CORPS:
+        return _CLASSE_CORPS["c"]
+    import re
+    import tkinter as tk
+
+    class Corps(tk.Frame):
+        """Se comporte comme la fenêtre pour ceux qui l'utilisent (destroy, geometry, protocol...), mais les widgets
+        qu'on y place sont dans une zone qui défile : sur un petit écran, on atteint toujours les boutons du bas."""
+
+        def __getattr__(self, nom):
+            if nom.startswith("_") or "_racine" not in self.__dict__:
+                raise AttributeError(nom)
+            return getattr(self.__dict__["_racine"], nom)
+
+        def destroy(self):
+            d = self.__dict__
+            if d.get("_ferme"):                      # la fenêtre se détruit déjà : on ne fait que libérer ce cadre
+                try:
+                    tk.Frame.destroy(self)
+                except Exception:
+                    pass
+                return
+            d["_ferme"] = True
+            d["_racine"].destroy()
+
+        def geometry(self, spec=None):
+            racine = self.__dict__["_racine"]
+            if spec is None:
+                return racine.geometry()
+            m = re.match(r"(\d+)x(\d+)", str(spec))
+            if m:                                          # jamais plus grande que l'écran
+                spec = "%dx%d" % (min(int(m.group(1)), int(racine.winfo_screenwidth() * 0.95)),
+                                  min(int(m.group(2)), int(racine.winfo_screenheight() * 0.90)))
+            return racine.geometry(spec)
+
+    _CLASSE_CORPS["c"] = Corps
+    return Corps
+
+
 def _fenetre(titre, largeur, hauteur):
     import tkinter as tk
     r = tk.Tk()
     r.title(titre)
     r.configure(bg=FOND)
     sc = max(1.0, r.winfo_fpixels("1i") / 96.0)
-    r.geometry(f"{int(largeur * sc)}x{int(hauteur * sc)}")
+    # jamais plus grande que l'écran (petit portable, échelle Windows de 125 ou 150 %), et bien placée dessus
+    ecran_l, ecran_h = r.winfo_screenwidth(), r.winfo_screenheight()
+    l = min(int(largeur * sc), int(ecran_l * 0.95))
+    h = min(int(hauteur * sc), int(ecran_h * 0.90))
+    r.geometry(f"{l}x{h}+{max(0, (ecran_l - l) // 2)}+{max(0, (ecran_h - h) // 3)}")
+    r.minsize(min(int(420 * sc), l), min(int(300 * sc), h))
     r.attributes("-topmost", True)
     try:
         r.iconbitmap(jarvis_config.chemin("installateur", "jarvis.ico"))
@@ -80,7 +129,38 @@ def _fenetre(titre, largeur, hauteur):
     except Exception:
         pass
     r.after(1500, lambda: r.attributes("-topmost", False))
-    return r, sc
+    # zone qui défile (molette + fine barre) : quand tout tient, rien ne change à l'écran
+    toile = tk.Canvas(r, bg=FOND, highlightthickness=0)
+    barre = tk.Canvas(r, width=max(4, int(6 * sc)), bg=FOND, highlightthickness=0)
+    barre.pack(side="right", fill="y", pady=4)
+    toile.pack(side="left", fill="both", expand=True)
+    corps = _classe_corps()(toile, bg=FOND)
+    corps.__dict__["_racine"] = r
+    fen = toile.create_window((0, 0), window=corps, anchor="nw")
+
+    def position_barre(debut, fin):
+        barre.delete("all")
+        debut, fin = float(debut), float(fin)
+        if fin - debut < 0.999:
+            hh = barre.winfo_height()
+            barre.create_line(int(3 * sc), debut * hh + 3, int(3 * sc), max(debut * hh + 8, fin * hh - 3),
+                              width=max(3, int(4 * sc)), capstyle="round", fill="#3a4a5e")
+    toile.configure(yscrollcommand=position_barre)
+
+    def regler(_e=None):
+        lt, ht = toile.winfo_width(), toile.winfo_height()
+        besoin = corps.winfo_reqheight()
+        toile.itemconfigure(fen, width=lt, height=max(ht, besoin))
+        toile.configure(scrollregion=(0, 0, lt, max(ht, besoin)))
+    toile.bind("<Configure>", regler)
+    corps.bind("<Configure>", regler)
+
+    def molette(e):
+        if e.widget.winfo_class() == "Text":            # une zone de texte a sa propre molette
+            return
+        toile.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units")
+    r.bind_all("<MouseWheel>", molette)
+    return corps, sc
 
 
 def _bouton(parent, texte, action, fort=False, accent="#ff8c42"):

@@ -197,8 +197,26 @@ def main():
     case = max(4, min(14, int(hauteur_ecran * part / len(matrice))))     # assez grand pour un téléphone, sans déborder
     taille = case * len(matrice)
 
-    tk.Label(fen, text=titre, font=("Segoe UI", 22, "bold"), bg="white").pack(pady=(16, 4))
-    corps = tk.Frame(fen, bg="white")
+    # Le contenu est dans une zone qui défile : sur un petit écran (ou avec la mise à l'échelle de Windows), la
+    # fenêtre ne dépasse jamais l'écran et on atteint tout à la molette.
+    toile_fen = tk.Canvas(fen, bg="white", highlightthickness=0)
+    toile_fen.pack(fill="both", expand=True)
+    hote = tk.Frame(toile_fen, bg="white")
+    fen_hote = toile_fen.create_window((0, 0), window=hote, anchor="n")
+
+    def regler(_e=None):
+        lt, ht = toile_fen.winfo_width(), toile_fen.winfo_height()
+        besoin_h = hote.winfo_reqheight()
+        toile_fen.coords(fen_hote, lt // 2, 0)
+        toile_fen.itemconfigure(fen_hote, width=max(lt, hote.winfo_reqwidth()), height=max(ht, besoin_h))
+        toile_fen.configure(scrollregion=(0, 0, lt, max(ht, besoin_h)))
+    toile_fen.bind("<Configure>", regler)
+    hote.bind("<Configure>", regler)
+    fen.bind("<MouseWheel>", lambda e: toile_fen.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units"))
+
+    tk.Label(hote, text=titre, font=("Segoe UI", 22, "bold"), bg="white", wraplength=max(300, largeur_ecran - 80),
+             justify="center").pack(pady=(16, 4))
+    corps = tk.Frame(hote, bg="white")
     corps.pack(padx=12)
     gauche = tk.Frame(corps, bg="white")
     gauche.pack(side="left", anchor="n")
@@ -223,14 +241,15 @@ def main():
         droite = tk.Frame(corps, bg="white")
         droite.pack(side="left", anchor="n", padx=(12, 0))
         tk.Label(droite, text="Sur la tablette, touche ce qui est entouré en orange :", font=("Segoe UI", 12, "bold"),
-                 bg="white", fg=ORANGE).pack(anchor="w", padx=8)
+                 bg="white", fg=ORANGE, wraplength=int(3 * (146 * s + 16)), justify="left").pack(anchor="w", padx=8)
         _etapes(droite, s).pack()
-    tk.Label(fen, text=f"Se ferme tout seul dans {minutes} minute{'s' if minutes > 1 else ''} (ou clique dessus).",
+    tk.Label(hote, text=f"Se ferme tout seul dans {minutes} minute{'s' if minutes > 1 else ''} (ou clique dessus).",
              font=("Segoe UI", 9), bg="white", fg="#777").pack(pady=(4, 14))
 
     fen.update_idletasks()
-    largeur, haut = fen.winfo_width(), fen.winfo_height()
-    fen.geometry(f"+{max(0, (largeur_ecran - largeur) // 2)}+{max(0, (hauteur_ecran - haut) // 2)}")
+    largeur = min(hote.winfo_reqwidth(), int(largeur_ecran * 0.95))
+    haut = min(hote.winfo_reqheight(), int(hauteur_ecran * 0.88))           # (la barre des tâches prend de la place)
+    fen.geometry(f"{largeur}x{haut}+{max(0, (largeur_ecran - largeur) // 2)}+{max(0, (hauteur_ecran - haut) // 3)}")
     fen.bind("<Button-1>", lambda e: fen.destroy())
     fen.bind("<Escape>", lambda e: fen.destroy())
     fen.after(minutes * 60 * 1000, fen.destroy)

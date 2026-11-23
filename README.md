@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.55**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.56**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,12 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.56
+
+- **Toutes les fenêtres s'adaptent aux petits écrans** : « Aider à améliorer Jarvis », Signaler un problème, Proposer une amélioration, Trois petites questions, Relier mon agenda, Relier ma boîte mail, Premiers pas, Désinstaller Jarvis et le code QR (Wi-Fi invité, Jarvis sur la tablette). Elles ne dépassent plus jamais l'écran (portable en 1366 × 768, Windows réglé à 125 ou 150 %) : si le contenu est trop grand, la fenêtre défile à la molette (une fine barre l'indique) et les boutons du bas restent atteignables. Quand tout tient, rien ne change.
+- Testé sur 10 tailles d'écran, de 1024 × 600 à 4K, de 100 à 200 %.
+- Une fenêtre qui se fermait de travers (appel en boucle) est corrigée au passage.
 
 ## Nouveau en 1.55
 

@@ -499,14 +499,46 @@ def ouvrir(parent=None):
             ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.windll.user32.GetParent(f.winfo_id()), 20, ctypes.byref(sombre), 4)
         except Exception:
             pass
-        cadre = tk.Frame(f, bg=PANNEAU, highlightthickness=1, highlightbackground="#1b2838")
+        # le contenu est dans une zone qui défile : sur un petit écran, on atteint toujours les boutons du bas
+        toile = tk.Canvas(f, bg=FOND, highlightthickness=0)
+        barre = tk.Canvas(f, width=max(4, px(6)), bg=FOND, highlightthickness=0)
+        barre.pack(side="right", fill="y", pady=4)
+        toile.pack(side="left", fill="both", expand=True)
+        interieur = tk.Frame(toile, bg=FOND)
+        fen_int = toile.create_window((0, 0), window=interieur, anchor="nw")
+        cadre = tk.Frame(interieur, bg=PANNEAU, highlightthickness=1, highlightbackground="#1b2838")
         cadre.pack(fill="both", expand=True, padx=14, pady=14)
+
+        def position_barre(debut, fin):
+            barre.delete("all")
+            debut, fin = float(debut), float(fin)
+            if fin - debut < 0.999:
+                hh = barre.winfo_height()
+                barre.create_line(px(3), debut * hh + 3, px(3), max(debut * hh + 8, fin * hh - 3),
+                                  width=max(3, px(4)), capstyle="round", fill="#3a4a5e")
+        toile.configure(yscrollcommand=position_barre)
+
+        def regler(_e=None):
+            lt, ht = toile.winfo_width(), toile.winfo_height()
+            besoin = interieur.winfo_reqheight()
+            toile.itemconfigure(fen_int, width=lt, height=max(ht, besoin))
+            toile.configure(scrollregion=(0, 0, lt, max(ht, besoin)))
+        toile.bind("<Configure>", regler)
+        interieur.bind("<Configure>", regler)
+
+        def molette(e):
+            toile.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units")
+        f.bind("<MouseWheel>", molette)
         f._largeur = px(largeur)
+        f._cadre = cadre
         return f, cadre
 
     def placer(f):
         f.update_idletasks()
-        l, h = max(f._largeur, f.winfo_reqwidth()), f.winfo_reqheight()
+        cadre = f._cadre
+        besoin_l, besoin_h = cadre.winfo_reqwidth() + px(28) + max(4, px(6)), cadre.winfo_reqheight() + px(28)
+        l = min(max(f._largeur, besoin_l), int(f.winfo_screenwidth() * 0.95))
+        h = min(besoin_h, int(f.winfo_screenheight() * 0.90))      # jamais plus haute que l'écran : elle défile
         f.geometry(f"{l}x{h}+{max(0, (f.winfo_screenwidth() - l) // 2)}+{max(0, (f.winfo_screenheight() - h) // 3)}")
         if not autonome:
             f.transient(racine)

@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.55**
+**Français : [README.md](README.md)** · **Current version: 1.56**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,12 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.56
+
+- **All windows now fit small screens**: "Help improve Jarvis", Report a problem, Suggest an improvement, Three little questions, Link my calendar, Link my mailbox, First steps, Uninstall Jarvis and the QR code (guest Wi-Fi, Jarvis on the tablet). They never exceed the screen any more (a 1366 × 768 laptop, Windows set to 125 or 150 %): if the content is too big, the window scrolls with the mouse wheel (a thin bar shows it) and the bottom buttons stay reachable. When everything fits, nothing changes.
+- Tested on 10 screen sizes, from 1024 × 600 to 4K, at 100 to 200 %.
+- A window that could close the wrong way (a looping call) is fixed along the way.
 
 ## New in 1.55
 
