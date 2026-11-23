@@ -598,15 +598,25 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
-| 1.40 | Mise à jour : fenêtre d'avancement, avertissement avant le message de Windows, ligne d'installation copiée si tout est refusé, heures dans le journal |
-| 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
-| 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
-| 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.58 | Rapports plus clairs et plus justes (erreurs regroupées avec leur nombre, version sur chaque événement, rien perdu pendant l'envoi) ; lignes personnelles du journal masquées hors niveau Complet ; taille et échelle d'écran dans le rapport technique |
+| 1.57 | « Signaler un problème » : la case « Joindre le journal technique » est de nouveau cochée d'office ; GIF du réacteur refait |
+| 1.56 | Toutes les fenêtres de dialogue s'adaptent aux petits écrans et défilent au lieu de déborder |
+| 1.55 | Menu des réglages défilable (petits écrans) ; ouverture des réglages fiabilisée ; captures du README refaites |
+| 1.54 | Design moderne en relief (réglages violets, curseurs ronds, boutons arrondis, effet verre) ; fenêtres qui suivent le thème du réacteur ; veille plus sobre |
+| 1.53 | Réglages rangés par familles avec un onglet Réacteur ; réacteur réduit après 1 min 30 (ou « Illimité ») ; menu du clic droit réordonné ; rappel du rapport Complet |
+| 1.52 | Sans Claude, Jarvis (et les premiers pas) indique le bon chemin : Réglages, onglet « Claude », « Installer Claude », « Connecter mon compte » |
+| 1.51 | Pré-version : onglet « Claude » dans les réglages (installer et relier Claude), aide honnête sans Claude, désinstallation avec fenêtre de progression, annonce de mise à jour plus naturelle |
+| 1.50 | Tous les navigateurs, boîtes mail et agendas courants (un compte par profil, onglet « Comptes ») ; « Ouvre… » trouve les applications du Store et du Bureau ; « qu'est-ce qui joue ? » ; plus de message envoyé en double ; `installation-stable.txt` |
 | 1.49 | Pré-version : tous les navigateurs, boîtes mail et agendas courants ; un compte par profil ; onglet « Comptes » ; « qu'est-ce qui joue ? » ; appareils pas encore pris en charge |
+| 1.48 | Pré-version : Jarvis utilise le navigateur choisi dans Windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi) |
 | 1.47 | Tablettes : demandes à la voix réparées (erreur depuis la 1.44) ; « résume-les » compris ; plus de double annonce de mise à jour ; nom du micro en entier ; aide plus rassurante quand Windows bloque |
 | 1.46 | Contrôle intelligent des applications : bonne version de Whisper, message clair et nom du fichier bloqué ; plus de boucle de redémarrages au lancement ; journal « sans Claude » |
 | 1.45 | Phrases d’attente pendant les demandes longues (PC et tablette) |
 | 1.44 | Tablette : micro coupé (bouton, et la nuit), Santé, réglages d'origine, signaler un problème / proposer une amélioration, niveau des rapports, effacer mes données, bandeau « Jarvis ne répond pas », attente de la suite d'une phrase |
+| 1.43 | « mets-toi à jour » mieux compris (variantes, voix et écrit) ; « météo et l'heure » même mal entendu ; contact par les tickets GitHub |
+| 1.42 | Console de mise à jour cachée ; Bloc-notes d'aide si Windows bloque ; « météo et heure » ensemble ; moins de questions de premiers pas |
+| 1.41 | Le micro coupé reste coupé après un redémarrage ; test de tous les réglages |
+| 1.40 | Mise à jour : fenêtre d'avancement, avertissement avant le message de Windows, ligne d'installation copiée si tout est refusé, heures dans le journal |
 | 1.39 | Journal : quel installateur est lancé (.exe ou .bat) et s'il est refusé |
 | 1.38 | Installation : ligne PowerShell dans le README pour les PC avec Contrôle intelligent des applications ; .bat gardé en fins de ligne Windows |
 | 1.37 | Mise à jour : si Windows bloque l'installateur .exe, essai en .bat, sinon message clair et dossier ouvert |
