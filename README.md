@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.53**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.54**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.54
+
+- **Un design plus moderne et plus doux** : la fenêtre des réglages passe à un style violet en relief : cartes arrondies avec un reflet de verre, curseurs ronds, interrupteurs, boutons et listes arrondis, menu de gauche en pastilles avec l'icône de Claude pour l'onglet Claude, titres de section marqués d'une barre de couleur. Tout est dessiné en haute définition, pour des bords nets.
+- **Les fenêtres suivent le thème du réacteur** : à l'installation c'est Vice City, puis les réglages prennent les couleurs choisies pour le réacteur, en direct, sans rien déformer pendant le changement.
+- **Un réacteur en relief** : le disque est une lentille bombée (bord clair en haut à gauche, sombre en bas à droite, reflet de verre), et les panneaux du haut et du bas ont un léger relief. Un nouveau réglage « Effet de relief » (Réglages, Réacteur) permet de le couper.
+- **Plus sobre pour le PC** : l'animation en veille passe à 15 images par seconde (8 après 30 secondes) au lieu de 20 et 10, le relief est calculé plus vite, la liste des tablettes n'est plus relue à chaque image, et la fenêtre des réglages n'anime plus rien quand elle est réduite. En activité, le réacteur reste à 60 images par seconde.
+- **Correction** : la valeur de « Taille du réacteur » n'était plus visible à droite du curseur.
 
 ## Nouveau en 1.53
 

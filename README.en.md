@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.53**
+**Français : [README.md](README.md)** · **Current version: 1.54**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.54
+
+- **A more modern, softer design**: the settings window gets a purple, embossed style: rounded cards with a glass highlight, round sliders, rounded switches, buttons and lists, a pill-shaped left menu with the Claude icon on the Claude tab, and section titles marked with a colour bar. Everything is drawn in high definition, for crisp edges.
+- **Windows follow the reactor theme**: Vice City at install, then the settings take the colours chosen for the reactor, live, with nothing jumping around during the change.
+- **An embossed reactor**: the disc is a domed lens (light edge at the top left, dark at the bottom right, glass highlight), and the top and bottom panels have a light relief. A new "Effet de relief" setting (Settings, Réacteur) turns it off.
+- **Lighter on the PC**: the idle animation drops to 15 frames per second (8 after 30 seconds) instead of 20 and 10, the relief is computed faster, the tablet list is no longer re-read on every frame, and the settings window animates nothing while minimised. While active, the reactor stays at 60 frames per second.
+- **Fix**: the value of "Taille du réacteur" was no longer visible to the right of its slider.
 
 ## New in 1.53
 

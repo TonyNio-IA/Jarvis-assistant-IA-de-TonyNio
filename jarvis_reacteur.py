@@ -91,8 +91,8 @@ NB_POUSSIERE = 40       # particules lumineuses à l'intérieur de l'anneau
 FICHIER_POSITION = os.path.join(DOSSIER, "position.txt")   # emplacement choisi à la souris
 AFFICHER_SYSTEME = True # processeur, mémoire et réseau sous le réacteur
 IMAGES_ACTIF = 60       # images par seconde quand Jarvis écoute, réfléchit ou répond
-IMAGES_VEILLE = 20      # images par seconde en veille (économise le processeur)
-IMAGES_VEILLE_LONGUE = 10  # après 30 secondes de veille : animation encore plus économe
+IMAGES_VEILLE = 15      # images par seconde en veille (économise le processeur)
+IMAGES_VEILLE_LONGUE = 8  # après 30 secondes de veille : animation encore plus économe
 AFFICHAGE_RAPIDE = True # True = affichage pygame (60 images/s) ; False = ancien affichage (27 au plus)
 
 ETATS = {

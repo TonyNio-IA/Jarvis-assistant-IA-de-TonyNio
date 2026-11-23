@@ -73,6 +73,7 @@ PANNEAU_COMPACT = True   # en mode discret, les jauges restent visibles dans un 
 DUREE_NAISSANCE = 2.4    # secondes que met le réacteur à se former au lancement
 DUREE_ALERTE = 5.0       # secondes d'animation quand un minuteur ou un rappel sonne
 DUREE_FERMETURE = 0.7    # secondes qu'il met à se refermer à l'arrêt
+RELIEF = True            # effet de relief : biseau sur le disque et les panneaux (False = aplat, un peu plus rapide)
 HALO = True              # léger halo lumineux autour des filaments (False = dessin net, un peu plus rapide)
 HAUTEUR_DISCUSSION = 66  # hauteur de la fenêtre de discussion, au-dessus du réacteur
 LIGNES_DISCUSSION = 3    # lignes de texte visibles (un texte plus long défile tout seul)
@@ -526,7 +527,7 @@ class Affichage:
         arrondi = int(10 * s)
         pygame.draw.rect(surf, tuple(int(c) for c in _melange(self.fond, (0, 0, 0), 0.3)), r.move(0, int(3 * s)),
                          border_radius=arrondi)                                          # ombre
-        pygame.draw.rect(surf, self.fond, r, border_radius=arrondi)
+        pygame.draw.rect(surf, tuple(int(c) for c in _melange(self.fond, teinte(1.0), 0.12)), r, border_radius=arrondi)
         pygame.draw.rect(surf, teinte(0.45), r, max(1, int(1.2 * s)), border_radius=arrondi)
         # en-tête : « JARVIS » et la version, avec un petit trait lumineux
         titre = self._texte(self.police_menu_titre, f"JARVIS  ·  VERSION {jarvis_claude.VERSION}", teinte(0.75))
@@ -888,6 +889,18 @@ class Affichage:
         for k in range(1, 7):
             pygame.draw.circle(surf, teinte((0.03 + k * 0.022 * eclat) * c_fond), (cx, cy), R * (7 - k) / 7)
 
+        if RELIEF and c_fond > 0.05:
+            # Relief : le disque est une lentille de verre bombée. Le bord suit le vrai contour (qui ondule) :
+            # clair en haut à gauche, sombre en bas à droite, et un reflet de verre en croissant près du haut.
+            n_c = len(contour)
+            # le dôme : des disques de plus en plus petits et clairs, décalés vers la lumière (haut à gauche)
+            for i in range(1, 6):
+                f = i / 5
+                rr = R * (0.97 - 0.80 * f)
+                dec = R * 0.30 * f
+                pygame.draw.circle(surf, _melange_ent(teinte(0.05 + 0.18 * f * eclat), blanc, 0.07 * f * eclat * c_fond),
+                                   (cx - dec * 0.72, cy - dec * 0.82), rr)
+
         # Anneau extérieur : fins filaments qui ondulent au bord du cercle
         for f in range(src.NB_FILAMENTS_BORD if c_bord > 0 else 0):
             phi = f * 2.2
@@ -1019,6 +1032,8 @@ class Affichage:
             pygame.draw.polygon(self._masque, (255, 0, 255), contour - (zone.x, zone.y))
             surf.blit(self._masque, zone)
             aaligne(surf, teinte(0.22 * eclat), True, contour)
+        if RELIEF and c_fond > 0.05:
+            self._biseau_disque(surf, contour, cx, cy, R, fond, blanc, eclat, c_fond, s)
         if REFLET_REACTEUR and naissance >= 1:           # le reflet fait aussi le tour du cercle du réacteur
             self._reflet(surf, teinte, blanc, contour, time.time(), tour_fixe=TOUR_REFLET_REACTEUR)
 
@@ -1275,6 +1290,90 @@ class Affichage:
             for dx in (-0.45, 0.0, 0.45):
                 pygame.draw.line(surf, couleur, (x + dx * r, y + 0.7 * r), (x + (dx - 0.15) * r, y + 1.1 * r), max(1, int(r * 0.14)))
 
+    def _relief_panneau(self, surf, blanc, x0, y0, x1, y1, k, eclat=1.0, degrade=True):
+        """Donne du volume à un panneau : un dégradé doux, un bord clair en haut et à gauche,
+        un bord sombre en bas et à droite (le contour a deux angles coupés : haut-gauche et bas-droite)."""
+        if not RELIEF:
+            return
+        s = self.s
+        fond = self.fond
+        if degrade:
+            haut = y1 - y0
+            bande = max(2.0, 7 * s)
+            for yy in range(int(y0) + 1, int(y1), 2):
+                p = (yy - y0) / haut
+                xg = x0 + max(0.0, k - (yy - y0)) + 1
+                xd = x1 - max(0.0, (yy - y0) - (haut - k)) - 1
+                if p < 0.5:
+                    couleur = _melange_ent(fond, blanc, 0.20 * (1 - 2 * p) * eclat)
+                else:
+                    couleur = None
+                if yy > y1 - bande:                                   # le bas s'assombrit : le panneau a une épaisseur
+                    couleur = _melange_ent(fond, (0, 0, 0), 0.6 * (1 - (y1 - yy) / bande))
+                if couleur:
+                    pygame.draw.line(surf, couleur, (xg, yy), (xd, yy), 2)
+        d, ep = 2.5 * s, max(2, int(2.2 * s))
+        clair = _melange_ent(fond, blanc, 0.70 * eclat)
+        mi = _melange_ent(fond, blanc, 0.40 * eclat)
+        sombre = _melange_ent(fond, (0, 0, 0), 0.9)
+        pygame.draw.line(surf, clair, (x0 + k + d, y0 + d), (x1 - d, y0 + d), ep)             # bord haut
+        pygame.draw.line(surf, mi, (x0 + d, y0 + k + d), (x0 + d, y1 - d), ep)                # bord gauche
+        pygame.draw.aaline(surf, clair, (x0 + d, y0 + k + d), (x0 + k + d, y0 + d))         # angle coupé haut-gauche
+        pygame.draw.line(surf, sombre, (x0 + d, y1 - d), (x1 - k - d, y1 - d), ep)            # bord bas
+        pygame.draw.line(surf, sombre, (x1 - d, y0 + d), (x1 - d, y1 - k - d), ep)            # bord droit
+        pygame.draw.aaline(surf, sombre, (x1 - d, y1 - k - d), (x1 - k - d, y1 - d))        # angle coupé bas-droit
+
+    def _biseau_disque(self, surf, contour, cx, cy, R, fond, blanc, eclat, c_fond, s):
+        """Le bord du disque : clair en haut à gauche, sombre en bas à droite, en traits lissés.
+        Tracé après le halo, pour rester net (le halo, lui, floute ce qui est dessous)."""
+        pts = np.asarray(contour, dtype=float)
+        n_c = len(pts)
+        sui = np.roll(pts, -1, axis=0)
+        mil = (pts + sui) / 2 - (cx, cy)
+        norme = np.hypot(mil[:, 0], mil[:, 1])
+        norme[norme == 0] = 1.0
+        for sens, (dx, dy) in ((1, (-0.707, -0.707)), (-1, (0.707, 0.707))):
+            inte = np.clip(((mil[:, 0] * dx + mil[:, 1] * dy) / norme - 0.2) / 0.7, 0.0, 1.0)
+            niveau = np.ceil(inte * 3).astype(int)               # 0 : rien, 1 à 3 : de plus en plus fort
+            for lv in (1, 2, 3):
+                actif = niveau == lv
+                if not actif.any():
+                    continue
+                force = lv / 3.0
+                for ret, poids in ((0.986, 1.0), (0.964, 0.55)):
+                    if sens == 1:
+                        couleur = _melange_ent(fond, blanc, 0.85 * force * poids * c_fond * eclat)
+                    else:
+                        couleur = _melange_ent(fond, (0, 0, 0), 1.0 * force * poids * c_fond)
+                    # on trace d'un seul coup chaque série de segments qui se suivent
+                    debut = None
+                    for k in range(n_c + 1):
+                        on = k < n_c and actif[k]
+                        if on and debut is None:
+                            debut = k
+                        elif not on and debut is not None:
+                            serie = [pts[m % n_c] for m in range(debut, k + 1)]
+                            serie = [(cx + (x - cx) * ret, cy + (y - cy) * ret) for x, y in serie]
+                            if len(serie) > 1:
+                                pygame.draw.aalines(surf, couleur, False, serie)
+                            debut = None
+        rg = R * 0.86                                  # reflet de verre : un croissant lumineux en haut
+        for i in range(2):
+            r2 = rg - i * 1.5 * s
+            pygame.draw.arc(surf, _melange_ent(fond, blanc, (0.17 - 0.08 * i) * eclat * c_fond),
+                            (cx - r2, cy - r2, 2 * r2, 2 * r2), math.radians(55), math.radians(125), max(2, int(2.0 * s)))
+
+    def _tablettes_vues(self):
+        """Les tablettes en ligne, rafraîchies toutes les 2 secondes seulement (ça lit des fichiers)."""
+        maintenant = time.time()
+        if maintenant - getattr(self, "_tablettes_t", 0) > 2.0:
+            self._tablettes_t = maintenant
+            try:
+                self._tablettes_liste = jarvis_tablette.tablettes_en_ligne()
+            except Exception:
+                self._tablettes_liste = getattr(self, "_tablettes_liste", [])
+        return self._tablettes_liste
+
     def _panneau(self, surf, teinte, blanc, eclat, titre, cx, dt=0.05):
         src, s = self.src, self.s
         yb = self.yr + self.d
@@ -1283,6 +1382,7 @@ class Affichage:
         k = 9 * s
         contour = [(x0 + k, y0), (x1, y0), (x1, y1 - k), (x1 - k, y1), (x0, y1), (x0, y0 + k)]
         pygame.draw.polygon(surf, self.fond, contour)
+        self._relief_panneau(surf, blanc, x0, y0, x1, y1, k, eclat)
         pygame.draw.aalines(surf, teinte(0.28 * eclat), True, contour)
         # Équerres lumineuses dans les deux angles droits
         e, ep = 14 * s, max(2, int(2 * s))
@@ -1323,7 +1423,7 @@ class Affichage:
         debut_ligne = x0 + k + 4 * s
         try:
             import jarvis_tablette
-            tablettes = jarvis_tablette.tablettes_en_ligne()
+            tablettes = self._tablettes_vues()
         except Exception:
             tablettes = []
         for prenom, en_ligne, pile in tablettes[:3]:
@@ -1471,6 +1571,7 @@ class Affichage:
             xd = x1 - max(0.0, (yy - y0) - (haut_fenetre - k)) - 1
             pygame.draw.line(surf, teinte(0.09 * (1 - p) * eclat), (xg, yy), (xd, yy), 2)
         ecrit = self._saisie is not None
+        self._relief_panneau(surf, blanc, x0, y0, x1, y1, k, eclat, degrade=False)
         pygame.draw.aalines(surf, teinte((0.6 if ecrit else 0.28) * eclat), True, contour)
         e, ep = 14 * s, max(2, int(2 * s))
         pygame.draw.lines(surf, teinte(1.0), False, [(x1 - e, y0), (x1, y0), (x1, y0 + e)], ep)
@@ -1673,6 +1774,7 @@ class Affichage:
         k = 6 * S
         contour = [(x0 + k, y0), (x1, y0), (x1, y1 - k), (x1 - k, y1), (x0, y1), (x0, y0 + k)]
         pygame.draw.polygon(surf, self.fond, contour)
+        self._relief_panneau(surf, blanc, x0, y0, x1, y1, k)
         pygame.draw.aalines(surf, teinte(0.35), True, contour)
         # deux petites équerres lumineuses, comme sur le grand panneau
         q, ep = 8 * S, max(1, int(1.5 * S))

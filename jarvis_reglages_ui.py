@@ -34,8 +34,92 @@ FICHIERS_SAUVEGARDE = ("config.json", "ville.txt", "memoire.json", "rappels.json
                        "preferences.json", "rappels_faits.json")
 DOSSIERS_SAUVEGARDE = ("profils",)
 
-FOND, PANNEAU, PANNEAU2 = "#05090e", "#0b121b", "#111b27"
-TEXTE, DISCRET = "#d7e3f4", "#7d8ca3"
+# Palette violette douce : fond presque noir teinté de violet, cartes un peu plus claires, accent lavande
+FOND, PANNEAU, PANNEAU2 = "#0f0b1a", "#171126", "#211a35"
+BORD, SURVOL, ASCENS, OFF, CREUX, ENCRE = "#30264b", "#41346a", "#54458a", "#3d3358", "#2d2447", "#1a1030"
+ACCENT = "#a98bff"
+TEXTE, DISCRET = "#efe9fb", "#a094c0"
+NOMS_COULEURS = ("FOND", "PANNEAU", "PANNEAU2", "BORD", "SURVOL", "ASCENS", "OFF", "CREUX", "ENCRE", "ACCENT",
+                 "TEXTE", "DISCRET")
+# La fenêtre prend la teinte du thème du réacteur (Vice City par défaut : violet doux)
+TEINTES = {"vice city": "#9d4dff", "bleu": "#2f9bff", "vert": "#2bff88", "rouge": "#ff3b3b", "violet": "#9d4dff",
+           "orange": "#ff8c42", "iron man": "#ff3b2f", "océan": "#00b4d8", "forêt": "#3ddc84", "aurore": "#00b4d8",
+           "galaxie": "#7b5cff"}
+
+
+_CACHE_IMG = {}
+
+
+def _image_aa(w, h, fond, dessin, cle=None, ss=3):
+    """Une image lissée pour Tk : on dessine en grand avec pygame, puis on réduit (bords nets, sans escaliers)."""
+    import pygame
+    import tkinter as tk
+    if cle is not None and cle in _CACHE_IMG:
+        return _CACHE_IMG[cle]
+    w, h = max(1, int(w)), max(1, int(h))
+    surface = pygame.Surface((w * ss, h * ss))
+    surface.fill(_rgb(fond))
+    dessin(surface, ss)
+    petit = pygame.transform.smoothscale(surface, (w, h))
+    # la réduction décale parfois le fond de 1 ou 2 niveaux : on le recale, sinon un rectangle apparaît
+    ref, voulu = petit.get_at((0, 0)), _rgb(fond)
+    plus = tuple(max(0, voulu[i] - ref[i]) for i in range(3))
+    moins = tuple(max(0, ref[i] - voulu[i]) for i in range(3))
+    if any(plus):
+        petit.fill(plus, special_flags=pygame.BLEND_RGB_ADD)
+    if any(moins):
+        petit.fill(moins, special_flags=pygame.BLEND_RGB_SUB)
+    image = tk.PhotoImage(data=b"P6 %d %d 255\n" % (w, h) + pygame.image.tobytes(petit, "RGB"))
+    if cle is not None:
+        if len(_CACHE_IMG) > 300:
+            _CACHE_IMG.clear()
+        _CACHE_IMG[cle] = image
+    return image
+
+
+def _rect_rond(toile, x1, y1, x2, y2, r, **options):
+    """Rectangle aux coins arrondis sur un Canvas."""
+    r = max(1, min(r, (x2 - x1) // 2, (y2 - y1) // 2))
+    pts = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2, x2 - r, y2, x1 + r, y2, x1, y2,
+           x1, y2 - r, x1, y1 + r, x1, y1]
+    return toile.create_polygon(pts, smooth=True, **options)
+
+
+def _nom_theme():
+    """Le thème choisi pour le réacteur (lu dans apparence.json, « vice city » par défaut)."""
+    try:
+        with open(jarvis_config.chemin("apparence.json"), encoding="utf-8") as f:
+            return str(json.load(f).get("couleur", "vice city")).lower()
+    except (OSError, ValueError):
+        return "vice city"
+
+
+def _couleurs_ui():
+    return {n: globals()[n] for n in NOMS_COULEURS}
+
+
+def _poser_theme(nom):
+    """Calcule les couleurs de la fenêtre à partir de la teinte du thème et les pose."""
+    import colorsys
+    tint = TEINTES.get(nom)
+    if tint is None:
+        try:
+            import jarvis_extras
+            tint = jarvis_extras.PALETTES[nom][0]
+        except Exception:
+            tint = TEINTES["vice city"]
+    r, g, b = (int(tint[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, sat, _ = colorsys.rgb_to_hsv(r, g, b)
+    sb = min(0.58, 0.25 + sat * 0.4)
+
+    def c(s_, v_):
+        return "#%02x%02x%02x" % tuple(int(x * 255) for x in colorsys.hsv_to_rgb(h, s_, v_))
+    global FOND, PANNEAU, PANNEAU2, BORD, SURVOL, ASCENS, OFF, CREUX, ENCRE, ACCENT, TEXTE, DISCRET
+    FOND, PANNEAU, PANNEAU2 = c(sb, .10), c(sb, .15), c(sb, .21)
+    BORD, SURVOL, ASCENS = c(sb * .95, .28), c(sb, .38), c(sb * .8, .50)
+    OFF, CREUX, ENCRE = c(sb * .6, .32), c(sb, .23), c(sb, .13)
+    ACCENT = c(min(0.6, 0.2 + sat * 0.5), 1.0)
+    TEXTE, DISCRET = c(0.07, .97), c(0.2, .75)
 POLICE = ("Segoe UI", 10)
 POLICE_TITRE = ("Segoe UI Semibold", 11)
 
@@ -91,6 +175,7 @@ REGLAGES = [
     ("panneau_compact", "Réacteur", "Jauges visibles en mode discret", "bool", "jarvis_affichage", "PANNEAU_COMPACT", None),
     ("icones", "Réacteur", "Icônes des jauges", "bool", "jarvis_affichage", "ICONES_JAUGES", None),
     ("halo", "Réacteur", "Halo lumineux", "bool", "jarvis_affichage", "HALO", None),
+    ("relief", "Réacteur", "Effet de relief (disque et panneaux)", "bool", "jarvis_affichage", "RELIEF", None),
     ("fetes", "Réacteur", "Animations de minuit et d'anniversaire", "bool", "jarvis_affichage", "FETES", None),
     ("taille", "Réacteur", "Taille du réacteur (au prochain démarrage)", "nombre", "reacteur", "TAILLE", (180, 400, 10, "")),
     ("volume_bip", "Son", "Volume du bip de réveil", "nombre", "jarvis_voix", "VOLUME_BIP", (0.05, 1.0, 0.05, "")),
@@ -473,6 +558,9 @@ def _construire():
 
     if not _charge:
         charger()
+    _CACHE_IMG.clear()
+    theme_pose = {"nom": _nom_theme()}
+    _poser_theme(theme_pose["nom"])
     racine = tk.Tk()
     racine.title("Jarvis - Réglages")
     racine.configure(bg=FOND)
@@ -498,7 +586,7 @@ def _construire():
     except Exception:
         pass
 
-    accent = {"c": _couleurs_theme()[0]}
+    accent = {"c": ACCENT}
     survol = {"p": None, "nom": ""}       # thème survolé : l'aperçu le montre avant qu'on clique
 
     # --- En-tête : titre et ligne lumineuse animée ---
@@ -512,7 +600,7 @@ def _construire():
     corps.pack(fill="both", expand=True, padx=16, pady=(4, 14))
     menu = tk.Frame(corps, bg=FOND, width=170)
     menu.pack(side="left", fill="y", padx=(0, 12))
-    contenu_cadre = tk.Frame(corps, bg=PANNEAU, highlightthickness=1, highlightbackground="#1b2838")
+    contenu_cadre = tk.Frame(corps, bg=PANNEAU, highlightthickness=1, highlightbackground=BORD)
     contenu_cadre.pack(side="left", fill="both", expand=True)
     apercu = tk.Canvas(corps, width=px(230), bg=FOND, highlightthickness=0)
     apercu.pack(side="left", fill="y", padx=(12, 0))
@@ -527,7 +615,8 @@ def _construire():
         debut, fin = float(debut), float(fin)
         if fin - debut < 0.999:
             h = barre.winfo_height()
-            barre.create_rectangle(1, debut * h, px(5), fin * h, fill="#2a3a50", outline="")
+            barre.create_line(px(3), debut * h + px(3), px(3), max(debut * h + px(8), fin * h - px(3)), width=px(4),
+                              capstyle="round", fill=ASCENS)
     toile.configure(yscrollcommand=position_barre)
     barre.pack(side="right", fill="y", pady=4)
     toile.pack(side="left", fill="both", expand=True)
@@ -548,20 +637,87 @@ def _construire():
             tk.Label(page, text=sous, bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=(2, 8))
 
     def section(texte):
-        tk.Label(page, text=texte.upper(), bg=PANNEAU, fg=accent["c"], font=("Segoe UI Semibold", 9)).pack(anchor="w", padx=22, pady=(16, 4))
+        ligne_s = tk.Frame(page, bg=PANNEAU)
+        ligne_s.pack(anchor="w", fill="x", padx=22, pady=(16, 4))
+        Lb, Hb = px(5), px(14)
 
-    def ligne():
-        # chaque réglage est une petite carte, avec un fin contour
-        cadre = tk.Frame(page, bg=PANNEAU2, highlightthickness=1, highlightbackground="#1b2838")
-        cadre.pack(fill="x", padx=18, pady=3)
+        def dessin_s(sf, k):
+            __import__("pygame").draw.rect(sf, _rgb(accent["c"]), (0, 0, Lb * k, Hb * k), border_radius=px(2.5) * k)
+        barre = tk.Label(ligne_s, image=_image_aa(Lb, Hb, PANNEAU, dessin_s, ("section", accent["c"], PANNEAU)), bg=PANNEAU, bd=0)
+        barre.pack(side="left", padx=(0, 8))
+        tk.Label(ligne_s, text=texte.upper(), bg=PANNEAU, fg=accent["c"], font=("Segoe UI Semibold", 9)).pack(side="left")
+
+    def carte(parent):
+        """Une carte aux coins arrondis, avec une ombre dessous et un reflet dessus (effet de relief)."""
+        haut = tk.Canvas(parent, bg=PANNEAU, highlightthickness=0, height=px(52))
+        haut.pack(fill="x", padx=px(14), pady=px(2))
+        cadre = tk.Frame(haut, bg=PANNEAU2)
+        fen = haut.create_window(px(9), px(5), window=cadre, anchor="nw")
+
+        def redessiner(_=None):
+            w = max(haut.winfo_width(), 20)
+            h = cadre.winfo_reqheight() + px(12)
+            if int(float(haut.cget("height"))) != h:
+                haut.configure(height=h)
+            haut.itemconfigure(fen, width=max(1, w - px(18)))
+            haut.delete("fond")
+            ombre = _hex(_melange(_rgb(PANNEAU), (0, 0, 0), 0.55))
+            lumiere = _hex(_melange(_rgb(PANNEAU2), (255, 255, 255), 0.16))
+
+            def dessin(sf, k, w=w, h=h):
+                pygame_ = __import__("pygame")
+                pygame_.draw.rect(sf, _rgb(ombre), (2 * k, px(5) * k, (w - 4) * k, (h - px(5) - 1) * k), border_radius=px(13) * k)
+                pygame_.draw.rect(sf, _rgb(PANNEAU2), (k, k, (w - 3) * k, (h - px(5) - 1) * k), border_radius=px(13) * k)
+                pygame_.draw.rect(sf, _rgb(BORD), (k, k, (w - 3) * k, (h - px(5) - 1) * k), width=max(1, k), border_radius=px(13) * k)
+                # effet verre : reflet translucide sur le haut de la carte, bord haut brillant, liseré clair en bas
+                x0_, y0_, ww_, hh_ = k, k, (w - 3) * k, (h - px(5) - 1) * k
+                masque = pygame_.Surface((w * k, h * k), pygame_.SRCALPHA)
+                pygame_.draw.rect(masque, (255, 255, 255, 255), (x0_, y0_, ww_, hh_), border_radius=px(13) * k)
+                reflet = pygame_.Surface((w * k, h * k), pygame_.SRCALPHA)
+                haut_reflet = px(5) * k
+                for yy in range(haut_reflet):
+                    alpha = int(150 * (1 - yy / haut_reflet) ** 1.2)
+                    pygame_.draw.line(reflet, (255, 255, 255, alpha), (0, y0_ + yy), (w * k, y0_ + yy))
+                reflet.blit(masque, (0, 0), special_flags=pygame_.BLEND_RGBA_MULT)
+                sf.blit(reflet, (0, 0))
+                pygame_.draw.line(sf, _rgb(_hex(_melange(_rgb(PANNEAU2), (255, 255, 255), 0.6))),
+                                  (px(15) * k, 2 * k), ((w - px(15)) * k, 2 * k), max(1, k))
+                pygame_.draw.line(sf, _rgb(_hex(_melange(_rgb(PANNEAU2), (255, 255, 255), 0.12))),
+                                  (px(15) * k, y0_ + hh_ - 2 * k), ((w - px(15)) * k, y0_ + hh_ - 2 * k), max(1, k))
+            img = _image_aa(w, h, PANNEAU, dessin, ("carte2", w, h, PANNEAU, PANNEAU2, BORD))
+            haut.create_image(0, 0, anchor="nw", image=img, tags="fond")
+            haut.tag_lower("fond")
+        cadre.bind("<Configure>", redessiner)
+        haut.bind("<Configure>", redessiner)
         return cadre
 
+    def ligne():
+        return carte(page)
+
     def bouton(parent, texte, action, fort=False):
-        b = tk.Label(parent, text=texte, bg=accent["c"] if fort else "#1b2838", fg="#0b0f14" if fort else TEXTE,
-                     font=("Segoe UI Semibold", 10), padx=14, pady=6, cursor="hand2")
+        import tkinter.font as tkfont
+        police_b = ("Segoe UI Semibold", 10)
+        fond_parent = parent.cget("bg")
+        L_b = tkfont.Font(family="Segoe UI Semibold", size=10).measure(texte) + px(36)
+        H_b = px(34)
+
+        def image_bouton(survole):
+            base = accent["c"] if fort else BORD
+            col = (_hex(_melange(_rgb(accent["c"]), (255, 255, 255), 0.25)) if fort else SURVOL) if survole else base
+            haut_c = _hex(_melange(_rgb(col), (255, 255, 255), 0.18))
+            bas_c = _hex(_melange(_rgb(col), (0, 0, 0), 0.35))
+
+            def dessin(sf, k):
+                pg = __import__("pygame")
+                pg.draw.rect(sf, _rgb(bas_c), (k, 2 * k, (L_b - 2) * k, (H_b - 2) * k), border_radius=px(10) * k)
+                pg.draw.rect(sf, _rgb(col), (k, k, (L_b - 2) * k, (H_b - px(3)) * k), border_radius=px(10) * k)
+                pg.draw.line(sf, _rgb(haut_c), (px(9) * k, 2 * k), ((L_b - px(9)) * k, 2 * k), k)
+            return _image_aa(L_b, H_b, fond_parent, dessin, ("bouton", L_b, col, fond_parent))
+        b = tk.Label(parent, text=texte, image=image_bouton(False), compound="center", bg=fond_parent,
+                     fg=ENCRE if fort else TEXTE, font=police_b, padx=0, pady=0, bd=0, cursor="hand2")
         b.bind("<Button-1>", lambda e: action())
-        b.bind("<Enter>", lambda e: b.configure(bg=_hex(_melange(_rgb(accent["c"]), (255, 255, 255), 0.25)) if fort else "#25364a"))
-        b.bind("<Leave>", lambda e: b.configure(bg=accent["c"] if fort else "#1b2838"))
+        b.bind("<Enter>", lambda e: b.configure(image=image_bouton(True)))
+        b.bind("<Leave>", lambda e: b.configure(image=image_bouton(False)))
         return b
 
     def interrupteur(parent, actif, changer):
@@ -570,12 +726,19 @@ def _construire():
 
         def dessiner():
             c.delete("all")
-            fond = accent["c"] if etat["v"] else "#2a3647"
-            c.create_oval(px(2), px(2), px(22), px(22), fill=fond, outline=fond)
-            c.create_oval(px(24), px(2), px(44), px(22), fill=fond, outline=fond)
-            c.create_rectangle(px(12), px(2), px(34), px(22), fill=fond, outline=fond)
-            x = px(34) if etat["v"] else px(12)
-            c.create_oval(x - px(8), px(4), x + px(8), px(20), fill="#f2f6fb", outline="")
+            fond = accent["c"] if etat["v"] else OFF
+            L_, H_ = px(46), px(24)
+
+            def dessin(sf, k):
+                pg = __import__("pygame")
+                pg.draw.rect(sf, _rgb(fond), (2 * k, 2 * k, (L_ - 4) * k, (H_ - 4) * k), border_radius=H_ * k // 2)
+                x_ = (L_ - px(12) if etat["v"] else px(12)) * k
+                y_ = H_ * k // 2
+                r_ = px(8) * k
+                pg.draw.circle(sf, _rgb(_hex(_melange(_rgb(fond), (0, 0, 0), 0.5))), (x_, y_ + k), r_)
+                pg.draw.circle(sf, (251, 249, 255), (x_, y_), r_)
+            img = _image_aa(L_, H_, PANNEAU2, dessin, ("inter", etat["v"], fond, PANNEAU2, OFF))
+            c.create_image(0, 0, anchor="nw", image=img)
 
         def basculer(_=None):
             etat["v"] = not etat["v"]
@@ -585,10 +748,61 @@ def _construire():
         dessiner()
         return c
 
+    def fabrique_curseur(parent, val, mini, maxi, pas, commande):
+        """Curseur dessiné : rail arrondi qui se remplit, bouton rond avec une ombre."""
+        L, H, marge, r = px(190), px(30), px(12), px(10)
+        c = tk.Canvas(parent, width=L, height=H, bg=PANNEAU2, highlightthickness=0, cursor="hand2")
+
+        def cale(v):
+            v = min(float(maxi), max(float(mini), float(v)))
+            if pas:
+                v = round((v - mini) / pas) * pas + mini
+            return min(float(maxi), max(float(mini), v))
+        etat = {"v": cale(val)}
+
+        def dessiner():
+            c.delete("all")
+            y = H // 2
+            fraction = (etat["v"] - mini) / (maxi - mini) if maxi > mini else 0.0
+            x = marge + fraction * (L - 2 * marge)
+
+            def dessin(sf, k):
+                pg = __import__("pygame")
+                ep_ = px(7) * k
+                for a_, b_, col in ((marge, L - marge, CREUX), (marge, x, accent["c"])):
+                    if b_ - a_ < 1 and col != CREUX:
+                        continue
+                    pg.draw.line(sf, _rgb(col), (a_ * k, y * k), (b_ * k, y * k), ep_)
+                    pg.draw.circle(sf, _rgb(col), (a_ * k, y * k), ep_ // 2)
+                    pg.draw.circle(sf, _rgb(col), (b_ * k, y * k), ep_ // 2)
+                pg.draw.circle(sf, _rgb(_hex(_melange(_rgb(PANNEAU2), (0, 0, 0), 0.55))), (x * k, (y + px(3)) * k), r * k)
+                pg.draw.circle(sf, (251, 249, 255), (x * k, y * k), r * k)
+                pg.draw.circle(sf, _rgb(accent["c"]), (x * k, y * k), r * k, width=px(2) * k)
+                pg.draw.circle(sf, _rgb(accent["c"]), (x * k, y * k), int(px(3.5) * k))
+            c._img_curseur = _image_aa(L, H, PANNEAU2, dessin)
+            c.create_image(0, 0, anchor="nw", image=c._img_curseur)
+
+        def regler_v(v):
+            v = cale(v)
+            if v != etat["v"]:
+                etat["v"] = v
+                dessiner()
+                commande(v)
+
+        def souris(e):
+            f = min(1.0, max(0.0, (e.x - marge) / max(1, L - 2 * marge)))
+            regler_v(mini + f * (maxi - mini))
+        c.bind("<Button-1>", souris)
+        c.bind("<B1-Motion>", souris)
+        c.set = regler_v                      # même usage qu'un curseur Tk : .set(valeur)
+        c.get = lambda: etat["v"]
+        c.mini, c.maxi, c._curseur = float(mini), float(maxi), True
+        dessiner()
+        return c
+
     def curseur(parent, val, mini, maxi, pas, changer, unite="", formate=None):
         cadre = tk.Frame(parent, bg=PANNEAU2)
         affiche = tk.Label(cadre, width=8, bg=PANNEAU2, fg=TEXTE, font=POLICE, anchor="e")
-        variable = tk.DoubleVar(value=val)
 
         def montrer(v):
             v = float(v)
@@ -600,10 +814,7 @@ def _construire():
         def bouge(v):
             montrer(v)
             changer(round(float(v) / pas) * pas if pas else float(v))
-        echelle = tk.Scale(cadre, from_=mini, to=maxi, resolution=pas, orient="horizontal", showvalue=False, variable=variable,
-                           command=bouge, length=px(220), bg=accent["c"], fg=TEXTE, troughcolor="#1f2c3d", highlightthickness=0,
-                           bd=0, sliderrelief="flat", activebackground=_hex(_melange(_rgb(accent["c"]), (255, 255, 255), 0.3)),
-                           sliderlength=px(14), width=px(10))
+        echelle = fabrique_curseur(cadre, val, mini, maxi, pas, bouge)
         echelle.pack(side="left")
         affiche.pack(side="left", padx=(6, 0))
         montrer(val)
@@ -612,9 +823,26 @@ def _construire():
     def choix(parent, actuel, options, changer):
         variable = tk.StringVar(value=actuel)
         o = tk.OptionMenu(parent, variable, *options, command=changer)
-        o.configure(bg="#1b2838", fg=TEXTE, activebackground="#25364a", activeforeground=TEXTE, highlightthickness=0,
-                    bd=0, relief="flat", font=POLICE, width=16, indicatoron=0, padx=10, pady=4)
-        o["menu"].configure(bg="#1b2838", fg=TEXTE, activebackground=accent["c"], activeforeground="#0b0f14", bd=0, font=POLICE)
+        fond_p = parent.cget("bg")
+        L_o, H_o = px(190), px(34)
+
+        def image_o(survole):
+            col = SURVOL if survole else BORD
+            haut_c = _hex(_melange(_rgb(col), (255, 255, 255), 0.18))
+            bas_c = _hex(_melange(_rgb(col), (0, 0, 0), 0.35))
+
+            def dessin(sf, k):
+                pg = __import__("pygame")
+                pg.draw.rect(sf, _rgb(bas_c), (k, 2 * k, (L_o - 2) * k, (H_o - 2) * k), border_radius=px(10) * k)
+                pg.draw.rect(sf, _rgb(col), (k, k, (L_o - 2) * k, (H_o - px(3)) * k), border_radius=px(10) * k)
+                pg.draw.line(sf, _rgb(haut_c), (px(9) * k, 2 * k), ((L_o - px(9)) * k, 2 * k), k)
+            return _image_aa(L_o, H_o, fond_p, dessin, ("choix", L_o, col, fond_p))
+        o.configure(bg=fond_p, fg=TEXTE, activebackground=fond_p, activeforeground=TEXTE, highlightthickness=0,
+                    bd=0, relief="flat", font=POLICE, indicatoron=0, padx=0, pady=0,
+                    image=image_o(False), compound="center")
+        o.bind("<Enter>", lambda e: o.configure(image=image_o(True)))
+        o.bind("<Leave>", lambda e: o.configure(image=image_o(False)))
+        o["menu"].configure(bg=BORD, fg=TEXTE, activebackground=accent["c"], activeforeground=ENCRE, bd=0, font=POLICE)
         return o
 
     def reglage(cle, libelle, genre, options, onglet_actuel):
@@ -638,7 +866,7 @@ def _construire():
             # curseur de mini à maxi secondes, puis une dernière position « Illimité » (valeur 0)
             mini, maxi, pas = options
             illimite = maxi + pas
-            cv = tk.DoubleVar(value=illimite if not val else min(max(float(val), mini), maxi))
+            depart = illimite if not val else min(max(float(val), mini), maxi)
             bloc = tk.Frame(cadre, bg=PANNEAU2)         # même présentation que les autres curseurs
             bloc.pack(side="right", padx=12)
             texte = tk.Label(bloc, bg=PANNEAU2, fg=TEXTE, font=POLICE, width=8, anchor="e")
@@ -656,12 +884,9 @@ def _construire():
                 s = int(round(float(v) / pas) * pas)
                 texte.configure(text=nom_duree(s))
                 regler(c, 0 if s > maxi else s)
-            tk.Scale(bloc, from_=mini, to=illimite, resolution=pas, orient="horizontal", showvalue=False, variable=cv,
-                     command=bouge_duree, length=px(220), bg=accent["c"], fg=TEXTE, troughcolor="#1f2c3d", highlightthickness=0,
-                     bd=0, sliderrelief="flat", activebackground=_hex(_melange(_rgb(accent["c"]), (255, 255, 255), 0.3)),
-                     sliderlength=px(14), width=px(10)).pack(side="left")
+            fabrique_curseur(bloc, depart, mini, illimite, pas, bouge_duree).pack(side="left")
             texte.pack(side="left", padx=(6, 0))
-            texte.configure(text=nom_duree(cv.get()))
+            texte.configure(text=nom_duree(depart))
         elif genre == "choix":
             noms = [n for n, _ in options]
             actuel = next((n for n, v in options if v == val), None)
@@ -689,7 +914,7 @@ def _construire():
             try:
                 if onglet == "Apparence":
                     jarvis_extras.choisir_couleur("vice city")
-                    accent["c"] = _couleurs_theme()[0]
+                    suivre()
                 elif onglet == "Son":
                     import jarvis_voix
                     jarvis_voix.regler_voix("henri", jarvis_voix.VITESSE_NORMALE)
@@ -732,8 +957,8 @@ def _construire():
             def choisir(_=None, n=nom):
                 survol["p"] = None
                 jarvis_extras.choisir_couleur(n)
-                accent["c"] = _couleurs_theme()[0]
-                page_apparence()
+                if not suivre():
+                    page_apparence()
             tuile.bind("<Button-1>", choisir)
             # au survol, l'aperçu à droite prend ce thème (sans rien changer tant qu'on ne clique pas)
             tuile.bind("<Enter>", lambda e, p=palette, n=nom: survol.update(p=list(p), nom=n))
@@ -755,7 +980,7 @@ def _construire():
     def page_reacteur():
         vider()
         titre("Réacteur", "Comment il vit, quand il se fait discret, ses jauges, sa taille et sa place.")
-        for groupe, cles in (("Vie du réacteur", ("regard", "force_regard", "danse", "force_danse", "fetes", "halo")),
+        for groupe, cles in (("Vie du réacteur", ("regard", "force_regard", "danse", "force_danse", "fetes", "halo", "relief")),
                              ("Mode discret", ("discret", "delai_discret", "taille_discrete", "panneau_compact"))):
             section(groupe)
             for c, onglet, libelle, genre, _, _, options in REGLAGES:
@@ -886,8 +1111,8 @@ def _construire():
         vider()
         titre("Aide", "Toutes les commandes, rangées par thème. Tape un mot pour chercher.")
         recherche = tk.StringVar()
-        champ = tk.Entry(page, textvariable=recherche, bg="#1b2838", fg=TEXTE, insertbackground=TEXTE, relief="flat",
-                         font=("Segoe UI", 11), highlightthickness=1, highlightbackground="#25364a", highlightcolor=accent["c"])
+        champ = tk.Entry(page, textvariable=recherche, bg=BORD, fg=TEXTE, insertbackground=TEXTE, relief="flat",
+                         font=("Segoe UI", 11), highlightthickness=1, highlightbackground=SURVOL, highlightcolor=accent["c"])
         champ.pack(fill="x", padx=22, pady=(4, 8), ipady=6)
         liste = tk.Frame(page, bg=PANNEAU)
         liste.pack(fill="both", expand=True)
@@ -903,8 +1128,7 @@ def _construire():
                 if groupe != theme:
                     theme = groupe
                     tk.Label(liste, text=groupe.upper(), bg=PANNEAU, fg=accent["c"], font=("Segoe UI Semibold", 9)).pack(anchor="w", padx=22, pady=(12, 3))
-                cadre = tk.Frame(liste, bg=PANNEAU2)
-                cadre.pack(fill="x", padx=18, pady=2)
+                cadre = carte(liste)
                 tk.Label(cadre, text=commande, bg=PANNEAU2, fg=TEXTE, font=POLICE, wraplength=px(500), justify="left").pack(anchor="w", padx=12, pady=(6, 0 if detail else 6))
                 if detail:
                     tk.Label(cadre, text=detail, bg=PANNEAU2, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(500), justify="left").pack(anchor="w", padx=12, pady=(0, 6))
@@ -953,8 +1177,7 @@ def _construire():
                 except tk.TclError:
                     return
                 for nom, e, detail in resultat["liste"]:
-                    l = tk.Frame(zone, bg=PANNEAU2)
-                    l.pack(fill="x", padx=18, pady=3)
+                    l = carte(zone)
                     tk.Label(l, text="●", bg=PANNEAU2, fg=couleurs.get(e, DISCRET), font=("Segoe UI", 12)).pack(side="left", padx=(12, 4), pady=7)
                     tk.Label(l, text=nom, bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", pady=7)
                     tk.Label(l, text=detail, bg=PANNEAU2, fg=DISCRET, font=POLICE, wraplength=px(260),
@@ -1065,7 +1288,7 @@ def _construire():
                                              "enregistrées, les rappels, les notes et les listes ne sont pas touchés.",
                                    parent=racine):
                 par_defaut()
-                accent["c"] = _couleurs_theme()[0]
+                accent["c"] = ACCENT
                 page_systeme()
                 messagebox.showinfo("Jarvis", "C'est fait : les réglages sont revenus par défaut.", parent=racine)
         bouton(cadre, "Par défaut…", remettre).pack(side="right", padx=12, pady=5)
@@ -1482,33 +1705,121 @@ def _construire():
 
     icones["Réacteur"] = ""
 
-    def montrer(nom, fonction):
-        for n, (ligne_menu, trait, ic, lib) in onglets.items():
-            actif = n == nom
-            fond = PANNEAU2 if actif else FOND
-            for w in (ligne_menu, ic, lib):
-                w.configure(bg=fond)
-            trait.configure(bg=accent["c"] if actif else FOND)
+    courant = {"nom": None, "f": None}
+
+    def dessin_claude(c, fond):
+        """Le logo de Claude : une étoile de rayons de longueurs inégales, en orange Anthropic."""
+        c.delete("all")
+        longueurs = (10.5, 6.5, 9, 7, 10.5, 6, 9.5, 7, 10, 6.5, 9, 7)
+
+        def dessin(sf, k):
+            pg = __import__("pygame")
+            cx_ = cy_ = px(12) * k
+            for i_, lg in enumerate(longueurs):
+                ang = i_ * 2 * math.pi / len(longueurs) - math.pi / 2 + 0.12
+                a_ = (cx_ + px(2.2) * k * math.cos(ang), cy_ + px(2.2) * k * math.sin(ang))
+                b_ = (cx_ + px(lg) * k * math.cos(ang), cy_ + px(lg) * k * math.sin(ang))
+                pg.draw.line(sf, (217, 119, 87), a_, b_, int(px(2.6) * k))
+                pg.draw.circle(sf, (217, 119, 87), b_, int(px(1.3) * k))
+        c.create_image(0, 0, anchor="nw", image=_image_aa(px(24), px(24), fond, dessin, ("claude", fond)))
+
+    def style_ligne(n, actif, survole=False):
+        ligne_menu, _, ic, lib = onglets[n]
+        w, h = max(ligne_menu.winfo_width(), px(142)), px(40)
+        fond = _hex(_melange(_rgb(PANNEAU2), _rgb(accent["c"]), 0.22)) if actif else (PANNEAU2 if survole else FOND)
+        ligne_menu.delete("pilule")
+        if actif or survole:
+            contour_p = _hex(_melange(_rgb(fond), _rgb(accent["c"]), 0.45))
+
+            def dessin(sf, k):
+                pg = __import__("pygame")
+                pg.draw.rect(sf, _rgb(fond), (px(2) * k, px(2) * k, (w - px(4)) * k, (h - px(4)) * k), border_radius=px(11) * k)
+                if actif:
+                    pg.draw.rect(sf, _rgb(contour_p), (px(2) * k, px(2) * k, (w - px(4)) * k, (h - px(4)) * k),
+                                 width=max(1, k), border_radius=px(11) * k)
+                    pg.draw.line(sf, _rgb(accent["c"]), (px(9) * k, px(12) * k), (px(9) * k, (h - px(12)) * k), px(3) * k)
+                    pg.draw.circle(sf, _rgb(accent["c"]), (px(9) * k, px(12) * k), px(1.5) * k)
+                    pg.draw.circle(sf, _rgb(accent["c"]), (px(9) * k, (h - px(12)) * k), px(1.5) * k)
+            img = _image_aa(w, h, FOND, dessin, ("pilule", w, h, actif, fond, FOND, accent["c"]))
+            ligne_menu.create_image(0, 0, anchor="nw", image=img, tags="pilule")
+            ligne_menu.tag_lower("pilule")
+        ic.configure(bg=fond)
+        lib.configure(bg=fond, fg=TEXTE if actif else DISCRET)
+        if n == "Claude":
+            dessin_claude(ic, fond)
+        else:
             ic.configure(fg=accent["c"] if actif else DISCRET)
-            lib.configure(fg=TEXTE if actif else DISCRET)
-        fonction()
+
+    def montrer(nom, fonction):
+        courant.update(nom=nom, f=fonction)
+        for n in onglets:
+            style_ligne(n, n == nom)
+        # la page se construit hors de vue, se met à sa taille, puis revient d'un coup (rien ne se déforme à l'écran)
+        toile.coords(fenetre_page, -30000, 0)
+        try:
+            fonction()
+            racine.update()
+        finally:
+            toile.coords(fenetre_page, 0, 0)
     for nom, fonction in pages:
         if nom in DEBUTS_FAMILLE:
-            tk.Frame(menu, bg="#1b2838", height=1).pack(fill="x", padx=px(14), pady=(px(4), px(3)))
-        ligne_menu = tk.Frame(menu, bg=FOND, cursor="hand2")
-        trait = tk.Frame(ligne_menu, bg=FOND, width=px(3))
-        trait.pack(side="left", fill="y")
-        ic = tk.Label(ligne_menu, text=icones.get(nom, ""), bg=FOND, fg=DISCRET, font=("Segoe MDL2 Assets", 12), width=2, pady=8)
-        ic.pack(side="left", padx=(10, 4))
-        lib = tk.Label(ligne_menu, text=nom, anchor="w", bg=FOND, fg=DISCRET, font=("Segoe UI", 11), width=11, pady=8)
-        lib.pack(side="left", fill="x", expand=True)
+            tk.Frame(menu, bg=BORD, height=1).pack(fill="x", padx=px(14), pady=(px(4), px(3)))
+        ligne_menu = tk.Canvas(menu, bg=FOND, width=px(142), height=px(40), highlightthickness=0, cursor="hand2")
+        if nom == "Claude":
+            ic = tk.Canvas(ligne_menu, width=px(24), height=px(24), bg=FOND, highlightthickness=0, cursor="hand2")
+        else:
+            ic = tk.Label(ligne_menu, text=icones.get(nom, ""), bg=FOND, fg=DISCRET, font=("Segoe MDL2 Assets", 12), width=2)
+        lib = tk.Label(ligne_menu, text=nom, anchor="w", bg=FOND, fg=DISCRET, font=("Segoe UI", 11), width=11)
+        ligne_menu.create_window(px(30), px(20), window=ic)
+        ligne_menu.create_window(px(52), px(20), window=lib, anchor="w", width=px(80), height=px(24))
         for w in (ligne_menu, ic, lib):
             w.bind("<Button-1>", lambda e, n=nom, f=fonction: montrer(n, f))
-        ligne_menu.pack(fill="x", pady=1)
-        onglets[nom] = (ligne_menu, trait, ic, lib)
+            w.bind("<Enter>", lambda e, n=nom: courant["nom"] != n and style_ligne(n, False, True))
+            w.bind("<Leave>", lambda e, n=nom: courant["nom"] != n and style_ligne(n, False, False))
+        ligne_menu.pack(fill="x", pady=px(1))
+        onglets[nom] = (ligne_menu, None, ic, lib)
+
+    # --- Le thème du réacteur change : toute la fenêtre prend les nouvelles couleurs ---
+    OPTIONS_COULEUR = ("bg", "fg", "highlightbackground", "highlightcolor", "activebackground", "activeforeground",
+                       "troughcolor", "insertbackground")
+
+    def recolorer(widget, table):
+        for o in OPTIONS_COULEUR:
+            try:
+                v = str(widget.cget(o)).lower()
+            except Exception:
+                continue
+            if v in table:
+                try:
+                    widget.configure(**{o: table[v]})
+                except Exception:
+                    pass
+        for enfant in widget.winfo_children():
+            recolorer(enfant, table)
+
+    def suivre():
+        """Vrai si les couleurs de la fenêtre viennent de changer."""
+        nom = _nom_theme()
+        if nom == theme_pose["nom"]:
+            return False
+        avant = _couleurs_ui()
+        _poser_theme(nom)
+        theme_pose["nom"] = nom
+        apres = _couleurs_ui()
+        table = {avant[k].lower(): apres[k] for k in NOMS_COULEURS if avant[k].lower() != apres[k].lower()}
+        accent["c"] = ACCENT
+        racine.configure(bg=FOND)
+        recolorer(racine, table)
+        if courant["nom"]:
+            place = toile.yview()[0]
+            montrer(courant["nom"], courant["f"])
+            racine.update_idletasks()
+            toile.yview_moveto(place)
+        return True
 
     # --- Animation : ligne lumineuse de l'en-tête et aperçu du réacteur ---
     debut = time.time()
+    tic = {"n": 0}
 
     def animer():
         if _fenetre["devant"]:
@@ -1516,6 +1827,14 @@ def _construire():
             racine.deiconify()
             racine.lift()
             racine.focus_force()
+        tic["n"] += 1
+        if racine.state() == "iconic":
+            if tic["n"] % 2 == 0:
+                suivre()
+            racine.after(500, animer)
+            return
+        if tic["n"] % 12 == 0:                # deux fois par seconde : le thème a-t-il changé ?
+            suivre()
         t = time.time() - debut
         palette = survol["p"] or _couleurs_theme()
         m = _module("reacteur")
@@ -1525,7 +1844,7 @@ def _construire():
         largeur = max(10, entete.winfo_width())
         entete.delete("anim")
         bas = px(70)
-        entete.create_line(24, bas, largeur - 24, bas, fill=_hex(_melange((5, 9, 14), couleur, 0.45)), tags="anim")
+        entete.create_line(24, bas, largeur - 24, bas, fill=_hex(_melange(_rgb(FOND), couleur, 0.45)), tags="anim")
         a = _module("jarvis_affichage")
         vitesse = float(getattr(a, "VITESSE_REFLET", 174)) if a else 174.0
         longueur = float(getattr(a, "LONGUEUR_REFLET", 160)) if a else 160.0
@@ -1538,25 +1857,25 @@ def _construire():
         for k in range(36):
             ang = k * math.pi / 18
             niveau = 0.5 + 0.5 * math.sin(t * 1.1 + k * 0.35)
-            c = _hex(_melange((5, 9, 14), _degrade(palette, t / cycle + k / 36 * len(palette)), 0.35 + 0.5 * niveau))
+            c = _hex(_melange(_rgb(FOND), _degrade(palette, t / cycle + k / 36 * len(palette)), 0.35 + 0.5 * niveau))
             apercu.create_line(cx + (r + px(14)) * math.cos(ang), cy + (r + px(14)) * math.sin(ang),
                                cx + (r + px(18 + 8 * niveau)) * math.cos(ang), cy + (r + px(18 + 8 * niveau)) * math.sin(ang), fill=c, width=2)
         # le disque sombre, puis des filaments qui ondulent comme sur le vrai réacteur
-        apercu.create_oval(cx - r, cy - r, cx + r, cy + r, fill=_hex(_melange((5, 9, 14), couleur, 0.12)), outline="")
+        apercu.create_oval(cx - r, cy - r, cx + r, cy + r, fill=_hex(_melange(_rgb(FOND), couleur, 0.12)), outline="")
         for i in range(6):
             base = r * (0.72 + 0.045 * i)
             pts = []
-            for k in range(73):
-                ang = k * math.pi / 36
+            for k in range(49):
+                ang = k * math.pi / 24
                 rr = base * (1 + 0.035 * math.sin(3 * ang + t * (0.8 + 0.15 * i) + i)
                              + 0.025 * math.sin(5 * ang - t * (0.6 + 0.1 * i) + 2 * i))
                 pts += [cx + rr * math.cos(ang), cy + rr * math.sin(ang)]
             c_fil = _degrade(palette, t / cycle + i / 6 * len(palette))
-            apercu.create_line(*pts, fill=_hex(_melange((5, 9, 14), c_fil, 0.45 + 0.08 * i)), width=1, smooth=True)
+            apercu.create_line(*pts, fill=_hex(_melange(_rgb(FOND), c_fil, 0.45 + 0.08 * i)), width=1)
         for i in range(3):
             rr = r * (0.3 + 0.1 * i) * (1 + 0.03 * math.sin(t * 2 + i))
-            apercu.create_oval(cx - rr, cy - rr, cx + rr, cy + rr, outline=_hex(_melange((5, 9, 14), couleur, 0.25 + 0.1 * i)), width=1)
-        apercu.create_oval(cx - r, cy - r, cx + r, cy + r, outline=_hex(_melange((5, 9, 14), couleur, 0.6)), width=2)
+            apercu.create_oval(cx - rr, cy - rr, cx + rr, cy + rr, outline=_hex(_melange(_rgb(FOND), couleur, 0.25 + 0.1 * i)), width=1)
+        apercu.create_oval(cx - r, cy - r, cx + r, cy + r, outline=_hex(_melange(_rgb(FOND), couleur, 0.6)), width=2)
         nb = int(getattr(a, "NB_REFLETS", 2)) if a else 2
         tour = float(getattr(a, "TOUR_REFLET_REACTEUR", 7.0)) if a else 7.0
         if not a or getattr(a, "REFLET_REACTEUR", True):
@@ -1564,11 +1883,11 @@ def _construire():
                 depart = (t % tour) / tour * 360 + j * 360 / max(1, nb)
                 apercu.create_arc(cx - r, cy - r, cx + r, cy + r, start=-depart, extent=45, style="arc",
                                   outline=_hex(_melange(couleur, (255, 255, 255), 0.55)), width=3)
-        apercu.create_oval(cx - px(16), cy - px(16), cx + px(16), cy + px(16), fill=_hex(_melange((5, 9, 14), couleur, 0.85)), outline="")
+        apercu.create_oval(cx - px(16), cy - px(16), cx + px(16), cy + px(16), fill=_hex(_melange(_rgb(FOND), couleur, 0.85)), outline="")
         nom_theme = (survol["nom"].title() + " (survol)") if survol["p"] else \
             " · ".join(n.title() for n, p in jarvis_extras.PALETTES.items() if [c.lower() for c in p] == [c.lower() for c in palette])
         apercu.create_text(px(115), px(260), text=nom_theme or "", fill=DISCRET, font=("Segoe UI", 9))
-        racine.after(40, animer)
+        racine.after(66, animer)
 
     depart = _fenetre.pop("page", None)                    # (pour ouvrir directement sur un onglet)
     montrer(depart if depart in dict(pages) else "Apparence", dict(pages).get(depart, page_apparence))
