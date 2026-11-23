@@ -5,8 +5,9 @@ Ouverture : clic droit sur le réacteur, puis « Réglages… », ou à la voix 
 Chaque réglage s'applique tout de suite, sans redémarrer (sauf la taille du réacteur, au prochain démarrage),
 et il est gardé dans preferences.json (fichier qui reste sur ce PC).
 
-Onglets : Apparence, Son, Alertes, Profils, Comptes (agenda, boîte mail, navigateur), Aide, Historique, Système (démarrage avec Windows, sauvegarde et
-restauration, paramètres par défaut), À propos. Un petit réacteur en direct montre l'effet des réglages.
+Onglets, rangés par famille : Apparence, Réacteur, Son | Profils (avec le mode enfant), Comptes (agenda, boîte mail, navigateur), Claude,
+Alertes | Rapports, Historique | Système (démarrage avec Windows, sauvegarde et restauration, paramètres par défaut), Santé |
+Aide, À propos. Un petit réacteur en direct montre l'effet des réglages.
 
 « Paramètres par défaut » remet tous les réglages comme à l'installation, après confirmation. Il ne touche
 jamais aux profils, aux mémoires, aux voix enregistrées, aux rappels, aux notes ni aux listes.
@@ -71,36 +72,51 @@ COINS = ("en bas à droite", "en bas à gauche", "en haut à droite", "en haut �
 # (clé, onglet, libellé, type, module, attribut, options)
 #   type : "bool", "nombre" (min, max, pas, unité), "choix" (liste)
 REGLAGES = [
-    ("cycle", "Apparence", "Vitesse du défilement des couleurs (secondes)", "nombre", "reacteur", "CYCLE_VEILLE", (4, 30, 1, "s")),
+    ("cycle", "Apparence", "Vitesse du défilement des couleurs", "nombre", "reacteur", "CYCLE_VEILLE", (4, 30, 1, "s")),
     ("vitesse_reflet", "Apparence", "Vitesse des reflets de la fenêtre", "nombre", "jarvis_affichage", "VITESSE_REFLET", (40, 400, 2, "")),
     ("longueur_reflet", "Apparence", "Longueur des reflets", "nombre", "jarvis_affichage", "LONGUEUR_REFLET", (20, 320, 5, "")),
     ("nb_reflets", "Apparence", "Nombre de reflets", "nombre", "jarvis_affichage", "NB_REFLETS", (1, 4, 1, "")),
-    ("tour_reacteur", "Apparence", "Tour du reflet autour du cercle (secondes)", "nombre", "jarvis_affichage", "TOUR_REFLET_REACTEUR", (2, 20, 0.5, "s")),
+    ("tour_reacteur", "Apparence", "Tour du reflet autour du cercle", "nombre", "jarvis_affichage", "TOUR_REFLET_REACTEUR", (2, 20, 0.5, "s")),
     ("reflet_reacteur", "Apparence", "Reflet autour du cercle du réacteur", "bool", "jarvis_affichage", "REFLET_REACTEUR", None),
-    ("devant", "Apparence", "Réacteur toujours au premier plan (sinon il reste sur le Bureau)", "bool", "jarvis_affichage", "TOUJOURS_DEVANT", None),
-    ("regard", "Apparence", "Le cœur suit la souris", "bool", "jarvis_affichage", "REGARD_SOURIS", None),
-    ("force_regard", "Apparence", "Intensité du suivi de la souris", "nombre", "jarvis_affichage", "FORCE_REGARD", (0.05, 0.35, 0.005, "")),
-    ("danse", "Apparence", "Le réacteur danse avec la musique", "bool", "jarvis_affichage", "DANSE_MUSIQUE", None),
-    ("force_danse", "Apparence", "Intensité de la danse", "nombre", "jarvis_affichage", "FORCE_DANSE", (0.05, 0.5, 0.01, "")),
+    ("devant", "Réacteur", "Réacteur toujours au premier plan (sinon il reste sur le Bureau)", "bool", "jarvis_affichage", "TOUJOURS_DEVANT", None),
+    ("regard", "Réacteur", "Le cœur suit la souris", "bool", "jarvis_affichage", "REGARD_SOURIS", None),
+    ("force_regard", "Réacteur", "Intensité du suivi de la souris", "nombre", "jarvis_affichage", "FORCE_REGARD", (0.05, 0.35, 0.005, "")),
+    ("danse", "Réacteur", "Le réacteur danse avec la musique", "bool", "jarvis_affichage", "DANSE_MUSIQUE", None),
+    ("force_danse", "Réacteur", "Intensité de la danse", "nombre", "jarvis_affichage", "FORCE_DANSE", (0.05, 0.5, 0.01, "")),
     ("doux_nuit", "Apparence", "Plus doux la nuit", "bool", "jarvis_affichage", "DOUX_LA_NUIT", None),
     ("douceur_nuit", "Apparence", "Luminosité la nuit", "nombre", "jarvis_affichage", "DOUCEUR_NUIT", (0.3, 1.0, 0.02, "")),
-    ("discret", "Apparence", "Mode discret en veille", "bool", "jarvis_affichage", "MODE_DISCRET", None),
-    ("delai_discret", "Apparence", "Se réduit après (secondes)", "nombre", "jarvis_affichage", "DELAI_DISCRET", (5, 300, 5, "s")),
-    ("taille_discrete", "Apparence", "Taille en mode discret", "nombre", "jarvis_affichage", "TAILLE_DISCRETE", (0.25, 0.8, 0.01, "")),
-    ("panneau_compact", "Apparence", "Jauges visibles en mode discret", "bool", "jarvis_affichage", "PANNEAU_COMPACT", None),
-    ("icones", "Apparence", "Icônes des jauges", "bool", "jarvis_affichage", "ICONES_JAUGES", None),
-    ("halo", "Apparence", "Halo lumineux", "bool", "jarvis_affichage", "HALO", None),
-    ("fetes", "Apparence", "Animations de minuit et d'anniversaire", "bool", "jarvis_affichage", "FETES", None),
-    ("taille", "Apparence", "Taille du réacteur (au prochain démarrage)", "nombre", "reacteur", "TAILLE", (180, 400, 10, "")),
+    ("discret", "Réacteur", "Mode discret en veille", "bool", "jarvis_affichage", "MODE_DISCRET", None),
+    ("delai_discret", "Réacteur", "Se réduit après", "duree", "jarvis_affichage", "DELAI_DISCRET", (5, 300, 5)),
+    ("taille_discrete", "Réacteur", "Taille en mode discret", "nombre", "jarvis_affichage", "TAILLE_DISCRETE", (0.25, 0.8, 0.01, "")),
+    ("panneau_compact", "Réacteur", "Jauges visibles en mode discret", "bool", "jarvis_affichage", "PANNEAU_COMPACT", None),
+    ("icones", "Réacteur", "Icônes des jauges", "bool", "jarvis_affichage", "ICONES_JAUGES", None),
+    ("halo", "Réacteur", "Halo lumineux", "bool", "jarvis_affichage", "HALO", None),
+    ("fetes", "Réacteur", "Animations de minuit et d'anniversaire", "bool", "jarvis_affichage", "FETES", None),
+    ("taille", "Réacteur", "Taille du réacteur (au prochain démarrage)", "nombre", "reacteur", "TAILLE", (180, 400, 10, "")),
     ("volume_bip", "Son", "Volume du bip de réveil", "nombre", "jarvis_voix", "VOLUME_BIP", (0.05, 1.0, 0.05, "")),
     ("volume_fin", "Son", "Son de fin d'écoute (part du bip)", "nombre", "jarvis_voix", "VOLUME_FIN_ECOUTE", (0.0, 1.5, 0.05, "")),
-    ("deux_voix", "Son", "Histoires à deux voix", "bool", "jarvis_enfant", "DEUX_VOIX", None),
+    ("deux_voix", "Profils", "Histoires à deux voix", "bool", "jarvis_enfant", "DEUX_VOIX", None),
     ("variation", "Son", "Voix légèrement variée d'une phrase à l'autre", "bool", "jarvis_voix", "VARIATION_VOIX", None),
-    ("francais", "Son", "Vidéos des enfants : en français seulement", "bool", "jarvis_enfant", "FRANCAIS_SEULEMENT", None),
+    ("francais", "Profils", "Vidéos des enfants : en français seulement", "bool", "jarvis_enfant", "FRANCAIS_SEULEMENT", None),
     ("alertes", "Alertes", "Annoncer les alertes météo", "bool", "jarvis_vigilance", "ACTIVE", None),
     ("niveau_alertes", "Alertes", "À partir de la vigilance", "choix", "jarvis_vigilance", "NIVEAU_MIN", [("jaune", 2), ("orange", 3), ("rouge", 4)]),
 ]
 JAUGES_POSSIBLES = (("CPU", "Processeur"), ("RAM", "Mémoire"), ("GPU", "Carte graphique"), ("NET", "Réseau"), ("TMP", "Température"))
+
+# Une courte phrase grise sous les réglages qui ne s'expliquent pas tout seuls
+AIDES = {
+    "cycle": "Plus le nombre est petit, plus les couleurs défilent vite.",
+    "discret": "Quand Jarvis est au repos, le réacteur se réduit pour moins gêner sur le Bureau.",
+    "delai_discret": "Temps de repos avant que le réacteur se réduise. À droite du curseur : il ne se réduit jamais.",
+    "volume_fin": "Réglé en part du bip de réveil : tout à gauche, ce son est muet.",
+    "niveau_alertes": "« jaune » annonce tout, « rouge » seulement les alertes les plus graves.",
+}
+# Comment afficher la valeur d'un curseur : "pour_cent" (0,72 -> 72 %), "plage" (sa place entre le mini et le maxi), "px"
+FORMATS = {
+    "vitesse_reflet": "plage", "longueur_reflet": "plage", "force_regard": "plage", "force_danse": "plage",
+    "douceur_nuit": "pour_cent", "taille_discrete": "pour_cent", "volume_bip": "pour_cent", "volume_fin": "pour_cent",
+    "taille": "px",
+}
 
 DEFAUTS = {}
 _charge = False
@@ -569,13 +585,16 @@ def _construire():
         dessiner()
         return c
 
-    def curseur(parent, val, mini, maxi, pas, changer, unite=""):
+    def curseur(parent, val, mini, maxi, pas, changer, unite="", formate=None):
         cadre = tk.Frame(parent, bg=PANNEAU2)
-        affiche = tk.Label(cadre, width=7, bg=PANNEAU2, fg=TEXTE, font=POLICE, anchor="e")
+        affiche = tk.Label(cadre, width=8, bg=PANNEAU2, fg=TEXTE, font=POLICE, anchor="e")
         variable = tk.DoubleVar(value=val)
 
         def montrer(v):
             v = float(v)
+            if formate:
+                affiche.configure(text=formate(v))
+                return
             affiche.configure(text=(f"{v:.0f}" if pas >= 1 else f"{v:.2f}".rstrip("0").rstrip(".")) + (f" {unite}" if unite else ""))
 
         def bouge(v):
@@ -606,11 +625,78 @@ def _construire():
             interrupteur(cadre, val, lambda v, c=cle: regler(c, bool(v))).pack(side="right", padx=12)
         elif genre == "nombre":
             mini, maxi, pas, unite = options
-            curseur(cadre, val if val is not None else mini, mini, maxi, pas, lambda v, c=cle: regler(c, v), unite).pack(side="right", padx=12)
+            mode, formate = FORMATS.get(cle), None
+            if mode == "pour_cent":
+                formate = lambda v: f"{round(v * 100)} %"
+            elif mode == "plage":
+                formate = lambda v, a=mini, b=maxi: f"{round((v - a) / (b - a) * 100)} %"
+            elif mode == "px":
+                formate = lambda v: f"{int(round(v))} px"
+            curseur(cadre, val if val is not None else mini, mini, maxi, pas, lambda v, c=cle: regler(c, v), unite,
+                    formate).pack(side="right", padx=12)
+        elif genre == "duree":
+            # curseur de mini à maxi secondes, puis une dernière position « Illimité » (valeur 0)
+            mini, maxi, pas = options
+            illimite = maxi + pas
+            cv = tk.DoubleVar(value=illimite if not val else min(max(float(val), mini), maxi))
+            bloc = tk.Frame(cadre, bg=PANNEAU2)         # même présentation que les autres curseurs
+            bloc.pack(side="right", padx=12)
+            texte = tk.Label(bloc, bg=PANNEAU2, fg=TEXTE, font=POLICE, width=8, anchor="e")
+
+            def nom_duree(s):
+                s = int(round(float(s)))
+                if s > maxi:
+                    return "Illimité"
+                if s < 60:
+                    return f"{s} s"
+                m, r = divmod(s, 60)
+                return f"{m} min" + (f" {r:02d}" if r else "")
+
+            def bouge_duree(v, c=cle):
+                s = int(round(float(v) / pas) * pas)
+                texte.configure(text=nom_duree(s))
+                regler(c, 0 if s > maxi else s)
+            tk.Scale(bloc, from_=mini, to=illimite, resolution=pas, orient="horizontal", showvalue=False, variable=cv,
+                     command=bouge_duree, length=px(220), bg=accent["c"], fg=TEXTE, troughcolor="#1f2c3d", highlightthickness=0,
+                     bd=0, sliderrelief="flat", activebackground=_hex(_melange(_rgb(accent["c"]), (255, 255, 255), 0.3)),
+                     sliderlength=px(14), width=px(10)).pack(side="left")
+            texte.pack(side="left", padx=(6, 0))
+            texte.configure(text=nom_duree(cv.get()))
         elif genre == "choix":
             noms = [n for n, _ in options]
-            actuel = next((n for n, v in options if v == val), noms[0])
+            actuel = next((n for n, v in options if v == val), None)
+            actuel = actuel or noms[0]
             choix(cadre, actuel, noms, lambda n, c=cle, o=options: regler(c, dict(o)[n])).pack(side="right", padx=12, pady=4)
+        if cle in AIDES:                       # une courte phrase grise juste sous la carte du réglage
+            tk.Label(page, text=AIDES[cle], bg=PANNEAU, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(560),
+                     justify="left").pack(anchor="w", padx=24, pady=(0, 4))
+
+    def remise_page(onglet, en_plus, refaire):
+        """En bas d'une page : « Remettre cette page par défaut » (seulement les réglages de cette page)."""
+        def remettre():
+            if not messagebox.askyesno("Jarvis", "Remettre les réglages de cette page comme à l'installation ?\n\n"
+                                                 "Les autres pages ne sont pas touchées.", parent=racine):
+                return
+            donnees = _lire()
+            for cle in [e[0] for e in REGLAGES if e[1] == onglet] + list(en_plus):
+                if cle in DEFAUTS:
+                    try:
+                        _appliquer(cle, DEFAUTS[cle])
+                    except Exception as erreur:
+                        print("Remise par défaut :", cle, erreur)
+                donnees.pop(cle, None)
+            _ecrire(donnees)
+            try:
+                if onglet == "Apparence":
+                    jarvis_extras.choisir_couleur("vice city")
+                    accent["c"] = _couleurs_theme()[0]
+                elif onglet == "Son":
+                    import jarvis_voix
+                    jarvis_voix.regler_voix("henri", jarvis_voix.VITESSE_NORMALE)
+            except Exception as erreur:
+                print("Remise par défaut :", erreur)
+            refaire()
+        bouton(page, "Remettre cette page par défaut", remettre).pack(anchor="w", padx=22, pady=(18, 20))
 
     # --- Les pages ---
 
@@ -655,10 +741,7 @@ def _construire():
             tuile.grid(row=i // 4, column=i % 4, padx=4, pady=4)
         for groupe, cles in (("Couleurs", ("cycle",)),
                              ("Reflets lumineux", ("vitesse_reflet", "longueur_reflet", "nb_reflets", "reflet_reacteur", "tour_reacteur")),
-                             ("Vie du réacteur", ("regard", "force_regard", "danse", "force_danse", "fetes", "halo")),
-                             ("La nuit", ("doux_nuit", "douceur_nuit")),
-                             ("Mode discret", ("discret", "delai_discret", "taille_discrete", "panneau_compact")),
-                             ("Taille et place", ("taille", "devant"))):
+                             ("La nuit", ("doux_nuit", "douceur_nuit"))):
             section(groupe)
             for c, onglet, libelle, genre, _, _, options in REGLAGES:
                 if c in cles:
@@ -667,7 +750,20 @@ def _construire():
                 cadre = ligne()
                 tk.Label(cadre, text="Mode nuit automatique", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
                 choix(cadre, choix_actuel("nuit_auto"), list(NUIT_AUTO), lambda n: regler("nuit_auto", n)).pack(side="right", padx=12, pady=4)
-        section("Jauges et position")
+        remise_page("Apparence", ("nuit_auto",), page_apparence)
+
+    def page_reacteur():
+        vider()
+        titre("Réacteur", "Comment il vit, quand il se fait discret, ses jauges, sa taille et sa place.")
+        for groupe, cles in (("Vie du réacteur", ("regard", "force_regard", "danse", "force_danse", "fetes", "halo")),
+                             ("Mode discret", ("discret", "delai_discret", "taille_discrete", "panneau_compact"))):
+            section(groupe)
+            for c, onglet, libelle, genre, _, _, options in REGLAGES:
+                if c in cles:
+                    reglage(c, libelle, genre, options, "Réacteur")
+        section("Jauges")
+        r = next(x for x in REGLAGES if x[0] == "icones")
+        reglage("icones", r[2], r[3], r[6], "Apparence")
         for code, nom in JAUGES_POSSIBLES:
             cadre = ligne()
             tk.Label(cadre, text=nom, bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
@@ -681,9 +777,14 @@ def _construire():
                     actuelles.remove(code)
                 regler("jauges", [c for c, _ in JAUGES_POSSIBLES if c in actuelles])
             interrupteur(cadre, m is not None and code in m.JAUGES, changer).pack(side="right", padx=12)
+        section("Taille et place")
+        for c in ("taille", "devant"):
+            r = next(x for x in REGLAGES if x[0] == c)
+            reglage(c, r[2], r[3], r[6], "Apparence")
         cadre = ligne()
         tk.Label(cadre, text="Placer le réacteur", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
         choix(cadre, "choisir…", list(COINS), placer).pack(side="right", padx=12, pady=4)
+        remise_page("Réacteur", ("jauges",), page_reacteur)
 
     def placer(coin):
         import ctypes
@@ -728,7 +829,7 @@ def _construire():
         tk.Label(cadre, text="Vitesse de la voix", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
         curseur(cadre, int(jarvis_voix.VITESSE.rstrip("%")), -30, 50, 1,
                 lambda v: jarvis_voix.regler_voix(vitesse=int(v)), "%").pack(side="right", padx=12)
-        for c in ("deux_voix", "variation", "francais"):
+        for c in ("variation",):
             r = next(x for x in REGLAGES if x[0] == c)
             reglage(c, r[2], r[3], r[6], "Son")
         section("Écoute")
@@ -741,6 +842,7 @@ def _construire():
         tk.Label(page, text="« prudente » : il se réveille moins souvent par erreur quand on parle de lui ; "
                             "« sensible » : il répond plus facilement.", bg=PANNEAU, fg=DISCRET, font=POLICE,
                  wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=6)
+        remise_page("Son", ("micro", "reveil"), page_son)
 
     def page_alertes():
         vider()
@@ -748,6 +850,7 @@ def _construire():
         for c in ("alertes", "niveau_alertes"):
             r = next(x for x in REGLAGES if x[0] == c)
             reglage(c, r[2], r[3], r[6], "Alertes")
+        remise_page("Alertes", (), page_alertes)
 
     def page_profils():
         vider()
@@ -774,6 +877,10 @@ def _construire():
         tk.Label(page, text="À la voix : « crée un profil pour Marie », « crée un profil enfant pour Léo », « Jarvis, c'est "
                             "Marie », « apprends ma voix », « supprime le profil de Marie ».", bg=PANNEAU, fg=DISCRET,
                  font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=12)
+        section("Mode enfant")
+        for c in ("deux_voix", "francais"):
+            r = next(x for x in REGLAGES if x[0] == c)
+            reglage(c, r[2], r[3], r[6], "Profils")
 
     def page_aide():
         vider()
@@ -1358,16 +1465,22 @@ def _construire():
         tk.Label(page, text="À la voix : « premiers pas » rappelle ce que Claude apporte.", bg=PANNEAU, fg=DISCRET,
                  font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
 
-    pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
-             ("Comptes", page_comptes), ("Claude", page_claude),
-             ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("Rapports", page_rapports),
-             ("À propos", page_a_propos)]
+    # Rangées par famille (un trait fin les sépare dans la liste) :
+    #   réacteur et voix | personnes et services | confidentialité | entretien | informations
+    pages = [("Apparence", page_apparence), ("Réacteur", page_reacteur), ("Son", page_son),
+             ("Profils", page_profils), ("Comptes", page_comptes), ("Claude", page_claude), ("Alertes", page_alertes),
+             ("Rapports", page_rapports), ("Historique", page_historique),
+             ("Système", page_systeme), ("Santé", page_sante),
+             ("Aide", page_aide), ("À propos", page_a_propos)]
+    DEBUTS_FAMILLE = ("Profils", "Rapports", "Système", "Aide")
     onglets = {}
 
     # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
     icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
               "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939",
               "Comptes": "\ue715", "Claude": "\ue8bd"}
+
+    icones["Réacteur"] = ""
 
     def montrer(nom, fonction):
         for n, (ligne_menu, trait, ic, lib) in onglets.items():
@@ -1380,6 +1493,8 @@ def _construire():
             lib.configure(fg=TEXTE if actif else DISCRET)
         fonction()
     for nom, fonction in pages:
+        if nom in DEBUTS_FAMILLE:
+            tk.Frame(menu, bg="#1b2838", height=1).pack(fill="x", padx=px(14), pady=(px(4), px(3)))
         ligne_menu = tk.Frame(menu, bg=FOND, cursor="hand2")
         trait = tk.Frame(ligne_menu, bg=FOND, width=px(3))
         trait.pack(side="left", fill="y")

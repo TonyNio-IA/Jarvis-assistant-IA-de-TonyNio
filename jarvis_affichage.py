@@ -46,7 +46,7 @@ ELARGISSEMENT = 30       # largeur ajoutée au panneau de chaque côté du réac
 NB_GRADUATIONS = 72      # traits de la couronne extérieure (ils dessinent le spectre du son)
 MODE_DISCRET = True      # en veille, le réacteur rétrécit et le panneau disparaît
 TAILLE_DISCRETE = 0.45   # taille du réacteur en veille (1 = taille normale)
-DELAI_DISCRET = 35       # secondes de veille avant de rétrécir
+DELAI_DISCRET = 90       # secondes de veille avant de rétrécir (0 : jamais, le réacteur reste à sa taille)
 VITESSE_REFLET = 174      # vitesse du reflet de lumière qui fait le tour des panneaux et du réacteur (points/s)
 TOUR_REFLET_REACTEUR = 7.0   # secondes pour que le reflet fasse le tour du cercle du réacteur (vitesse régulière)
 NB_REFLETS = 2          # nombre de reflets sur chaque contour, répartis à égale distance
@@ -94,6 +94,11 @@ IDEES = ("Quelle heure est-il ?", "Quel jour sommes-nous ?", "Mets un minuteur p
          "Parle plus vite", "Parle plus lentement", "Active le mode nuit", "Ouvre les réglages",
          "Qu'est-ce que tu sais faire ?", "Coupe le micro")
 DUREE_IDEE = 6.0          # secondes par idée affichée
+# Pour ceux qui n'ont pas choisi le rapport « Complet » : montré au démarrage, puis rarement (au plus une fois
+# toutes les 10 minutes), à un moment où la fenêtre de discussion est vide et déployée (donc vue)
+DELAI_ENTRE_RAPPELS_RAPPORT = 600    # secondes
+DUREE_RAPPEL_RAPPORT = 6.0           # secondes d'affichage
+ENCOURAGER_RAPPORT = "Pour aider Jarvis à s'améliorer : Réglages, Rapports, niveau Complet (tes demandes sont envoyées)"
 user32 = ctypes.windll.user32
 user32.CreatePopupMenu.restype = ctypes.c_void_p
 user32.AppendMenuW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_wchar_p]
@@ -472,9 +477,11 @@ class Affichage:
 
     def _entrees_menu(self):
         coupe = jarvis_claude.micro_coupe
-        return [(3, "", "Réglages"),
-                (1, "", "Nouvelle conversation"),
+        # d'abord les gestes de tous les jours, puis les Réglages, puis écrire au créateur, Arrêter en dernier
+        return [(1, "", "Nouvelle conversation"),
                 (4, "" if coupe else "", "Rallumer le micro" if coupe else "Couper le micro"),
+                (None, None, None),
+                (3, "", "Réglages"),
                 (None, None, None),
                 (5, "\ue7ba", "Signaler un problème"),
                 (6, "\uea80", "Proposer une amélioration"),
@@ -829,7 +836,8 @@ class Affichage:
                  or self._reste_texte > 0)
         if actif:
             self._dernier_eveil = maintenant
-        deploye = (not MODE_DISCRET or actif or maintenant - getattr(self, "_dernier_eveil", maintenant) < DELAI_DISCRET
+        deploye = (not MODE_DISCRET or DELAI_DISCRET <= 0 or actif
+                   or maintenant - getattr(self, "_dernier_eveil", maintenant) < DELAI_DISCRET
                    or self._survol())
         self._forme += ((1.0 if deploye else 0.0) - self._forme) * (1 - math.exp(-dt * (9 if deploye else 4)))
         k = TAILLE_DISCRETE + (1 - TAILLE_DISCRETE) * self._forme
@@ -1404,10 +1412,31 @@ class Affichage:
 
     def _invite(self):
         """Fenêtre de discussion vide : « Clique ici pour écrire à Jarvis », puis des idées de demandes, tour à tour."""
-        tour = int(time.time() / DUREE_IDEE)
+        maintenant = time.time()
+        if maintenant < getattr(self, "_rapport_jusqua", 0):
+            return ENCOURAGER_RAPPORT
+        if (self._forme > 0.95 and maintenant - getattr(self, "_rapport_dernier", 0) >= DELAI_ENTRE_RAPPELS_RAPPORT
+                and self._encourager_rapport()):
+            self._rapport_dernier = maintenant
+            self._rapport_jusqua = maintenant + DUREE_RAPPEL_RAPPORT
+            return ENCOURAGER_RAPPORT
+        tour = int(maintenant / DUREE_IDEE)
         if tour % 3 == 0:
             return INVITE_SAISIE
         return "Essaie : « " + random.Random(tour).choice(IDEES) + " »"
+
+    def _encourager_rapport(self):
+        """Faut-il glisser l'invitation au rapport Complet ? (relu toutes les 5 secondes seulement)"""
+        maintenant = time.time()
+        memo = getattr(self, "_memo_rapport", None)
+        if memo is None or maintenant - memo[0] > 5:
+            try:
+                import jarvis_rapports
+                memo = (maintenant, jarvis_rapports.a_encourager_complet())
+            except Exception:
+                memo = (maintenant, False)
+            self._memo_rapport = memo
+        return memo[1]
 
     def _texte_rappel(self):
         """« dans 3:20 · minuteur » : le prochain minuteur ou rappel, ou « » s'il n'y en a pas."""
@@ -1476,7 +1505,7 @@ class Affichage:
                 couleur = teinte(force * fondu, blanc)
         else:
             rappel = self._texte_rappel()
-            lignes = self._mettre_en_lignes(rappel, largeur)[:nb] if rappel else [self._invite()]
+            lignes = self._mettre_en_lignes(rappel or self._invite(), largeur)[:nb]
             couleur = teinte(0.7, blanc) if rappel else teinte(0.68)
         pas = self.police_discussion.get_linesize()
         y = (y0 + y1) / 2 - pas * (len(lignes) - 1) / 2

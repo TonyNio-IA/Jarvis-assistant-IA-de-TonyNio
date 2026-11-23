@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.52**
+**Français : [README.md](README.md)** · **Current version: 1.53**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.53
+
+- **Better organised Settings**: the tabs are grouped by family (Appearance, Reactor, Sound | Profiles, Accounts, Claude, Alerts | Reports, History | System, Health | Help, About). A new **Réacteur** tab gathers its behaviour (mouse, dance, halo), discreet mode, gauges, size and position. Child mode is under **Profils**. Slider values are readable (72 %, 280 px), a few settings have an explanatory line, and each page has a "Remettre cette page par défaut" button that leaves the other pages alone.
+- **The reactor now shrinks after 1 min 30 by default** (instead of 30 s), and the delay can be set from 5 seconds to "Illimité" in Settings, Réacteur, "Se réduit après". Anyone who had already chosen a delay keeps it.
+- **Right-click menu**: everyday actions first (new conversation, microphone), then Settings, then report a problem or suggest an improvement, and "Arrêter Jarvis" last.
+- **Helping improve Jarvis**: for people who have not chosen the "Complet" report level, a short line reminds them now and then (at most once every 10 minutes, for 6 seconds) where to choose it. It only shows in the empty discussion window, never in child or guest mode. Choosing "Complet" or not remains your decision.
 
 ## New in 1.52
 

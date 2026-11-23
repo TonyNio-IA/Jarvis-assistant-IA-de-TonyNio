@@ -206,6 +206,18 @@ def _invite():
         return False
 
 
+def a_encourager_complet():
+    """Vrai s'il faut glisser, dans la fenetre de discussion, l'invitation a choisir le rapport « Complet » :
+    pour tous ceux qui n'ont pas choisi « Complet » (« Technique » ou « Rien »), jamais en mode enfant ou invite."""
+    try:
+        if niveau() == "complet" or _invite():
+            return False
+        import jarvis_enfant
+        return not jarvis_enfant.actif()
+    except Exception:
+        return False
+
+
 def noter(genre, **infos):
     """Ajoute un événement au journal local, seulement si l'utilisateur a accepté les rapports."""
     if niveau() == "aucun" or _invite():

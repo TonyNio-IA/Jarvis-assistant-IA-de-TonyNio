@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.52**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.53**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.53
+
+- **Réglages mieux rangés** : les onglets sont rangés par familles (Apparence, Réacteur, Son | Profils, Comptes, Claude, Alertes | Rapports, Historique | Système, Santé | Aide, À propos). Un nouvel onglet **Réacteur** réunit sa vie (souris, danse, halo), le mode discret, les jauges, sa taille et sa place. Le mode enfant est dans **Profils**. Les valeurs des curseurs sont lisibles (72 %, 280 px), quelques réglages ont une phrase d'explication, et chaque page a un bouton « Remettre cette page par défaut » qui ne touche pas aux autres pages.
+- **Le réacteur se réduit après 1 min 30 par défaut** (au lieu de 30 s), et le délai se règle de 5 secondes à « Illimité » dans Réglages, Réacteur, « Se réduit après ». Celui qui avait déjà choisi un délai le garde.
+- **Menu du clic droit** : les gestes de tous les jours d'abord (nouvelle conversation, micro), puis Réglages, puis signaler un problème ou proposer une amélioration, et « Arrêter Jarvis » en dernier.
+- **Aider à améliorer Jarvis** : pour ceux qui n'ont pas choisi le niveau « Complet » des rapports, une courte phrase rappelle de temps en temps (au plus une fois toutes les 10 minutes, 6 secondes) où le choisir. Elle n'apparaît que dans la fenêtre de discussion vide, jamais en mode enfant ni invité. Choisir « Complet » ou non reste ton choix.
 
 ## Nouveau en 1.52
 
@@ -393,7 +400,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Fenêtre de réglages aux couleurs de Jarvis (clic droit sur le réacteur, « Réglages… », ou « Jarvis, ouvre les réglages ») : thèmes (Vice City, Iron Man, Océan, Forêt...), reflets, suivi de la souris, danse, nuit, mode discret, jauges, position, taille, bips, voix, sensibilité du micro et du mot de réveil, alertes météo, profils, aide avec recherche, historique, démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix). Tout s'applique en direct, avec un aperçu.
 - Corrections d'écoute : Jarvis corrige tout seul ses erreurs d'écoute habituelles, et tu peux lui en apprendre : « quand tu entends mes mots, c'est mets-moi », « quelles corrections connais-tu ? », « oublie la correction mes mots ».
 - Diagnostic : « Jarvis, fais un diagnostic » vérifie le micro, le haut-parleur, la reconnaissance vocale, Claude, la connexion et le disque (aussi dans l'onglet Santé des réglages). Après un plantage, il dit au redémarrage ce qui s'est passé.
-- Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Son.
+- Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Profils.
 - Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
 - Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ». Seules les mises à jour importantes s'installent sans question, après une minute sans aucune demande (cinq minutes après une demande d'une tablette) : Jarvis le dit à voix haute, puis redémarre.
 - Carburants : « combien coûte le gazole ? », « le prix du sans-plomb 98 » : la station la moins chère près de ta ville (prix officiels). « Mon carburant, c'est le gazole » pour ne plus le préciser.
