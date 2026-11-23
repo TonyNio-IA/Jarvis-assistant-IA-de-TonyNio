@@ -17,6 +17,7 @@ Déplacer   :  clic gauche maintenu sur le réacteur
 Quitter    :  clic droit sur le réacteur, puis « Arrêter Jarvis »
 """
 
+import jarvis_tk_sur  # noqa: F401  (images et variables Tk : jamais liberees depuis un autre fil)
 import ctypes
 import math
 import random

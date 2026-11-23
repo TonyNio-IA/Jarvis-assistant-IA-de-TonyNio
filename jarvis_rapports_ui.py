@@ -5,6 +5,7 @@ JARVIS - fenêtres des rapports : l'accord (au premier lancement), « Signaler u
 Chaque fenêtre s'ouvre dans son propre fil, comme la fenêtre de réglages.
 """
 
+import jarvis_tk_sur  # noqa: F401  (images et variables Tk : jamais liberees depuis un autre fil)
 import threading
 import webbrowser
 

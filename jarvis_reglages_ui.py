@@ -13,6 +13,7 @@ Aide, À propos. Un petit réacteur en direct montre l'effet des réglages.
 jamais aux profils, aux mémoires, aux voix enregistrées, aux rappels, aux notes ni aux listes.
 """
 
+import jarvis_tk_sur  # noqa: F401  (images et variables Tk : jamais liberees depuis un autre fil)
 import datetime
 import json
 import math
@@ -507,10 +508,20 @@ _fenetre = {"ouverte": False, "devant": False}
 def ouvrir():
     """Ouvre la fenêtre de réglages (ou la ramène devant si elle est déjà ouverte)."""
     if _fenetre["ouverte"]:
-        _fenetre["devant"] = True
-        return
+        fil = _fenetre.get("fil")
+        bloquee = (fil is not None and not fil.is_alive()) or time.time() - _fenetre.get("pouls", 0) > 8
+        if not bloquee:
+            _fenetre["devant"] = True
+            return
+        # la fenêtre ne donne plus signe de vie (fil mort ou figé) : on repart sur une neuve
+        print("(Réglages : l'ancienne fenêtre ne répondait plus, j'en ouvre une neuve.)")
+    jeton = object()
+    _fenetre["jeton"] = jeton
     _fenetre["ouverte"] = True
-    threading.Thread(target=_fenetre_principale, daemon=True).start()
+    _fenetre["pouls"] = time.time()
+    fil = threading.Thread(target=_fenetre_principale, args=(jeton,), daemon=True)
+    _fenetre["fil"] = fil
+    fil.start()
 
 
 def _couleurs_theme():
@@ -540,13 +551,22 @@ def _degrade(palette, t):
     return _melange(_rgb(palette[i]), _rgb(palette[(i + 1) % n]), f)
 
 
-def _fenetre_principale():
+def _fenetre_principale(jeton=None):
     try:
         _construire()
     except Exception as erreur:
         print("Fenêtre de réglages :", erreur)
     finally:
-        _fenetre["ouverte"] = False
+        # Tk n'aime pas qu'un autre fil libère ses objets (interpréteur « abandonné », images qui ne
+        # se suppriment pas) : on vide tout ici, dans le fil de la fenêtre, avant qu'il se termine.
+        try:
+            _CACHE_IMG.clear()
+            import gc
+            gc.collect()
+        except Exception:
+            pass
+        if jeton is None or _fenetre.get("jeton") is jeton:
+            _fenetre["ouverte"] = False
 
 
 def _construire():
@@ -598,8 +618,27 @@ def _construire():
 
     corps = tk.Frame(racine, bg=FOND)
     corps.pack(fill="both", expand=True, padx=16, pady=(4, 14))
-    menu = tk.Frame(corps, bg=FOND, width=170)
-    menu.pack(side="left", fill="y", padx=(0, 12))
+    menu_cadre = tk.Frame(corps, bg=FOND)
+    menu_cadre.pack(side="left", fill="y", padx=(0, 12))
+    # Sur un petit écran ou dans une fenêtre réduite, tous les onglets ne tiennent pas : la colonne défile
+    # (molette sur la colonne, ou clic sur un onglet qui se remet de lui-même en vue), avec une fine barre.
+    menu_barre = tk.Canvas(menu_cadre, width=px(6), bg=FOND, highlightthickness=0)
+    menu_toile = tk.Canvas(menu_cadre, width=px(150), bg=FOND, highlightthickness=0)
+    menu_barre.pack(side="right", fill="y", pady=4)
+    menu_toile.pack(side="left", fill="y")
+    menu = tk.Frame(menu_toile, bg=FOND)
+    menu_fenetre = menu_toile.create_window((0, 0), window=menu, anchor="nw")
+
+    def position_barre_menu(debut, fin):
+        menu_barre.delete("all")
+        debut, fin = float(debut), float(fin)
+        if fin - debut < 0.999:
+            h = menu_barre.winfo_height()
+            menu_barre.create_line(px(3), debut * h + px(3), px(3), max(debut * h + px(8), fin * h - px(3)), width=px(4),
+                                   capstyle="round", fill=ASCENS)
+    menu_toile.configure(yscrollcommand=position_barre_menu)
+    menu.bind("<Configure>", lambda e: menu_toile.configure(scrollregion=(0, 0, e.width, e.height)))
+    menu_toile.bind("<Configure>", lambda e: menu_toile.itemconfigure(menu_fenetre, width=e.width))
     contenu_cadre = tk.Frame(corps, bg=PANNEAU, highlightthickness=1, highlightbackground=BORD)
     contenu_cadre.pack(side="left", fill="both", expand=True)
     apercu = tk.Canvas(corps, width=px(230), bg=FOND, highlightthickness=0)
@@ -624,7 +663,22 @@ def _construire():
     fenetre_page = toile.create_window((0, 0), window=page, anchor="nw")
     page.bind("<Configure>", lambda e: toile.configure(scrollregion=toile.bbox("all")))
     toile.bind("<Configure>", lambda e: toile.itemconfigure(fenetre_page, width=e.width))
-    racine.bind_all("<MouseWheel>", lambda e: toile.yview_scroll(int(-e.delta / 120), "units"))
+
+    def molette(e):
+        cible = toile
+        try:
+            w = racine.winfo_containing(e.x_root, e.y_root)
+            while w is not None:
+                if w is menu_cadre:
+                    debut, fin = menu_toile.yview()
+                    if fin - debut < 0.999:           # la colonne déborde : c'est elle qui défile
+                        cible = menu_toile
+                    break
+                w = w.master
+        except Exception:
+            pass
+        cible.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units")
+    racine.bind_all("<MouseWheel>", molette)
 
     def vider():
         for w in page.winfo_children():
@@ -1750,6 +1804,24 @@ def _construire():
         else:
             ic.configure(fg=accent["c"] if actif else DISCRET)
 
+    def voir_onglet(nom):
+        """Si la colonne défile, l'onglet choisi est ramené dans la partie visible."""
+        try:
+            vue = menu_toile.winfo_height()
+            total = menu.winfo_reqheight()
+            if vue < px(50) or total <= vue:
+                return
+            ligne = onglets[nom][0]
+            y1 = ligne.winfo_y()
+            y2 = y1 + ligne.winfo_height()
+            haut = menu_toile.canvasy(0)
+            if y1 < haut:
+                menu_toile.yview_moveto(max(0.0, (y1 - px(4)) / total))
+            elif y2 > haut + vue:
+                menu_toile.yview_moveto(min(1.0, (y2 - vue + px(4)) / total))
+        except Exception:
+            pass
+
     def montrer(nom, fonction):
         courant.update(nom=nom, f=fonction)
         for n in onglets:
@@ -1759,6 +1831,7 @@ def _construire():
         try:
             fonction()
             racine.update()
+            voir_onglet(nom)
         finally:
             toile.coords(fenetre_page, 0, 0)
     for nom, fonction in pages:
@@ -1822,6 +1895,7 @@ def _construire():
     tic = {"n": 0}
 
     def animer():
+        _fenetre["pouls"] = time.time()
         if _fenetre["devant"]:
             _fenetre["devant"] = False
             racine.deiconify()
@@ -1895,6 +1969,24 @@ def _construire():
         racine.after(int(_fenetre.pop("fermer_apres") * 1000), racine.destroy)
     animer()
     racine.protocol("WM_DELETE_WINDOW", racine.destroy)
+
+    def adapter_largeur(e):
+        if e.widget is not racine:
+            return
+        etroite = e.width < px(940)
+        if etroite and apercu.winfo_ismapped():
+            apercu.pack_forget()
+        elif not etroite and not apercu.winfo_ismapped():
+            apercu.pack(side="left", fill="y", padx=(12, 0))
+    racine.bind("<Configure>", adapter_largeur, add="+")
+    try:                                           # à l'ouverture : devant tout (le réacteur peut être « toujours devant »)
+        racine.update_idletasks()
+        racine.lift()
+        racine.attributes("-topmost", True)
+        racine.after(400, lambda: racine.attributes("-topmost", False))
+        racine.focus_force()
+    except Exception:
+        pass
     racine.mainloop()
 
 

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.54**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.55**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,12 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.55
+
+- **Le menu de gauche des réglages défile** : sur un petit écran (portable en 1366 × 768, Windows réglé à 125 ou 150 %) ou dans une fenêtre réduite, tous les onglets ne tenaient pas et « À propos » restait hors d'atteinte. La colonne défile maintenant à la molette (une fine barre l'indique) et l'onglet choisi reste toujours en vue. Quand la fenêtre est étroite, l'aperçu du réacteur s'efface pour laisser la place aux réglages. Testé sur 13 tailles d'écran, de 1024 × 600 à 4K, de 100 à 200 %.
+- **La fenêtre des réglages s'ouvre à coup sûr** : il arrivait qu'elle se bloque à l'ouverture (clic droit, Réglages) et qu'il faille relancer Jarvis. Cause : Tk, la bibliothèque des fenêtres, n'aime pas qu'une image soit libérée depuis un autre fil de Jarvis. C'est corrigé, et si une ancienne fenêtre ne répond plus, un nouveau clic en ouvre une neuve. Elle passe aussi devant toutes les fenêtres à l'ouverture.
+- Les captures des réglages ci-dessus sont refaites au nouveau design (Profils et À propos comprises, avec de faux profils).
 
 ## Nouveau en 1.54
 

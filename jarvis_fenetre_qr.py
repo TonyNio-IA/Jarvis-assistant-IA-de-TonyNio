@@ -8,6 +8,7 @@ enregistrée. Il suffit de le viser avec l'appareil photo d'un téléphone ou d'
 Pour la tablette ("etapes": true), des écrans dessinés montrent quoi toucher à chaque étape.
 La fenêtre se ferme toute seule après quelques minutes, ou d'un clic, ou avec Échap.
 """
+import jarvis_tk_sur  # noqa: F401  (images et variables Tk : jamais liberees depuis un autre fil)
 import json
 import sys
 import tkinter as tk

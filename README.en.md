@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.54**
+**Français : [README.md](README.md)** · **Current version: 1.55**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,12 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.55
+
+- **The left menu of the settings now scrolls**: on a small screen (a 1366 × 768 laptop, Windows set to 125 or 150 %) or in a reduced window, not every tab fit and "About" was out of reach. The column now scrolls with the mouse wheel (a thin bar shows it) and the chosen tab always stays in view. When the window is narrow, the reactor preview hides to leave room for the settings. Tested on 13 screen sizes, from 1024 × 600 to 4K, at 100 to 200 %.
+- **The settings window always opens**: it could freeze when opening (right-click, Settings), and Jarvis had to be restarted. Cause: Tk, the window library, does not like an image being released from another Jarvis thread. Fixed, and if an old window stops responding, a new click opens a fresh one. It also comes to the front when it opens.
+- The settings screenshots above are redone in the new design (Profiles and About included, with made-up profiles).
 
 ## New in 1.54
 
