@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.50**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.50** (pré-version pour les testeurs : 1.51)
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,15 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.51 (pré-version, pour les testeurs volontaires)
+
+- **Réglages, onglet « Claude »** : Jarvis dit si Claude est installé et relié à ton compte, l'installe si besoin et ouvre la page de connexion de Claude dans ton navigateur, sans ligne de commande. Aucun mot de passe ne passe par Jarvis : la connexion se fait sur le site de Claude.
+- **« Qu'est-ce que tu sais faire ? »** : sans Claude, Jarvis ne promet plus ce qu'il ne peut pas faire (résumer une page, répondre à n'importe quelle question) et explique comment l'ajouter (« premiers pas »).
+- **Désinstallation** : une vraie fenêtre de progression, comme l'installation, au lieu d'une fenêtre noire.
+- **Mise à jour** : l'annonce est plus naturelle (plus de « la 1.51, Jarvis 1.51 »).
+- **Applications du Store** : leur liste est lue en arrière-plan peu après le démarrage, donc la première demande « ouvre… » n'attend plus.
+- **Rapports** : un message identique envoyé plusieurs fois de suite n'est gardé qu'une fois côté Google.
 
 ## Nouveau en 1.50
 

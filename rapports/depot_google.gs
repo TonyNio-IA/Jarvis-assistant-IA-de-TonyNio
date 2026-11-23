@@ -27,6 +27,7 @@ function doPost(e) {
     if (genre === 'signal') return reponse(signal(id, d));
     if (genre === 'effacer') return reponse(effacer(id));
     if (!SOUS_DOSSIERS[genre]) return reponse({ok: false, raison: 'genre'});
+    if (doublon(id, genre, d, brut)) { signal(id, d); return reponse({ok: true, doublon: true}); }
     var dossier = sousDossier(SOUS_DOSSIERS[genre]);
     var date = Utilities.formatDate(new Date(), 'Europe/Paris', 'yyyy-MM-dd_HH-mm-ss');
     dossier.createFile(date + '_' + id + '.json', JSON.stringify(d, null, 1), 'application/json');
@@ -34,6 +35,33 @@ function doPost(e) {
     return reponse({ok: true});
   } catch (err) {
     return reponse({ok: false, raison: String(err).slice(0, 120)});
+  }
+}
+
+/**
+ * Dédoublonnage : un même envoi (même PC, même genre, même texte) reçu plusieurs fois en moins de
+ * 60 secondes n'est enregistré qu'une fois (ex. 6 « Idée » identiques en 4 secondes).
+ * Renvoie true si c'est un doublon (l'envoi est alors accepté mais ignoré).
+ */
+var DELAI_DOUBLON_S = 60;
+function doublon(id, genre, d, brut) {
+  var verrou = LockService.getScriptLock();
+  verrou.waitLock(20000);
+  try {
+    var contenu = (genre === 'probleme' || genre === 'idee') ? String(d.texte || '').trim() : brut;
+    var cle = 'dbl_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, genre + '|' + id + '|' + contenu));
+    var props = PropertiesService.getScriptProperties();   // (le cache de Google se propage trop lentement : on garde ici)
+    var maintenant = Date.now();
+    var avant = Number(props.getProperty(cle) || 0);
+    if (avant && maintenant - avant < DELAI_DOUBLON_S * 1000) return true;
+    var toutes = props.getProperties();                    // on en profite pour oublier les anciennes empreintes
+    Object.keys(toutes).forEach(function (k) {
+      if (k.indexOf('dbl_') === 0 && maintenant - Number(toutes[k]) > 10 * 60 * 1000) props.deleteProperty(k);
+    });
+    props.setProperty(cle, String(maintenant));
+    return false;
+  } finally {
+    verrou.releaseLock();
   }
 }
 

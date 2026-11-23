@@ -565,29 +565,50 @@ _AIDE = re.compile(r"\b(qu'est-ce que tu sais faire|que sais-tu faire|tu sais fa
                    r"comment (?:on |je )?t'utiliser|à quoi tu sers|a quoi tu sers)\b")
 
 
-def commande_aide(t):
+def _claude_installe():
+    """Vrai si Claude Code est installé sur ce PC (sans lui, certaines demandes ne peuvent pas être traitées)."""
+    try:
+        import shutil
+        return bool(shutil.which("claude"))
+    except Exception:
+        return False
+
+
+def commande_aide(t, claude=None):
     if not _AIDE.search(t.replace("’", "'")):
         return None
-    return ("Je réponds tout de suite à l'heure, la météo, les calculs et les conversions. "
-            "Je gère les minuteurs, les rappels, même répétés comme « tous les lundis à 20 heures », "
-            "le réveil, le chronomètre et ta liste de courses. "
-            "J'ouvre et je ferme les applications, je place les fenêtres, je règle le son, "
-            "je mets de la musique sur YouTube, et je fais les raccourcis comme copier ou coller. "
-            "Je peux aussi lire ou résumer un texte que tu as copié, et regarder ton écran. "
-            "Dis « active le mode nuit » pour que je réponde par écrit, ou « active le mode enfant » "
-            "pour les vidéos YouTube Kids, les quiz, les devinettes et les longues histoires. "
-            "Je te donne l'heure dans une autre ville, les alertes météo, une recette étape par étape, "
-            "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. "
-            "Il y a aussi le mode cinéma et le mode invité. "
-            "Pour la famille : les profils, le calendrier, les messages, le quiz, les devoirs et le défi du jour. "
-            "Je connais aussi le prix des carburants près de chez toi, les vacances scolaires, les jours fériés, "
-            "l'éphéméride du jour, et je te rappelle quelle poubelle sortir. "
-            "Avec la Freebox : qui t'a appelé, l'état d'Internet, les appareils connectés et un Wi-Fi invité avec "
-            "son QR code. Je pilote aussi la télé et l'Apple TV, je regarde l'encre de l'imprimante, je lis ton "
-            "agenda (Google, Outlook, iCloud : dis « relie mon agenda »), et je lis ou j'envoie tes mails après ton accord (dis « relie mes mails »). "
-            "Tu peux aussi régler ma façon de te parler : plus bref, plus détaillé, plus ou moins d'humour. "
-            "Et dis « ouvre les réglages » pour tout régler, avec l'aide complète. "
-            "Pour tout le reste, pose-moi simplement ta question : je la confie à Claude.")
+    relie = _claude_installe() if claude is None else claude
+    parties = [
+        "Je réponds tout de suite à l'heure, la météo, les calculs et les conversions. ",
+        "Je gère les minuteurs, les rappels, même répétés comme « tous les lundis à 20 heures », "
+        "le réveil, le chronomètre et ta liste de courses. ",
+        "J'ouvre et je ferme les applications, je place les fenêtres, je règle le son, "
+        "je mets de la musique sur YouTube, et je fais les raccourcis comme copier ou coller. ",
+        ("Je peux aussi lire ou résumer un texte que tu as copié, et regarder ton écran. " if relie
+         else "Je peux aussi lire un texte que tu as copié. "),
+        ("Dis « active le mode nuit » pour que je réponde par écrit, ou « active le mode enfant » "
+         "pour les vidéos YouTube Kids, les quiz, les devinettes et les longues histoires. " if relie
+         else "Dis « active le mode nuit » pour que je réponde par écrit, ou « active le mode enfant » "
+              "pour les vidéos YouTube Kids. "),
+        ("Je te donne l'heure dans une autre ville, les alertes météo, une recette étape par étape, "
+         "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. " if relie
+         else "Je te donne l'heure dans une autre ville, les alertes météo, "
+              "les anniversaires de tes proches, et je rouvre ton dernier téléchargement ou tes onglets. "),
+        "Il y a aussi le mode cinéma et le mode invité. ",
+        ("Pour la famille : les profils, le calendrier, les messages, le quiz, les devoirs et le défi du jour. " if relie
+         else "Pour la famille : les profils, le calendrier et les messages. "),
+        "Je connais aussi le prix des carburants près de chez toi, les vacances scolaires, les jours fériés, "
+        "l'éphéméride du jour, et je te rappelle quelle poubelle sortir. ",
+        "Avec la Freebox : qui t'a appelé, l'état d'Internet, les appareils connectés et un Wi-Fi invité avec "
+        "son QR code. Je pilote aussi la télé et l'Apple TV, je regarde l'encre de l'imprimante, je lis ton "
+        "agenda (Google, Outlook, iCloud : dis « relie mon agenda »), et je lis ou j'envoie tes mails après ton accord (dis « relie mes mails »). ",
+        "Tu peux aussi régler ma façon de te parler : plus bref, plus détaillé, plus ou moins d'humour. ",
+        "Et dis « ouvre les réglages » pour tout régler, avec l'aide complète. ",
+        ("Pour tout le reste, pose-moi simplement ta question : je la confie à Claude." if relie
+         else "Claude n'est pas relié à ce PC : avec lui, je répondrais aussi à n'importe quelle question, "
+              "je résumerais une page et j'écrirais des textes. Dis « premiers pas » pour savoir comment l'ajouter."),
+    ]
+    return "".join(parties)
 
 
 # ---------- Clavier ----------

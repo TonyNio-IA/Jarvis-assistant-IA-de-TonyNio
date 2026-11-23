@@ -921,29 +921,44 @@ _connues = None
 _store = None
 
 
+_verrou_store = threading.Lock()
+
+
 def _applications_store():
     """Les applications que Windows liste dans son menu Démarrer, celles du Microsoft Store comprises :
-    nom simplifié -> (nom affiché, « shell:AppsFolder\\identifiant »). Lue une seule fois (1 à 3 s), sans droits spéciaux."""
+    nom simplifié -> (nom affiché, « shell:AppsFolder\\identifiant »). Lue une seule fois (1 à 7 s selon le PC), sans droits
+    spéciaux ; Jarvis la prépare en arrière-plan peu après son démarrage (precharger_applications)."""
     global _store
-    if _store is None:
-        _store = {}
-        try:
-            sortie = subprocess.run(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                 "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json -Compress"],
-                capture_output=True, timeout=15, creationflags=0x08000000)
-            donnees = json.loads(sortie.stdout.decode("utf-8", "replace").strip() or "[]")
-            if isinstance(donnees, dict):
-                donnees = [donnees]
-            for appli in donnees:
-                nom = str(appli.get("Name") or "").strip()
-                identifiant = str(appli.get("AppID") or "").strip()
-                if nom and identifiant and not re.search(
-                        r"uninst|d[ée]sinstall|manual|manuel|docs|notes|aide|nouveaut|registry|jarvis", nom, re.I):
-                    _store.setdefault(_sans_accents(nom), (nom, "shell:AppsFolder\\" + identifiant))
-        except Exception as erreur:
-            print("Applications Windows : liste impossible :", type(erreur).__name__)
+    with _verrou_store:
+        if _store is None:
+            liste = {}
+            try:
+                sortie = subprocess.run(
+                    ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                     "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json -Compress"],
+                    capture_output=True, timeout=15, creationflags=0x08000000)
+                donnees = json.loads(sortie.stdout.decode("utf-8", "replace").strip() or "[]")
+                if isinstance(donnees, dict):
+                    donnees = [donnees]
+                for appli in donnees:
+                    nom = str(appli.get("Name") or "").strip()
+                    identifiant = str(appli.get("AppID") or "").strip()
+                    if nom and identifiant and not re.search(
+                            r"uninst|d[ée]sinstall|manual|manuel|docs|notes|aide|nouveaut|registry|jarvis", nom, re.I):
+                        liste.setdefault(_sans_accents(nom), (nom, "shell:AppsFolder\\" + identifiant))
+            except Exception as erreur:
+                print("Applications Windows : liste impossible :", type(erreur).__name__)
+            _store = liste
     return _store
+
+
+def precharger_applications(delai=25):
+    """Lit la liste des applications du Store en arrière-plan, un peu après le démarrage (pour ne pas gêner le
+    chargement de la reconnaissance vocale) : la première demande « ouvre … » n'attend alors pas cette lecture."""
+    minuteur = threading.Timer(delai, _applications_store)
+    minuteur.daemon = True
+    minuteur.start()
+    return minuteur
 
 
 def _application_windows(demande):

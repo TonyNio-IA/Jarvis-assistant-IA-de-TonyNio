@@ -198,7 +198,10 @@ def a_annoncer():
 
 def annonce():
     version, titre = disponible
-    return (f"Au fait, une nouvelle version de Jarvis est disponible : la {version}"
+    # Le titre de la version sur GitHub est parfois juste « Jarvis 1.50 » : le répéter après « la 1.50 » sonne faux
+    if titre and re.fullmatch(r"(?i)\s*jarvis\s*v?[\d.]*\s*", titre):
+        titre = ""
+    return (f"Une nouvelle version de Jarvis est disponible : la {version}"
             + (f", {titre}" if titre else "") + ". Tu veux que je l'installe maintenant ?")
 
 

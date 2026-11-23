@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.50"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.51"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -2079,6 +2079,7 @@ def main():
     except Exception as erreur_fenetres:
         print("Premiers pas :", erreur_fenetres)
     jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
+    jarvis_commandes.precharger_applications()
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
     jarvis_extras.surveiller_anniversaires(lambda texte: point_pret.put((texte, "rappel")))

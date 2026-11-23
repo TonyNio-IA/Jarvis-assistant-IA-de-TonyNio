@@ -1217,8 +1217,149 @@ def _construire():
         tk.Label(page, text="À la voix : « relie mon agenda », « relie mes mails ».", bg=PANNEAU, fg=DISCRET,
                  font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
 
+    claude_en_cours = {"v": False}
+
+    def page_claude():
+        import webbrowser
+        import jarvis_claude_reglages as cr
+        vider()
+        titre("Claude", "Avec un abonnement Claude, Jarvis répond à n'importe quelle question. Ici, tu peux "
+                        "l'installer et relier ton compte, sans refaire l'installation.")
+        try:
+            import jarvis_enfant
+            if jarvis_enfant.actif() or jarvis_extras.invite():
+                tk.Label(page, text="Ces réglages sont réservés aux parents : ils ne s'ouvrent pas en mode enfant ni "
+                                    "en mode invité.", bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
+                         justify="left").pack(anchor="w", padx=22, pady=12)
+                return
+        except Exception:
+            pass
+        section("État")
+        carte_etat = ligne()
+        corps = tk.Frame(carte_etat, bg=PANNEAU2)
+        corps.pack(fill="x", padx=12, pady=9)
+        t_titre = tk.Label(corps, text="Je regarde où en est Claude…", bg=PANNEAU2, fg=TEXTE,
+                           font=("Segoe UI Semibold", 10), wraplength=px(480), justify="left")
+        t_titre.pack(anchor="w")
+        t_sous = tk.Label(corps, text="", bg=PANNEAU2, fg=DISCRET, font=POLICE, wraplength=px(480), justify="left")
+        t_sous.pack(anchor="w", pady=(2, 0))
+        t_message = tk.Label(corps, text="", bg=PANNEAU2, fg=accent["c"], font=POLICE, wraplength=px(480), justify="left")
+        t_message.pack(anchor="w", pady=(6, 0))
+        boutons = tk.Frame(page, bg=PANNEAU)
+        boutons.pack(fill="x", padx=18, pady=(6, 2))
+
+        def vivante():
+            try:
+                return t_titre.winfo_exists()
+            except Exception:
+                return False
+
+        def dans_fenetre(f):
+            try:
+                racine.after(0, lambda: vivante() and f())
+            except Exception:
+                pass
+
+        def afficher(etat_claude, message=""):
+            if not vivante():
+                return
+            titre_txt, sous_txt = cr.TEXTES[etat_claude]
+            t_titre.configure(text=titre_txt)
+            t_sous.configure(text=sous_txt)
+            t_message.configure(text=message)
+            for w in boutons.winfo_children():
+                w.destroy()
+            if claude_en_cours["v"]:
+                return
+            if etat_claude == "absent":
+                bouton(boutons, "Installer Claude", installer_claude, fort=True).pack(side="left", padx=2)
+                bouton(boutons, "Prendre un abonnement", lambda: webbrowser.open(cr.ADRESSE_ABONNEMENT)).pack(
+                    side="left", padx=8)
+            elif etat_claude == "deconnecte":
+                bouton(boutons, "Connecter mon compte", connecter_claude, fort=True).pack(side="left", padx=2)
+                bouton(boutons, "Prendre un abonnement", lambda: webbrowser.open(cr.ADRESSE_ABONNEMENT)).pack(
+                    side="left", padx=8)
+            else:
+                bouton(boutons, "Changer de compte", changer_compte).pack(side="left", padx=2)
+            bouton(boutons, "Actualiser", verifier).pack(side="left", padx=8)
+
+        def verifier(message=""):
+            t_titre.configure(text="Je regarde où en est Claude…")
+            t_sous.configure(text="")
+
+            def travail():
+                e = cr.etat()
+                dans_fenetre(lambda: afficher(e, message))
+            threading.Thread(target=travail, daemon=True).start()
+
+        def occupe(texte):
+            claude_en_cours["v"] = True
+            for w in boutons.winfo_children():
+                w.destroy()
+            t_message.configure(text=texte)
+
+        def fini(ok, message, redemarrer=False):
+            claude_en_cours["v"] = False
+            if ok and redemarrer:
+                def relancer():
+                    if messagebox.askyesno("Jarvis", message + "\n\nJarvis doit redémarrer pour utiliser Claude. "
+                                                      "Redémarrer maintenant ?", parent=racine):
+                        racine.destroy()
+                        jarvis_claude.redemarrer()
+                    else:
+                        verifier(message)
+                dans_fenetre(relancer)
+            else:
+                dans_fenetre(lambda: verifier(message))
+
+        def installer_claude():
+            if not messagebox.askyesno("Jarvis", "Installer Claude Code (le programme officiel d'Anthropic, environ "
+                                                 "370 Mo) ? Cela prend plusieurs minutes.\n\nIl faut un abonnement "
+                                                 "Claude (Pro ou supérieur) pour l'utiliser.", parent=racine):
+                return
+            occupe("Installation de Claude en cours, plusieurs minutes… Tu peux continuer à utiliser Jarvis.")
+
+            def travail():
+                ok, message = cr.installer()
+                if not ok:
+                    return fini(False, message)
+                dans_fenetre(lambda: t_message.configure(text="Claude est installé. Connexion de ton compte…"))
+                ok2, message2 = cr.connecter()
+                fini(ok2, message2 if ok2 else message + " " + message2, redemarrer=ok2)
+            threading.Thread(target=travail, daemon=True).start()
+
+        def connecter_claude():
+            occupe("Ton navigateur s'ouvre sur la page de connexion de Claude : connecte-toi puis accepte "
+                   "l'autorisation. J'attends (5 minutes au plus)…")
+
+            def travail():
+                ok, message = cr.connecter()
+                fini(ok, message, redemarrer=ok)
+            threading.Thread(target=travail, daemon=True).start()
+
+        def changer_compte():
+            if not messagebox.askyesno("Jarvis", "Délier le compte Claude de ce PC, puis en connecter un autre ?",
+                                       parent=racine):
+                return
+            occupe("Changement de compte…")
+
+            def travail():
+                cr.deconnecter()
+                ok, message = cr.connecter()
+                fini(ok, message, redemarrer=ok)
+            threading.Thread(target=travail, daemon=True).start()
+
+        if claude_en_cours["v"]:
+            afficher("absent" if not cr.installe() else "deconnecte", "Une opération est déjà en cours…")
+            for w in boutons.winfo_children():
+                w.destroy()
+        else:
+            verifier()
+        tk.Label(page, text="À la voix : « premiers pas » rappelle ce que Claude apporte.", bg=PANNEAU, fg=DISCRET,
+                 font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
+
     pages = [("Apparence", page_apparence), ("Son", page_son), ("Alertes", page_alertes), ("Profils", page_profils),
-             ("Comptes", page_comptes),
+             ("Comptes", page_comptes), ("Claude", page_claude),
              ("Aide", page_aide), ("Historique", page_historique), ("Santé", page_sante), ("Système", page_systeme), ("Rapports", page_rapports),
              ("À propos", page_a_propos)]
     onglets = {}
@@ -1226,7 +1367,7 @@ def _construire():
     # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
     icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
               "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939",
-              "Comptes": "\ue715"}
+              "Comptes": "\ue715", "Claude": "\ue8bd"}
 
     def montrer(nom, fonction):
         for n, (ligne_menu, trait, ic, lib) in onglets.items():

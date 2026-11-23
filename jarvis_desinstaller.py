@@ -220,9 +220,31 @@ $p = Get-Content -LiteralPath $Plan -Raw -Encoding UTF8 | ConvertFrom-Json
 $faits = New-Object Collections.ArrayList
 $problemes = New-Object Collections.ArrayList
 $ic = [StringComparison]::OrdinalIgnoreCase
-function Dire($t) { Write-Host ("  " + $t) }
-function Fait($t) { [void]$faits.Add($t); Dire ("[OK] " + $t) }
-function Probleme($t) { [void]$problemes.Add($t); Dire ("[!]  " + $t) }
+# La fenêtre de progression (à la place de la fenêtre noire) : une phrase pour l'étape en cours, une barre, la liste de ce qui est fait
+$fen = $null; $etape = $null; $liste = $null
+if (-not $p.silencieux) {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        $fond = [Drawing.Color]::FromArgb(24, 26, 32); $texte = [Drawing.Color]::FromArgb(232, 234, 240); $doux = [Drawing.Color]::FromArgb(150, 156, 170)
+        $fen = New-Object Windows.Forms.Form -Property @{ Text = 'Désinstallation de Jarvis'; ClientSize = (New-Object Drawing.Size(560, 360)); StartPosition = 'CenterScreen';
+            TopMost = $true; FormBorderStyle = 'FixedDialog'; MaximizeBox = $false; MinimizeBox = $false; ControlBox = $false; BackColor = $fond; ForeColor = $texte }
+        $titre = New-Object Windows.Forms.Label -Property @{ Text = 'Désinstallation de Jarvis'; Font = (New-Object Drawing.Font('Segoe UI', 16)); AutoSize = $true; Location = (New-Object Drawing.Point(24, 18)); ForeColor = $texte }
+        $etape = New-Object Windows.Forms.Label -Property @{ Text = 'Préparation...'; Font = (New-Object Drawing.Font('Segoe UI', 10)); AutoSize = $false; AutoEllipsis = $true; Size = (New-Object Drawing.Size(512, 24)); Location = (New-Object Drawing.Point(24, 62)); ForeColor = $doux }
+        $barre = New-Object Windows.Forms.ProgressBar -Property @{ Style = 'Marquee'; MarqueeAnimationSpeed = 30; Size = (New-Object Drawing.Size(512, 12)); Location = (New-Object Drawing.Point(24, 94)) }
+        $liste = New-Object Windows.Forms.ListBox -Property @{ Size = (New-Object Drawing.Size(512, 210)); Location = (New-Object Drawing.Point(24, 126)); BackColor = [Drawing.Color]::FromArgb(34, 37, 46);
+            ForeColor = $texte; BorderStyle = 'None'; Font = (New-Object Drawing.Font('Segoe UI', 10)); HorizontalScrollbar = $true }
+        $fen.Controls.AddRange(@($titre, $etape, $barre, $liste))
+        $fen.Show()
+        [Windows.Forms.Application]::DoEvents()
+    } catch { $fen = $null }
+}
+function Pomper { if ($fen) { try { [Windows.Forms.Application]::DoEvents() } catch {} } }
+function Attendre($secondes) { $fin = (Get-Date).AddSeconds($secondes); while ((Get-Date) -lt $fin) { Pomper; Start-Sleep -Milliseconds 100 } }
+function Attendre-Fin($pr) { while (-not $pr.HasExited) { Pomper; Start-Sleep -Milliseconds 150 } }
+function Dire($t) { Write-Host ("  " + $t); if ($etape) { $etape.Text = $t.Trim(); Pomper } }
+function Fait($t) { [void]$faits.Add($t); Dire ("[OK] " + $t); if ($liste) { [void]$liste.Items.Add([string]([char]0x2713 + '  ' + $t)); Pomper } }
+function Probleme($t) { [void]$problemes.Add($t); Dire ("[!]  " + $t); if ($liste) { [void]$liste.Items.Add([string]('!  ' + $t)); Pomper } }
 function Fin($titre) {
     $texte = $titre
     if ($faits.Count) { $texte += "`n`nRetiré :`n - " + ($faits -join "`n - ") }
@@ -230,6 +252,7 @@ function Fin($titre) {
     if ($p.zip) { $texte += "`n`nCopie compressée de tes fichiers personnels :`n" + $p.zip }
     if ($problemes.Count) { $texte += "`n`nÀ finir à la main :`n - " + ($problemes -join "`n - ") }
     if ($p.resultat) { try { [IO.File]::WriteAllText([string]$p.resultat, $texte, (New-Object Text.UTF8Encoding $false)) } catch {} }
+    if ($fen) { try { $fen.Close(); $fen.Dispose() } catch {} }
     if (-not $p.silencieux) {
         try {
             Add-Type -AssemblyName System.Windows.Forms
@@ -245,12 +268,13 @@ function Supprimer($chemin) {
     for ($i = 0; $i -lt 15 -and (Test-Path -LiteralPath $chemin); $i++) {
         if (Test-Path -LiteralPath $chemin -PathType Container) { & cmd.exe /c rd /s /q "$chemin" 2>$null | Out-Null }
         else { Remove-Item -LiteralPath $chemin -Force -ErrorAction SilentlyContinue }
-        if (Test-Path -LiteralPath $chemin) { Start-Sleep -Seconds 2 }
+        if (Test-Path -LiteralPath $chemin) { Attendre 2 }
     }
     return -not (Test-Path -LiteralPath $chemin)
 }
 function Lancer-Desinstalleur($entree) {
-    $pr = Start-Process -FilePath cmd.exe -ArgumentList ('/c "' + $entree.QuietUninstallString + '"') -Wait -PassThru -WindowStyle Hidden
+    $pr = Start-Process -FilePath cmd.exe -ArgumentList ('/c "' + $entree.QuietUninstallString + '"') -PassThru -WindowStyle Hidden
+    Attendre-Fin $pr
     return $pr.ExitCode
 }
 
@@ -284,7 +308,7 @@ $enfants = @($tous | Where-Object { $_.Name -in 'claude.exe', 'python.exe', 'pyt
 foreach ($c in (@($cibles | Where-Object { $_.CommandLine -like '*jarvis_gardien*' }) + @($cibles | Where-Object { $_.CommandLine -notlike '*jarvis_gardien*' }) + $enfants)) {
     try { Stop-Process -Id $c.ProcessId -Force -ErrorAction Stop } catch {}
 }
-if ($ids.Count) { Start-Sleep -Seconds 2 }
+if ($ids.Count) { Attendre 2 }
 Set-Location -LiteralPath $env:TEMP
 
 # 3. Raccourcis (Bureau, démarrage de Windows)
@@ -301,7 +325,8 @@ try { & netsh.exe advfirewall firewall show rule name="Jarvis - tablettes" | Out
 if ($LASTEXITCODE -eq 0) {
     Dire "Retrait de l'accès des tablettes au pare-feu : Windows demande ton autorisation, réponds Oui..."
     try {
-        $pr = Start-Process -FilePath netsh.exe -ArgumentList 'advfirewall firewall delete rule name="Jarvis - tablettes"' -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+        $pr = Start-Process -FilePath netsh.exe -ArgumentList 'advfirewall firewall delete rule name="Jarvis - tablettes"' -Verb RunAs -WindowStyle Hidden -PassThru
+        Attendre-Fin $pr
         if ($pr.ExitCode -eq 0) { Fait "l'accès des tablettes dans le pare-feu de Windows" } else { Probleme "règle « Jarvis - tablettes » du pare-feu non retirée" }
     } catch { Probleme "règle « Jarvis - tablettes » du pare-feu non retirée (autorisation refusée)" }
 }
@@ -411,9 +436,9 @@ def preparer(garder_dans=None, fichier_zip=None, retirer=(), supprimer_extras=Fa
     return ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Plan", fichier_plan]
 
 
-def lancer(commande, cache=False):
+def lancer(commande, cache=True):
     """Lance le programme de désinstallation, détaché de Jarvis (qu'il va arrêter)."""
-    drapeaux = 0x08000000 if cache else getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10)
+    drapeaux = 0x08000000        # console cachée : le programme montre sa propre fenêtre de progression
     return subprocess.Popen(commande, cwd=tempfile.gettempdir(), creationflags=drapeaux, close_fds=True)
 
 
