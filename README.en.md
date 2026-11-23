@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.56**
+**Français : [README.md](README.md)** · **Current version: 1.57**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,11 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.57
+
+- **"Report a problem": the "Attach the technical log" box is ticked by default again.** When another Jarvis window already existed (the settings, for example), the box showed up unticked and the log was not attached. Checkboxes and choices in Jarvis windows are now always tied to their own window ("Help improve Jarvis", Report a problem, the settings lists and search).
+- The reactor GIF at the top of this page is redone in the current design: idle, listening, thinking, answering and reminder.
 
 ## New in 1.56
 

@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.56**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.57**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,11 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.57
+
+- **« Signaler un problème » : la case « Joindre le journal technique » est de nouveau cochée d'office.** Quand une autre fenêtre de Jarvis existait déjà (les réglages, par exemple), la case s'affichait décochée, et le journal n'était pas joint. Les cases à cocher et les choix des fenêtres de Jarvis sont maintenant toujours rattachés à leur propre fenêtre (« Aider à améliorer Jarvis », Signaler un problème, listes et recherche des réglages).
+- Le GIF du réacteur, en haut de cette page, est refait avec le design actuel : veille, écoute, réflexion, réponse et rappel.
 
 ## Nouveau en 1.56
 

@@ -875,7 +875,7 @@ def _construire():
         return cadre
 
     def choix(parent, actuel, options, changer):
-        variable = tk.StringVar(value=actuel)
+        variable = tk.StringVar(parent, value=actuel)
         o = tk.OptionMenu(parent, variable, *options, command=changer)
         fond_p = parent.cget("bg")
         L_o, H_o = px(190), px(34)
@@ -1164,7 +1164,7 @@ def _construire():
     def page_aide():
         vider()
         titre("Aide", "Toutes les commandes, rangées par thème. Tape un mot pour chercher.")
-        recherche = tk.StringVar()
+        recherche = tk.StringVar(racine)
         champ = tk.Entry(page, textvariable=recherche, bg=BORD, fg=TEXTE, insertbackground=TEXTE, relief="flat",
                          font=("Segoe UI", 11), highlightthickness=1, highlightbackground=SURVOL, highlightcolor=accent["c"])
         champ.pack(fill="x", padx=22, pady=(4, 8), ipady=6)
@@ -1499,7 +1499,7 @@ def _construire():
             except OSError:
                 return 0
 
-        texte_sons = tk.StringVar()
+        texte_sons = tk.StringVar(racine)
 
         def maj_sons():
             n = nombre_sons()

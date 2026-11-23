@@ -160,6 +160,13 @@ def _fenetre(titre, largeur, hauteur):
             return
         toile.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units")
     r.bind_all("<MouseWheel>", molette)
+    detruire_racine = r.destroy
+
+    def detruire():                                        # fermer la fenêtre directement ne doit pas se détruire deux fois
+        corps.__dict__["_ferme"] = True
+        detruire_racine()
+    r.destroy = detruire
+    r.protocol("WM_DELETE_WINDOW", corps.destroy)         # (les fenêtres peuvent le remplacer)
     return corps, sc
 
 
@@ -192,7 +199,7 @@ def _accord():
     _titre(r, "Aider à améliorer Jarvis ?", accent)
     tk.Label(r, text=EXPLICATION, bg=FOND, fg=TEXTE, font=("Segoe UI", 11), wraplength=int(550 * sc),
              justify="left").pack(anchor="w", padx=24)
-    choix = tk.StringVar(value="technique")
+    choix = tk.StringVar(r, value="technique")
     cadre = tk.Frame(r, bg=FOND)
     cadre.pack(fill="x", padx=20, pady=(12, 4))
     for valeur, libelle, sous in (("technique", "Rapport technique (conseillé)",
@@ -262,7 +269,7 @@ def _message(genre):
                    wrap="word", highlightthickness=1, highlightbackground="#1b2838", highlightcolor=accent)
     zone.pack(fill="x", padx=24, pady=10)
     zone.focus_set()
-    joindre = tk.BooleanVar(value=probleme)
+    joindre = tk.BooleanVar(r, value=probleme)
     if probleme:
         tk.Checkbutton(r, text="Joindre le journal technique de Jarvis (nettoyé, sans vos conversations"
                                + (")" if jarvis_rapports.niveau() != "complet" else " sauf en rapport complet)"),
