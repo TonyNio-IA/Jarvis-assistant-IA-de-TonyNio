@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.50** (pre-release for testers: 1.51)
+**Français : [README.md](README.md)** · **Current version: 1.52**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -41,7 +41,11 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
-## New in 1.51 (pre-release, for volunteer testers)
+## New in 1.52
+
+- **Without Claude**: when a request needs Claude and it is not installed, Jarvis (and the "premiers pas" tour) now gives the right path: Settings, "Claude" tab, "Installer Claude", then "Connecter mon compte". It no longer points to the "Installer Jarvis" file.
+
+## New in 1.51
 
 - **Settings, "Claude" tab**: Jarvis shows whether Claude is installed and linked to your account, installs it if needed and opens the Claude sign-in page in your browser, with no command line. No password goes through Jarvis: you sign in on Claude's website.
 - **"What can you do?"**: without Claude, Jarvis no longer promises what it cannot do (summarising a page, answering any question) and explains how to add it ("premiers pas").

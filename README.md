@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.50** (pré-version pour les testeurs : 1.51)
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.52**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -40,7 +40,11 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
-## Nouveau en 1.51 (pré-version, pour les testeurs volontaires)
+## Nouveau en 1.52
+
+- **Sans Claude** : quand une demande a besoin de Claude et qu'il n'est pas installé, Jarvis (et la visite « premiers pas ») explique maintenant le bon chemin : Réglages, onglet « Claude », « Installer Claude », puis « Connecter mon compte ». Il ne renvoie plus vers le fichier « Installer Jarvis ».
+
+## Nouveau en 1.51
 
 - **Réglages, onglet « Claude »** : Jarvis dit si Claude est installé et relié à ton compte, l'installe si besoin et ouvre la page de connexion de Claude dans ton navigateur, sans ligne de commande. Aucun mot de passe ne passe par Jarvis : la connexion se fait sur le site de Claude.
 - **« Qu'est-ce que tu sais faire ? »** : sans Claude, Jarvis ne promet plus ce qu'il ne peut pas faire (résumer une page, répondre à n'importe quelle question) et explique comment l'ajouter (« premiers pas »).

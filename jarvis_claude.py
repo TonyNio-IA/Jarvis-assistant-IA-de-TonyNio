@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.51"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.52"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1171,7 +1171,7 @@ class ClaudeContinu:
 
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
                "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres, l'ouverture des applications. "
-               "Pour ajouter Claude, relance le fichier Installer Jarvis, rangé dans mon dossier, et choisis Ajouter Claude, le troisième choix de la liste.")
+               "Pour ajouter Claude, ouvre mes Réglages, onglet Claude, et clique sur Installer Claude, puis sur Connecter mon compte.")
 claude = ClaudeContinu()
 
 
