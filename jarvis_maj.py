@@ -352,6 +352,28 @@ def notes_de(version):
         return ""
 
 
+def notes_depuis(depuis, actuelle):
+    """[(version, notes)] de toutes les versions publiées après « depuis » jusqu'à « actuelle » comprise, pour que
+    quelqu'un qui saute des mises à jour reçoive quand même les remerciements des versions sautées.
+    Sans réponse de GitHub : seulement les notes de la version actuelle."""
+    try:
+        requete = urllib.request.Request(f"https://api.github.com/repos/{DEPOT}/releases?per_page=30",
+                                         headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(requete, timeout=5) as r:
+            liste = json.load(r)
+        trouvees = []
+        for rel in liste:
+            v = str(rel.get("tag_name") or "").lstrip("v")
+            if (v and not rel.get("draft") and _nombres(depuis) < _nombres(v) <= _nombres(actuelle)):
+                trouvees.append((v, str(rel.get("body") or "")))
+        if trouvees:
+            return sorted(trouvees, key=lambda x: _nombres(x[0]))
+    except Exception:
+        pass
+    notes = notes_de(actuelle)
+    return [(actuelle, notes)] if notes else []
+
+
 def _vous():
     try:
         import jarvis_local
@@ -429,7 +451,19 @@ def bilan_au_demarrage():
     if _nombres(actuelle) > _nombres(suivi.get("depuis")):
         notes = notes_de(actuelle)
         nouveautes = nouveautes_de(actuelle, notes) if notes else ""
-        merci = merci_utilisateur(notes)
+        deja = []
+        try:
+            import jarvis_rapports
+            deja = list(jarvis_rapports.valeur("merci_versions") or [])
+        except Exception:
+            jarvis_rapports = None
+        a_lire = [(v, n) for v, n in notes_depuis(suivi.get("depuis"), actuelle) if v not in deja]
+        merci = merci_utilisateur("\n".join(n for _, n in a_lire))     # rien de nouveau à lire : rien redit
+        if jarvis_rapports is not None and a_lire:
+            try:
+                jarvis_rapports.regler("merci_versions", (deja + [v for v, _ in a_lire])[-30:])   # une seule fois par version
+            except Exception:
+                pass
         return (f"Mise à jour terminée : je suis maintenant en version {actuelle}."
                 + (f" Les nouveautés : {nouveautes}." if nouveautes else "")
                 + (f" {merci}" if merci else ""))

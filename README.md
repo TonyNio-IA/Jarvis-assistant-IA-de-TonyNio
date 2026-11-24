@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.60**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.61**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,10 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.61
+
+- **Remerciements même si des mises à jour sont sautées** : si tu as envoyé un signalement ou une suggestion, Jarvis te remercie après la mise à jour même si la version qui la prend en compte n'est pas la dernière, et une seule fois.
 
 ## Nouveau en 1.60
 
@@ -613,6 +617,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.61 | Remerciements après mise à jour dits même si des versions sont sautées, une seule fois par version. |
 | 1.60 | Rapports plus discrets (ville, objet et expéditeur des mails masqués), messages de limite Claude moins répétés, « tais-toi / silence / chut » sans Claude, Riot Games et Opera GX avec « ferme », « installe Claude » ouvre l'onglet Claude des Réglages. |
 | 1.59 | Beaucoup plus de commandes sans Claude (dés, calendrier, infos du PC, soleil et lune, météo détaillée, blagues, recherche Google proposée) ; noms de villes et d'applications mieux reconnus ; mot de remerciement après une mise à jour ; nom du PC et adresse réseau masqués dans les rapports |
 | 1.58 | Rapports plus clairs et plus justes (erreurs regroupées avec leur nombre, version sur chaque événement, rien perdu pendant l'envoi) ; lignes personnelles du journal masquées hors niveau Complet ; taille et échelle d'écran dans le rapport technique |
