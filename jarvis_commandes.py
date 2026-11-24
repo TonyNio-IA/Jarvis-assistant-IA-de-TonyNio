@@ -433,6 +433,8 @@ def _volume():
 def _commande_volume(t):
     if not re.search(r"\b(son|volume|sourdine|muet)\b", t):
         return None
+    if len(t.split()) > 16:          # une longue phrase mal entendue ne doit pas toucher au volume
+        return None
     v = _volume()
     actuel = round(v.GetMasterVolumeLevelScalar() * 100)
     if re.search(r"\b(remets|remet|réactive|rétablis|rallume)\b", t):
@@ -448,7 +450,8 @@ def _commande_volume(t):
         cible = min(100, actuel + PAS_VOLUME)
     elif re.search(r"\b(baisse|baisser|diminue|diminuer|moins fort)\b", t):
         cible = max(0, actuel - PAS_VOLUME)
-    elif re.search(r"\b(quel|combien)\b", t):
+    elif (re.search(r"\b(quel|combien)\b", t) and re.search(r"\bvolume\b|\b(?:le|ton|mon|du) son\b", t)
+          and not re.search(r"\b(temps|météo|meteo|température|pluie|vent)\b", t)):
         return f"Le volume est à {actuel} pour cent."
     else:
         return None

@@ -1997,8 +1997,8 @@ _OUVRIR = re.compile(r"\b(?:ouvre|ouvrir|affiche|montre)(?:-moi)?\s+(?:tes |les 
 
 
 
-_CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accede|acceder|accéder|installe|installer|connecte|connecter|ajoute|ajouter|"
-                             r"configure|configurer|active|activer)(?:-moi)?\s+(?:à |a |au |le |la |mon |ton |l'|de )?"
+_CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accéde|accede|acceder|accéder|accèder|installe|installer|connecte|connecter|ajoute|ajouter|"
+                             r"configure|configurer|active|activer)(?:-moi)?\s+(?:à |a |au |aux |le |la |mon |ton |l'|de )?"
                              r"(?:compte )?(?:de )?claude\b")
 
 
