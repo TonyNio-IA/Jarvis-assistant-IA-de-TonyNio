@@ -59,6 +59,7 @@ import jarvis_imprimante
 import jarvis_ps5
 import jarvis_tele
 import jarvis_appletv
+import jarvis_local
 import jarvis_personnalite
 import jarvis_accueil
 import jarvis_profils
@@ -145,7 +146,7 @@ APPLICATIONS = [
     (r"edge", "msedge", "Edge"),
     (r"firefox", "firefox", "Firefox"),
     (r"brave", "brave", "Brave"),
-    (r"opera", "opera", "Opera"),
+    (r"op[ée]ra", "opera", "Opera"),
     (r"vivaldi", "vivaldi", "Vivaldi"),
     (r"navigateur|internet|google", NAVIGATEUR, "le navigateur"),
     (r"calculatrice|calculette", "calc", "la calculatrice"),
@@ -253,18 +254,72 @@ def _sans_accents(t):
     return re.sub(r"[^a-z0-9]+", " ", t.lower()).strip()
 
 
+_INDICE = re.compile(r"^(.+?)(?:\s*,\s*|\s+dans\s+)(?:le |la |les |l')?(?:département |departement )?"
+                     r"(?:du |de la |de l'|des |de )?(.+)$", re.I)
+
+
+def _separer_indice(nom):
+    """« Saint-Lubin dans le Loir-et-Cher » -> (« Saint-Lubin », « Loir-et-Cher »). Sans département : (nom, « »)."""
+    m = _INDICE.match(nom or "")
+    return (m.group(1).strip(" ,"), m.group(2).strip(" ,.")) if m else (nom, "")
+
+
+def _commune_floue(nom, indice):
+    """Une ville mal entendue (« Vergonois » pour « Vergonnois ») : comparée aux communes du département cité,
+    qu'on retrouve lui aussi à peu près (« Loire et Chère » pour « Loir-et-Cher »). None si le doute reste."""
+    deps = _json("https://geo.api.gouv.fr/departements?fields=nom,code")
+    notes = sorted(((jarvis_fenetres.ressemblance(indice, d["nom"]), d["code"], d["nom"]) for d in deps), reverse=True)
+    if not notes or notes[0][0] < 0.75 or (len(notes) > 1 and notes[0][0] - notes[1][0] < 0.05):
+        return None
+    _, code, nom_dep = notes[0]
+    communes = _json(f"https://geo.api.gouv.fr/departements/{code}/communes?fields=nom,centre")
+    notes = sorted(((jarvis_fenetres.ressemblance(nom, c["nom"]), c["nom"], c["centre"]["coordinates"])
+                    for c in communes if c.get("centre")), reverse=True)
+    if not notes or notes[0][0] < 0.7 or (len(notes) > 1 and notes[0][0] - notes[1][0] < 0.04):
+        return None
+    _, nom_commune, (lon, lat) = notes[0]
+    return {"name": nom_commune, "latitude": lat, "longitude": lon, "admin1": nom_dep,
+            "country": "France", "country_code": "FR"}
+
+
+def _chercher_ville(nom, indice=""):
+    """La ville cherchée (dict avec name, latitude, longitude...) ou None. Lève une erreur si le service ne répond pas.
+    Avec un département cité, on garde la ville de ce département ; sinon la plus proche de ton nom parmi ses communes."""
+    url = ("https://geocoding-api.open-meteo.com/v1/search?count=10&language=fr&format=json&name="
+           + urllib.parse.quote(nom))
+    resultats = _json(url).get("results") or []
+    if indice:
+        bons = [r for r in resultats if max(jarvis_fenetres.ressemblance(indice, r.get("admin2") or ""),
+                                            jarvis_fenetres.ressemblance(indice, r.get("admin1") or "")) >= 0.7]
+        if bons:
+            resultats = bons
+        else:
+            try:
+                flou = _commune_floue(nom, indice)
+            except Exception:
+                flou = None
+            if flou:
+                return flou
+    if not resultats:
+        return None
+    return next((r for r in resultats if r.get("country_code") == "FR"), resultats[0])
+
+
 def _lieu(nom):
     """Renvoie (nom, latitude, longitude), ou None si la ville n'est pas trouvée."""
     defaut = _sans_accents(VILLE_DEFAUT[0])
     if not nom or _sans_accents(nom) in (defaut, defaut[:-1]):   # la dernière lettre est parfois mal entendue
         return VILLE_DEFAUT
-    url = ("https://geocoding-api.open-meteo.com/v1/search?count=5&language=fr&format=json&name="
-           + urllib.parse.quote(nom))
-    resultats = _json(url).get("results") or []
-    if not resultats:
-        return None
-    choix = next((r for r in resultats if r.get("country_code") == "FR"), resultats[0])
-    return choix["name"], choix["latitude"], choix["longitude"]
+    if jarvis_fenetres.ressemblance(nom, VILLE_DEFAUT[0]) >= 0.85:      # « four » entendu pour « Fouras »
+        return VILLE_DEFAUT
+    # Un lieu que tu as noté dans ville.txt (3e ligne), même mal entendu
+    connus = [x.strip() for x in re.split(r"[,;]", LIEUX_CONNUS) if x.strip()]
+    notes = sorted(((jarvis_fenetres.ressemblance(nom, x), x) for x in connus), reverse=True)
+    if notes and notes[0][0] >= 0.82 and (len(notes) == 1 or notes[0][0] - notes[1][0] >= 0.1):
+        nom = notes[0][1]
+    nom, indice = _separer_indice(nom)
+    choix = _chercher_ville(nom, indice)
+    return (choix["name"], choix["latitude"], choix["longitude"]) if choix else None
 
 
 def _arrondi(x):
@@ -286,19 +341,18 @@ def _commande_ville(brut):
     if not m:
         return None
     nom = m.group(1).strip(" .!?,;:«»\"'")
-    if not nom or len(nom.split()) > 5:
+    nom, indice = _separer_indice(nom)           # « Saint-Lubin, dans le Loir-et-Cher » : la ville et son département
+    if not nom or len(nom.split()) > 5 or len(indice.split()) > 6:
         return None
-    url = ("https://geocoding-api.open-meteo.com/v1/search?count=5&language=fr&format=json&name="
-           + urllib.parse.quote(nom))
     try:
-        resultats = _json(url).get("results") or []
+        choix = _chercher_ville(nom, indice)
     except Exception:
         return "Je n'arrive pas à vérifier cette ville pour le moment. Réessaie quand la connexion sera revenue."
-    if not resultats:
+    if not choix:
         return _VILLE_INCONNUE + f"Je ne trouve pas la ville {nom}. Redis-la-moi, par exemple : ma ville est Toulouse."
-    choix = next((r for r in resultats if r.get("country_code") == "FR"), resultats[0])
     with open(FICHIER_VILLE, "w", encoding="utf-8") as f:
-        f.write(f"{choix['name']};{choix['latitude']:.4f};{choix['longitude']:.4f}\n")
+        f.write(f"{choix['name']};{choix['latitude']:.4f};{choix['longitude']:.4f}\n"
+                + (f"\n{LIEUX_CONNUS}\n" if LIEUX_CONNUS else ""))     # les lieux notés en 3e ligne sont gardés
     VILLE_DEFAUT, VILLE_PRECISION = (choix["name"], choix["latitude"], choix["longitude"]), ""
     import sys
     principal = sys.modules.get("jarvis_claude")          # Claude apprend la nouvelle ville à sa prochaine conversation
@@ -867,6 +921,9 @@ def _commande_ouvrir(t):
     m = re.search(r"\b(ouvre|ouvrir|ouvres|lance|lancer|lances|démarre|démarrer)\b(.*)", t)
     if not m:
         return None
+    # Une question (« comment ouvrir les réglages ? ») n'est pas un ordre : on explique au lieu d'ouvrir
+    if re.match(r"^\W*(?:jarvis\W+)?(?:comment|pourquoi|quand|où)\b", t[:m.start()] + m.group(1)):
+        return "Pour ouvrir une application, dis par exemple : Jarvis, ouvre Chrome. Ça marche avec toutes les applications installées sur ton PC."
     reste = m.group(2)
     # Une demande plus complexe (« ouvre Chrome et cherche... », « ferme ça et ouvre Chrome »)
     # reste pour Claude : sinon Jarvis n'en ferait que la moitié
@@ -875,6 +932,9 @@ def _commande_ouvrir(t):
         return None
     for motif, cible, nom in APPLICATIONS:
         if re.search(rf"\b(?:{motif})\b", reste):
+            # « Opera GX » n'est pas « Opera » : on le cherche parmi les programmes installés
+            if cible == "opera" and re.search(r"\bg\.? ?x\b", reste):
+                continue
             # La calculatrice de Windows peut avoir été désinstallée : on ne dit pas « j'ouvre » pour rien
             if cible == "calc" and not os.path.isdir(os.path.expandvars(
                     r"%LOCALAPPDATA%\Packages\Microsoft.WindowsCalculator_8wekyb3d8bbwe")):
@@ -888,7 +948,7 @@ def _commande_ouvrir(t):
             os.startfile(cible)
             return f"J'ouvre {nom}."
     # Sinon, une application du menu Démarrer qui porte ce nom
-    demande = _sans_accents(re.sub(r"\b(le|la|les|l'|mon|ma|mes|un|une|moi|logiciel|application|appli|programme|dossier)\b",
+    demande = _sans_accents(re.sub(r"\b(le|la|les|l'|mon|ma|mes|un|une|moi|logiciel|application|appli|programme|dossier|onglet|jeu)\b",
                                    " ", reste))
     if len(demande) >= 2:
         raccourcis = _menu_demarrer()
@@ -902,7 +962,10 @@ def _commande_ouvrir(t):
             proches = difflib.get_close_matches(demande, list(raccourcis), 1, cutoff=0.82)
             choix = raccourcis[proches[0]] if proches else None
         if choix is None and len(demande) >= 3:
-            choix = _menu_demarrer(True).get(demande)        # un programme installé depuis la dernière lecture
+            choix = _apparier(demande, raccourcis)           # lettres séparées, début du nom, mal entendu à l'oreille
+        if choix is None and len(demande) >= 3:
+            nouveaux = _menu_demarrer(True)                  # un programme installé depuis la dernière lecture
+            choix = nouveaux.get(demande) or _apparier(demande, nouveaux)
         if choix is None and len(demande) >= 3:
             choix = _application_windows(demande)            # les applications du Microsoft Store, entre autres
         if choix:
@@ -910,6 +973,40 @@ def _commande_ouvrir(t):
             os.startfile(chemin)
             _apprendre(nom, chemin)
             return f"J'ouvre {nom}."
+    return None
+
+
+def _apparier(demande, liste):
+    """Retrouve une application d'après un nom mal entendu, sans jamais deviner entre deux candidats.
+    liste : nom simplifié -> (nom affiché, chemin). Essaie dans l'ordre :
+      1. les lettres séparées (« opera g x » = « opera gx ») ;
+      2. le nom entendu est le début d'un nom (« opera gx » pour « Opera GX Browser »), ou le contient
+         (« onglet opera gx ») ;
+      3. le premier mot, s'il n'appartient qu'à une seule application (« riot games » pour « Riot Client ») ;
+      4. la ressemblance à l'oreille (« right game » pour « riot games »)."""
+    compact = demande.replace(" ", "")
+    if len(compact) < 4 or not liste:
+        return None
+    noms = {cle: cle.replace(" ", "") for cle in liste}
+    egaux = [c for c, n in noms.items() if n == compact]
+    if len(egaux) == 1:
+        return liste[egaux[0]]
+    if len(compact) >= 5:
+        debuts = [c for c, n in noms.items() if n.startswith(compact)]
+        if len(debuts) == 1:
+            return liste[debuts[0]]
+        contenus = [c for c, n in noms.items() if len(n) >= 5 and n in compact]
+        if contenus:
+            contenus.sort(key=lambda c: -len(noms[c]))
+            if len(contenus) == 1 or len(noms[contenus[0]]) > len(noms[contenus[1]]):
+                return liste[contenus[0]]
+    mots = demande.split()
+    if 1 <= len(mots) <= 3 and len(mots[0]) >= 4:
+        memes = [c for c in liste if c.split() and c.split()[0] == mots[0]]
+        if len(memes) == 1:
+            return liste[memes[0]]
+    if len(compact) >= 5:
+        return jarvis_fenetres.meilleur(demande, [(liste[c], [c]) for c in liste], seuil=0.8, ecart=0.1)
     return None
 
 
@@ -971,7 +1068,7 @@ def _application_windows(demande):
         proches = difflib.get_close_matches(demande, list(liste), 1, cutoff=0.85)
         if proches:
             return liste[proches[0]]
-    return None
+    return _apparier(demande, liste)
 
 
 def applications_connues():
@@ -1795,6 +1892,9 @@ def commande_instantanee(textes, annoncer=None):
                 return ensemble
             if re.search(r"\bquelle heure\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
                 return _heure()
+            reponse = jarvis_local.calendrier(t)         # « quelle est la date », « dans combien de jours Noël »...
+            if reponse:
+                return reponse
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
@@ -1842,6 +1942,7 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_extras.commande_dernier_telechargement(t),
                              lambda: jarvis_extras.commande_ou_jen_etais(t),
                              lambda: jarvis_extras.commande_etape(t),
+                             lambda: jarvis_local.commande(t, brut),
                              lambda: jarvis_personnalite.commande(t),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
                              lambda: jarvis_reglages.commande_voix(t),
@@ -1894,4 +1995,14 @@ def commande_instantanee(textes, annoncer=None):
         except Exception as erreur:
             print("Commande instantanée impossible :", erreur)
             return None
+    # Jarvis installé sans Claude : une question qu'il ne sait pas traiter est proposée en recherche Google
+    for brut in textes:
+        if brut:
+            try:
+                reponse = jarvis_local.sans_claude(_propre(brut), brut, demander_confirmation, jarvis_web.ouvrir_devant)
+            except Exception as erreur:
+                print("Recherche sans Claude impossible :", erreur)
+                reponse = None
+            if reponse:
+                return reponse
     return None

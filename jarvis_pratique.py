@@ -580,6 +580,8 @@ def commande_aide(t, claude=None):
     relie = _claude_installe() if claude is None else claude
     parties = [
         "Je réponds tout de suite à l'heure, la météo, les calculs et les conversions. ",
+        "Je lance un dé ou une pièce, je donne les dates et les fêtes, le lever du soleil, la lune, "
+        "et des infos sur ton PC comme la batterie ou l'espace disque. Je peux aussi te raconter une blague. ",
         "Je gère les minuteurs, les rappels, même répétés comme « tous les lundis à 20 heures », "
         "le réveil, le chronomètre et ta liste de courses. ",
         "J'ouvre et je ferme les applications, je place les fenêtres, je règle le son, "

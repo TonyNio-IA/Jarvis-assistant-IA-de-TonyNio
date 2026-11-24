@@ -86,7 +86,7 @@ def _carte_donnees_ouvertes():
         entetes["If-Modified-Since"] = _carte_ouverte["modifie"]
     try:
         with urllib.request.urlopen(urllib.request.Request(OUVERT + "vigilance-hexagone-tree.json", headers=entetes),
-                                    timeout=30) as reponse:
+                                    timeout=12) as reponse:
             modifie = reponse.headers.get("Last-Modified")
             arbre = json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as erreur:
@@ -205,7 +205,11 @@ def _erreur(erreur):
         return "Je ne connais pas encore ta ville : dis par exemple, ma ville est Bordeaux."
     if "401" in str(erreur) or "403" in str(erreur):
         return "Météo-France refuse ma clé : elle est peut-être expirée. Il faut en générer une nouvelle."
-    return "Je n'arrive pas à joindre Météo-France pour le moment."
+    cause = getattr(erreur, "reason", erreur)
+    if isinstance(cause, (ConnectionError, TimeoutError, OSError)) or "timed out" in str(erreur):
+        # le site répond mal ou plus du tout : ce n'est ni la connexion Internet ni Jarvis
+        return "Le service qui fournit les alertes de Météo-France ne répond pas pour le moment. Réessaie un peu plus tard."
+    return "Je n'arrive pas à lire les alertes de Météo-France pour le moment."
 
 
 _DEMANDE = re.compile(r"\b(?:alertes? (?:météo|meteo|orange|rouge|jaune)|vigilances? (?:météo|meteo|orange|rouge|"

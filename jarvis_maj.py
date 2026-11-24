@@ -341,16 +341,66 @@ def _telecharger_lot(dossier):
         return None
 
 
+def notes_de(version):
+    """Les notes de la version publiées sur GitHub, ou « » si on n'y arrive pas."""
+    try:
+        requete = urllib.request.Request(f"https://api.github.com/repos/{DEPOT}/releases/tags/v{version}",
+                                         headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(requete, timeout=4) as r:
+            return str(json.load(r).get("body") or "")
+    except Exception:
+        return ""
+
+
+def _vous():
+    try:
+        import jarvis_local
+        return bool(jarvis_local._vous())
+    except Exception:
+        return False
+
+
+def merci_utilisateur(notes):
+    """Après une mise à jour : une phrase pour dire que son signalement ou sa suggestion a bien été reçu(e), et
+    pris(e) en compte si cette version le dit (ligne cachée des notes : <!-- jarvis-merci: probleme=1a2b3c,4d5e6f
+    idee=1a2b3c --> ; ce sont les six premiers caractères du numéro anonyme du PC, rien de personnel).
+    Ne dit que ce qui est vrai : « reçu » seulement si l'envoi a réussi depuis ce PC. « » si rien à dire.
+    Remet à zéro le décompte des messages envoyés."""
+    try:
+        import jarvis_rapports
+        mon_id = str(jarvis_rapports.valeur("id") or "")[:6]
+        envoyes = jarvis_rapports.valeur("messages_envoyes") or {}
+        corriges, idees = set(), set()
+        for genre, liste in re.findall(r"(probleme|idee)=([0-9a-f,]+)", notes or ""):
+            (corriges if genre == "probleme" else idees).update(x for x in liste.split(",") if x)
+        vous = _vous()
+        phrases = []
+        if mon_id and mon_id in corriges:
+            phrases.append("Le problème que vous avez signalé est corrigé dans cette version." if vous
+                           else "Le problème que tu as signalé est corrigé dans cette version.")
+        elif envoyes.get("probleme"):
+            phrases.append("Votre signalement a bien été reçu." if vous else "Ton signalement a bien été reçu.")
+        if mon_id and mon_id in idees:
+            phrases.append("Votre suggestion d'amélioration a été prise en compte dans cette version." if vous
+                           else "Ta suggestion d'amélioration a été prise en compte dans cette version.")
+        elif envoyes.get("idee"):
+            phrases.append("Votre suggestion a bien été reçue." if vous else "Ta suggestion a bien été reçue.")
+        if envoyes:
+            jarvis_rapports.regler("messages_envoyes", {})
+        if phrases:
+            phrases.append("Merci, c'est grâce à vous que je m'améliore." if vous
+                           else "Merci, c'est grâce à toi que je m'améliore.")
+        return " ".join(phrases)
+    except Exception:
+        return ""
+
+
 def nouveautes_de(version, notes=None):
     """Les titres des nouveautés d'une version, en une courte phrase (« tous les navigateurs, toutes les boîtes
     mail et tous les agendas »), lus dans ses notes sur GitHub (les lignes « - **Titre** : … »). « » si rien."""
     if notes is None:
-        try:
-            requete = urllib.request.Request(f"https://api.github.com/repos/{DEPOT}/releases/tags/v{version}",
-                                             headers={"User-Agent": "Jarvis", "Accept": "application/vnd.github+json"})
-            with urllib.request.urlopen(requete, timeout=4) as r:
-                notes = str(json.load(r).get("body") or "")
-        except Exception:
+        notes = notes_de(version)
+        if not notes:
             return ""
     titres = []
     for titre in re.findall(r"(?m)^\s*[-*]\s+\*\*([^*\n]{3,60})\*\*", notes or ""):
@@ -377,9 +427,12 @@ def bilan_au_demarrage():
         return None
     actuelle = version_actuelle()
     if _nombres(actuelle) > _nombres(suivi.get("depuis")):
-        nouveautes = nouveautes_de(actuelle)
+        notes = notes_de(actuelle)
+        nouveautes = nouveautes_de(actuelle, notes) if notes else ""
+        merci = merci_utilisateur(notes)
         return (f"Mise à jour terminée : je suis maintenant en version {actuelle}."
-                + (f" Les nouveautés : {nouveautes}." if nouveautes else ""))
+                + (f" Les nouveautés : {nouveautes}." if nouveautes else "")
+                + (f" {merci}" if merci else ""))
     return (f"La mise à jour n'a pas abouti : je suis toujours en version {actuelle}. "
             "Le détail est dans le fichier installation.log, dans mon dossier.")
 

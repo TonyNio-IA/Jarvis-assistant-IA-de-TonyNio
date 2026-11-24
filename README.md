@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.58**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.59**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,13 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.59
+
+- **Beaucoup plus de commandes sans Claude** : Jarvis répond tout seul aux dés, pile ou face, nombres et tirages au sort, au calendrier (« dans combien de jours Noël ? », Pâques, fêtes des mères et des pères…), à des infos sur le PC (espace disque, mémoire, batterie, adresse sur le réseau, Internet, écran, Windows), au lever et coucher du soleil, aux phases de la lune, à la météo détaillée (pluie, vent, température, soir, week-end), et aux blagues, devinettes, proverbes et faits amusants. Sans Claude, une vraie question de connaissance est proposée en recherche Google (rien ne s'ouvre avant votre « oui »). Avec Claude, tout ce que Jarvis ne sait pas faire seul lui est toujours confié.
+- **Noms de villes et d'applications mieux reconnus** (départements, applications aux noms proches ou en plusieurs mots), et un message d'erreur plus clair quand le service des alertes Météo-France ne répond pas.
+- **Un mot de remerciement après une mise à jour** : si vous avez envoyé un signalement ou une suggestion, Jarvis le confirme à la première phrase après la mise à jour, et dit quand elle est prise en compte dans la version.
+- **Rapports** : le nom du PC et l'adresse réseau dite à voix haute sont masqués avant tout envoi.
 
 ## Nouveau en 1.58
 
@@ -598,6 +605,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.59 | Beaucoup plus de commandes sans Claude (dés, calendrier, infos du PC, soleil et lune, météo détaillée, blagues, recherche Google proposée) ; noms de villes et d'applications mieux reconnus ; mot de remerciement après une mise à jour ; nom du PC et adresse réseau masqués dans les rapports |
 | 1.58 | Rapports plus clairs et plus justes (erreurs regroupées avec leur nombre, version sur chaque événement, rien perdu pendant l'envoi) ; lignes personnelles du journal masquées hors niveau Complet ; taille et échelle d'écran dans le rapport technique |
 | 1.57 | « Signaler un problème » : la case « Joindre le journal technique » est de nouveau cochée d'office ; GIF du réacteur refait |
 | 1.56 | Toutes les fenêtres de dialogue s'adaptent aux petits écrans et défilent au lieu de déborder |

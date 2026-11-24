@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.58"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.59"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -274,7 +274,7 @@ SEUIL_REVEIL_DIRECT = 0.7     # note minimale du détecteur pour ce réveil dire
 
 # Les dernières demandes sont gardées (son + textes compris) pour pouvoir analyser les erreurs d'écoute
 DOSSIER_ENREGISTREMENTS = jarvis_config.chemin("enregistrements")
-NB_ENREGISTREMENTS = 300      # les 300 dernieres demandes (environ 50 Mo) : de quoi regler l'ecoute
+NB_ENREGISTREMENTS = 1000     # les 1000 dernières demandes (environ 170 Mo) : de quoi réentraîner le mot « Jarvis »
 LIGNES_INDEX = 5000           # lignes gardées dans index.txt (ce qui a été compris, en texte : environ 500 Ko)
 
 # La ville se règle dans ville.txt (voir jarvis_commandes.py)

@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.58**
+**Français : [README.md](README.md)** · **Current version: 1.59**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,13 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.59
+
+- **Many more commands without Claude**: Jarvis now answers by itself for dice, coin flips, random numbers and draws, the calendar ("how many days until Christmas?", Easter, Mother's and Father's Day…), PC information (disk space, memory, battery, network address, Internet, screen, Windows), sunrise and sunset, moon phases, detailed weather (rain, wind, temperature, evening, weekend), and jokes, riddles, proverbs and fun facts. Without Claude, a real knowledge question is offered as a Google search (nothing opens before you say yes). With Claude, anything Jarvis cannot do alone is still handed over to it.
+- **Better recognition of city and application names**, and a clearer message when the Météo-France alert service does not answer.
+- **A thank-you after an update**: if you sent a problem report or a suggestion, Jarvis confirms it in its first sentence after the update, and says when it is taken into account in the version.
+- **Reports**: the PC name and the network address spoken aloud are hidden before anything is sent.
 
 ## New in 1.58
 

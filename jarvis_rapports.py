@@ -165,6 +165,7 @@ def _noms_a_cacher():
     noms.discard("principal")
     try:
         noms.add(os.environ.get("USERNAME", ""))
+        noms.add(os.environ.get("COMPUTERNAME", ""))        # « Ce PC s'appelle ... » ne doit pas partir dans un rapport
     except Exception:
         pass
     return sorted((n for n in noms if n and len(n) >= 2), key=len, reverse=True)
@@ -192,6 +193,7 @@ def anonymiser(texte, longueur=300):
     t = re.sub(r"https?://\S+", "[lien]", t)
     t = re.sub(r"[A-Za-z]:\\[^\s\"']*", "[dossier]", t)
     t = re.sub(r"(?:\+33\s?|0)[1-9](?:[\s.-]?\d{2}){4}", "[téléphone]", t)
+    t = re.sub(r"\b\d{1,3}(?:(?: point |\.)\d{1,3}){3}\b", "[adresse]", t)      # adresse IP (écrite ou dite)
     t = re.sub(r"\d{5,}", "[nombre]", t)                        # codes postaux, codes, numéros
     for lieu in _lieux_a_cacher():
         t = re.sub(r"(?<!\w)" + re.escape(lieu) + r"(?!\w)", "[lieu]", t, flags=re.I)
@@ -916,6 +918,10 @@ def envoyer_message(genre, texte, joindre_journal=False):
     ok = _envoyer(d)
     if ok and genre == "questionnaire":
         regler("questionnaire", "fait")
+    if ok and genre in ("probleme", "idee"):                 # pour le mot de remerciement après la prochaine mise à jour
+        envoyes = dict(valeur("messages_envoyes") or {})
+        envoyes[genre] = int(envoyes.get(genre, 0)) + 1
+        regler("messages_envoyes", envoyes)
     return ok
 
 

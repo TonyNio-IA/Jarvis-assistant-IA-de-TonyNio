@@ -106,6 +106,12 @@ INTEGREES = (
     (r"^(\W*(?:jarvis\W+)?)(?:hit up|hit-up|et tape|hé tape)\s+(\d+|une?|deux|trois|quatre|cinq|six)(\W*)$", r"\1étape \2\3"),
     # « Jarvis » dit seul, entendu « J'avise », « J'arvisse », « Jean-Vice », « Jarvisse » (toute la demande)
     (r"^\W*(?:j'avise|j'arvisse?|jean-vice|jarvisse|jarvice|j'arvis)\W*$", "Jarvis"),
+    # « ouvre Riot Games » entendu « royauté gay », « right game » ; « ouvre Opera GX » entendu « auberge x », « opéra g x »
+    # (seulement derrière « ouvre » ou « lance » : aucun autre sens possible)
+    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances)\s+)(?:l'application |l'appli |le jeu |l')?"
+     r"(?:royauté|royaute|royot|rayotte|riotte|riote|ryot|right|rite) ?(?:gay|game|games|gaime|guet)\b", r"\1riot games"),
+    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances)\s+)(?:l'application |l'appli |l')?(?:onglet )?"
+     r"(?:op[ée]ras?\s*g|auberges?)\.?\s*x\b", r"\1opera gx"),
 )
 
 # seulement dans une phrase de minuteur
