@@ -108,9 +108,9 @@ INTEGREES = (
     (r"^\W*(?:j'avise|j'arvisse?|jean-vice|jarvisse|jarvice|j'arvis)\W*$", "Jarvis"),
     # « ouvre Riot Games » entendu « royauté gay », « right game » ; « ouvre Opera GX » entendu « auberge x », « opéra g x »
     # (seulement derrière « ouvre » ou « lance » : aucun autre sens possible)
-    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances)\s+)(?:l'application |l'appli |le jeu |l')?"
+    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances|ferme|fermes|quitte|quittes|arrête|arrete)\s+)(?:l'application |l'appli |le jeu |l')?"
      r"(?:royauté|royaute|royot|rayotte|riotte|riote|ryot|right|rite) ?(?:gay|game|games|gaime|guet)\b", r"\1riot games"),
-    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances)\s+)(?:l'application |l'appli |l')?(?:onglet )?"
+    (r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|lances|ferme|fermes|quitte|quittes|arrête|arrete)\s+)(?:l'application |l'appli |l')?(?:onglet )?"
      r"(?:op[ée]ras?\s*g|auberges?)\.?\s*x\b", r"\1opera gx"),
 )
 

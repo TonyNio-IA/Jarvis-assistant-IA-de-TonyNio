@@ -1996,8 +1996,19 @@ _OUVRIR = re.compile(r"\b(?:ouvre|ouvrir|affiche|montre)(?:-moi)?\s+(?:tes |les 
                      r"(?:r[ée]glages|param[eè]tres)(?:\s+de jarvis|\s+du r[ée]acteur)?\b")
 
 
+
+_CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accede|acceder|accéder|installe|installer|connecte|connecter|ajoute|ajouter|"
+                             r"configure|configurer|active|activer)(?:-moi)?\s+(?:à |a |au |le |la |mon |ton |l'|de )?"
+                             r"(?:compte )?(?:de )?claude\b")
+
+
 def commande(t):
     t = t.replace("’", "'")
+    if _CLAUDE_REGLAGE.search(t):
+        # « installe Claude », « connecte Claude » : mes réglages s'ouvrent directement sur l'onglet Claude
+        _fenetre["page"] = "Claude"
+        ouvrir()
+        return "J'ouvre mes réglages, onglet Claude. Clique sur Installer Claude, puis sur Connecter mon compte."
     if not _OUVRIR.search(t):
         return None
     # « ouvre les paramètres » tout court peut viser Windows : seulement « réglages », ou « tes paramètres »

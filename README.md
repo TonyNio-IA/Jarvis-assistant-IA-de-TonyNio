@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.59**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.60**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,14 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.60
+
+- **Rapports plus discrets** : la ville de la météo est masquée même écrite autrement (« Saint Lubin » ou « Saint-Lubin »), ainsi que l'objet et l'expéditeur des mails lus à voix haute, « ma ville est… », « j'habite à… » et la ville citée dans une demande de météo.
+- **Moins de répétitions** : le message « limite d'utilisation de Claude atteinte » (ou « Claude n'est pas installé ») est dit en entier une fois par heure, puis en une phrase courte.
+- **Se taire sans Claude** : « tais-toi », « silence », « chut », « ça suffit » ou « mets-toi en veille » arrêtent Jarvis tout de suite.
+- **Riot Games et Opera GX** mieux reconnus aussi avec « ferme », « quitte » et « arrête ».
+- **« Installe Claude », « connecte Claude »** : ouvre directement les Réglages sur l'onglet Claude.
 
 ## Nouveau en 1.59
 
@@ -605,6 +613,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.60 | Rapports plus discrets (ville, objet et expéditeur des mails masqués), messages de limite Claude moins répétés, « tais-toi / silence / chut » sans Claude, Riot Games et Opera GX avec « ferme », « installe Claude » ouvre l'onglet Claude des Réglages. |
 | 1.59 | Beaucoup plus de commandes sans Claude (dés, calendrier, infos du PC, soleil et lune, météo détaillée, blagues, recherche Google proposée) ; noms de villes et d'applications mieux reconnus ; mot de remerciement après une mise à jour ; nom du PC et adresse réseau masqués dans les rapports |
 | 1.58 | Rapports plus clairs et plus justes (erreurs regroupées avec leur nombre, version sur chaque événement, rien perdu pendant l'envoi) ; lignes personnelles du journal masquées hors niveau Complet ; taille et échelle d'écran dans le rapport technique |
 | 1.57 | « Signaler un problème » : la case « Joindre le journal technique » est de nouveau cochée d'office ; GIF du réacteur refait |

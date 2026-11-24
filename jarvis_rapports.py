@@ -186,6 +186,30 @@ def _lieux_a_cacher():
     return sorted(lieux, key=len, reverse=True)
 
 
+_SEP = r"[\s\-'’]+"
+_JOURS = (r"lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain|aujourd|ce soir|ce matin|cet après|"
+          r"après|ce week|cette semaine|la semaine|midi|minuit|maintenant|plus tard")
+# « objet : facture EDF », « sujet : rendez-vous médecin » (lecture d'un mail à voix haute)
+_MAIL_OBJET = re.compile(r"\b(objet|sujet)\s*:\s*[^.!?\n]+", re.I)
+# « Premier : Jean Dupont », « notamment de la banque X » (liste des expéditeurs)
+_MAIL_EXPEDITEUR = re.compile(r"\b((?:premier|deuxième|deuxieme|troisième|troisieme|quatrième|quatrieme|cinquième|cinquieme)\s*:|"
+                              r"notamment (?:de|d'|du|des))\s*[^.!?\n]+", re.I)
+# « ma ville est X », « j'habite à X » : ce qui suit est un lieu
+_LIEU_DIT = re.compile(r"\b(ma ?vill?e(?: pour la météo)?,? (?:est|et|es|c'est|sera)|j'habite (?:à|a|au|aux|en)|"
+                       r"(?:règle|regle|change|mets|met|définis|choisis) (?:ma ville|la ville) (?:sur|à|a|pour|par))"
+                       r"\s+[^.!?\n]+", re.I)
+# « météo à Paris », « quel temps fait-il à Lyon », « pluie pour Nantes » : le nom propre qui suit
+_METEO_VILLE = re.compile(r"(?i:(\b(?:météo|meteo|temps|température|temperature|pluie|pleut|soleil|neige|orage|vent|froid|chaud)\b"
+                          r"[^.!?\n]{0,30}?\b(?:à|a|au|aux|pour|de|sur|dans|en)\s+(?:la |le |les |l')?))"
+                          r"(?!(?i:" + _JOURS + r"))(?-i:[A-ZÉÈÊÎÔÛÀÇ][\wéèêëîïôöûüàç'’-]+(?: (?:sur |en |de |du |des |la |le |et )?[A-ZÉÈÊÎÔÛÀÇ][\wéèêëîïôöûüàç'’-]+){0,3})")
+
+
+def _motif_lieu(lieu):
+    """Le lieu retrouvé même écrit autrement : tiret, espace ou apostrophe en plus ou en moins."""
+    mots = [re.escape(m) for m in re.split(_SEP, lieu) if m]
+    return re.compile(r"(?<!\w)" + r"[\s\-'’]*".join(mots) + r"(?!\w)", re.I)
+
+
 def anonymiser(texte, longueur=300):
     """Le texte, sans rien qui permette de reconnaître ou de situer la personne."""
     t = str(texte or "")
@@ -195,8 +219,12 @@ def anonymiser(texte, longueur=300):
     t = re.sub(r"(?:\+33\s?|0)[1-9](?:[\s.-]?\d{2}){4}", "[téléphone]", t)
     t = re.sub(r"\b\d{1,3}(?:(?: point |\.)\d{1,3}){3}\b", "[adresse]", t)      # adresse IP (écrite ou dite)
     t = re.sub(r"\d{5,}", "[nombre]", t)                        # codes postaux, codes, numéros
+    t = _MAIL_OBJET.sub(r"\1 : [objet]", t)
+    t = _MAIL_EXPEDITEUR.sub(r"\1 [expéditeur]", t)
+    t = _LIEU_DIT.sub(r"\1 [lieu]", t)
+    t = _METEO_VILLE.sub(r"\1[lieu]", t)
     for lieu in _lieux_a_cacher():
-        t = re.sub(r"(?<!\w)" + re.escape(lieu) + r"(?!\w)", "[lieu]", t, flags=re.I)
+        t = _motif_lieu(lieu).sub("[lieu]", t)
     for nom in _noms_a_cacher():
         t = re.sub(r"(?<!\w)" + re.escape(nom) + r"(?!\w)", "[prénom]", t, flags=re.I)
     t = " ".join(t.split())

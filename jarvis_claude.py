@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.59"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.60"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1120,7 +1120,7 @@ class ClaudeContinu:
                     or (self.utilise and time.time() - self.dernier_usage > MEMOIRE_MINUTES * 60)):
                 self.demarrer()        # nouvelle conversation
             if self.proc is None:
-                return SANS_CLAUDE, True
+                return message_sans_claude(), True
             self.utilise = True
             if self.avec_memoire:
                 texte = jarvis_memoire.nouveautes() + texte
@@ -1162,9 +1162,7 @@ class ClaudeContinu:
                 if donnees.get("is_error") or not reponse:
                     print("Claude (erreur) :", ligne[:500])
                     if "limit" in ligne.lower():
-                        return ("La limite d'utilisation de Claude est atteinte pour le moment. Je réponds quand "
-                                "même tout de suite à l'heure, la météo, les minuteurs, la musique, les fenêtres et l'ouverture des "
-                                "applications."), True
+                        return message_limite(), True
                     return "Claude a rencontré un problème avec cette demande.", True
                 return reponse, False
 
@@ -1172,6 +1170,34 @@ class ClaudeContinu:
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
                "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres, l'ouverture des applications. "
                "Pour ajouter Claude, ouvre mes Réglages, onglet Claude, et clique sur Installer Claude, puis sur Connecter mon compte.")
+_derniers_messages = {}
+
+
+def _une_fois_par_heure(cle):
+    """True si ce message complet n'a pas été dit depuis une heure (sinon on donne la version courte)."""
+    maintenant = time.time()
+    if maintenant - _derniers_messages.get(cle, 0) > 3600:
+        _derniers_messages[cle] = maintenant
+        return True
+    return False
+
+
+def message_limite():
+    """Limite d'utilisation de Claude atteinte : message complet une fois par heure, ensuite court."""
+    if _une_fois_par_heure("limite"):
+        return ("La limite d'utilisation de Claude est atteinte pour le moment. Je réponds quand "
+                "même tout de suite à l'heure, la météo, les minuteurs, la musique, les fenêtres et l'ouverture des "
+                "applications.")
+    return "Claude est toujours à sa limite d'utilisation, je ne peux pas répondre à cette demande."
+
+
+def message_sans_claude():
+    """Claude absent : explication complète une fois par heure, ensuite court."""
+    if _une_fois_par_heure("sans_claude"):
+        return SANS_CLAUDE
+    return "Cette demande a besoin de Claude, que je n'ai pas sur ce PC."
+
+
 claude = ClaudeContinu()
 
 
@@ -1239,7 +1265,7 @@ def demander_a_claude(demande, consignes=CONSIGNES, delai=DELAI_MAX_CLAUDE):
     if not donnees:
         print("Claude (erreurs) :", (erreurs or "").strip() or sortie)
         if "limit" in ((erreurs or "") + sortie).lower():
-            return "La limite d'utilisation de Claude est atteinte pour le moment.", True
+            return message_limite(), True
         return "Claude ne m'a pas répondu.", True
     reponse = str(donnees.get("result") or "").strip()
     if donnees.get("is_error") or not reponse:
@@ -1745,7 +1771,7 @@ def traiter_ecrit(demande, recognizer):
     derniers_textes[:] = [demande]
     baisser_son()
     try:
-        if re.fullmatch(r"\W*(?:jarvis\W+)?(?:stop|arr[eê]te|tais[- ]toi)\W*", demande, re.I):
+        if re.fullmatch(r"\W*(?:jarvis\W+)?(?:stop|arr[eê]te|tais[- ]toi|tait toi|silence|chut|ça suffit|ca suffit|tu peux te taire|mets[- ]toi en veille|met[- ]toi en veille|retourne en veille)\W*", demande, re.I):
             sous_titre("")
         elif est_politesse(demande) and not jarvis_commandes.confirmation_en_attente():
             etat("reponse")
@@ -1927,7 +1953,7 @@ def conversation(demande, recognizer):
             etat("ecoute")
             demande = ecouter_demande(recognizer, DELAI_ECOUTE_DEMANDE, bip_au_debut=True)
             continue
-        if re.fullmatch(r"\W*(?:jarvis\W+)?(?:stop|arr[eê]te|tais[- ]toi)\W*", demande, re.I):
+        if re.fullmatch(r"\W*(?:jarvis\W+)?(?:stop|arr[eê]te|tais[- ]toi|tait toi|silence|chut|ça suffit|ca suffit|tu peux te taire|mets[- ]toi en veille|met[- ]toi en veille|retourne en veille)\W*", demande, re.I):
             preparer_ecoute(recognizer)          # « Jarvis... stop » : il se tait simplement
             break
         if est_politesse(demande) and not jarvis_commandes.confirmation_en_attente():

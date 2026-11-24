@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.59**
+**Français : [README.md](README.md)** · **Current version: 1.60**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.60
+
+- **More discreet reports**: the weather city is hidden even when written differently ("Saint Lubin" or "Saint-Lubin"), as are the subject and sender of mails read aloud, "my city is…", "I live in…" and the city named in a weather request.
+- **Less repetition**: the "Claude usage limit reached" (or "Claude is not installed") message is spoken in full once an hour, then in one short sentence.
+- **Be quiet without Claude**: "shut up", "silence", "chut", "that's enough" or "go to sleep" (in French) stop Jarvis right away.
+- **Riot Games and Opera GX** are better recognized with "close", "quit" and "stop" too.
+- **"Install Claude", "connect Claude"** (in French): opens the Settings directly on the Claude tab.
 
 ## New in 1.59
 
