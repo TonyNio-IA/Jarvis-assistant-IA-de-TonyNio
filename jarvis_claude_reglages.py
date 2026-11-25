@@ -125,7 +125,7 @@ TEXTES = {
                "Sans lui, Jarvis fait les commandes immédiates (heure, météo, minuteurs, applications, fenêtres, "
                "musique, mails). Avec Claude, il répond aussi à n'importe quelle question, résume une page et écrit "
                "des textes. Il faut un abonnement Claude (Pro ou supérieur) : prends-le sur claude.ai, puis clique "
-               "sur « Installer Claude »."),
+               "sur « Installer Claude ». Tu préfères un autre assistant (Gemini, Mistral, ChatGPT…) ? Ouvre l'onglet « Assistants » (bêta)."),
     "deconnecte": ("Claude est installé, mais pas relié à ton compte.",
                    "Clique sur « Connecter mon compte » : ton navigateur s'ouvre sur la page de connexion de Claude. "
                    "Connecte-toi avec le compte de ton abonnement et accepte l'autorisation. Ton mot de passe ne "

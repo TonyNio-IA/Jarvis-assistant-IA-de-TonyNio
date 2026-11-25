@@ -70,6 +70,33 @@ def commande_mode_nuit(t):
 
 # ---------- Voix et vitesse ----------
 
+
+# En mode nuit, quelqu'un qui demande à Jarvis de parler (« parle un peu », « pourquoi tu ne parles plus »,
+# « rallume le micro ») ne sait pas qu'il est en mode nuit : on lui dit pourquoi et comment en sortir.
+_POURQUOI_SILENCE = re.compile(
+    r"\bparle (?:un peu|un coup|à voix haute|a voix haute|moi)\b"
+    r"|\bparle(?:s)? (?:pas|plus)\b(?! (?:vite|lentement|fort|doucement|bas|haut))"
+    r"|\bpourquoi (?:tu|vous|il) (?:ne |n')?(?:parle|réponds|reponds|répond|repond|dis)"
+    r"|\bpourquoi\b.*\b(?:par écrit|par ecrit|en écrit|en ecrit)\b"
+    r"|\b(?:rallume|ralume|ralumer|rallumer|réactive|reactive|remets|remet)\b.*\bmicro\b"
+    r"|\bje (?:ne )?t'entends (?:pas|plus)\b"
+    r"|\b(?:réponds|reponds|répondre|repondre)\b.*\b(?:voix|oral)\b")
+
+
+def commande_pourquoi_silence(t):
+    """En mode nuit seulement : explique pourquoi Jarvis répond par écrit et comment le désactiver."""
+    if not jarvis_voix.mode_nuit():
+        return None
+    t = _sans_jarvis(t)
+    if not _POURQUOI_SILENCE.search(t):
+        return None
+    texte = "Je suis en mode nuit, donc je réponds par écrit. Dis « désactive le mode nuit » pour que je reparle."
+    if jarvis_voix.jarvis_config.HEURES_NUIT:
+        texte += (" Les horaires de nuit me remettent en silence tout seuls : pour les enlever, "
+                  "règle « Mode nuit automatique » dans les réglages, onglet Apparence.")
+    return texte
+
+
 def commande_voix(t):
     t = _sans_jarvis(t)
     # « parle » est souvent entendu « par le » ou « par là » (« par le plus vite », « par là, à vitesse normale »)

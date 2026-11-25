@@ -608,6 +608,7 @@ class Affichage:
 
     def _ouvrir_saisie(self):
         """Un clic dans la fenêtre de discussion : on peut écrire sa demande."""
+        self._clic_saisie = time.time()      # le curseur s'affiche aussitôt, même si une réponse est encore à l'écran
         if self._saisie is None:
             self._saisie = ""
             print("(Fenêtre de discussion : clic, prête pour une demande écrite.)")
@@ -1582,7 +1583,11 @@ class Affichage:
         largeur = x1 - x0 - 22 * s
         curseur = int(maintenant * 2.5) % 2 == 0
         nb = LIGNES_DISCUSSION
-        if ecrit and (self._saisie or not src.texte_actuel):
+        # Après un clic pour écrire, la zone montre le curseur tout de suite : sans cela, une réponse restée à l'écran
+        # (ou « Aucun micro détecté ») donnait l'impression que la fenêtre ne réagissait plus. La demande envoyée,
+        # puis la réponse, remplacent ensuite le curseur (leur texte est plus récent que le clic).
+        attend_frappe = ecrit and not self._saisie and getattr(self, "_clic_saisie", 0.0) > src.texte_depuis
+        if ecrit and (self._saisie or not src.texte_actuel or attend_frappe):
             # On écrit : la demande en cours, avec un curseur qui clignote (les dernières lignes si elle est longue)
             lignes = list(self._mettre_en_lignes(self._saisie, largeur - 8 * s))[-nb:] or [""]
             lignes[-1] += "|" if curseur else " "

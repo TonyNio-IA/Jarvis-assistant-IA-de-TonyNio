@@ -13,7 +13,7 @@ Jarvis est fait par une seule personne, sur son temps libre. Pour savoir ce qui 
 
 ## Le compteur anonyme
 
-Un numéro tiré au hasard sur votre PC (il ne dit rien de vous), la version de Jarvis, la version de Windows, le niveau de rapport choisi et, depuis la version 1.50, le type de matériel : le processeur et son nombre de cœurs, la mémoire, la carte graphique, et si le PC est un portable ou un fixe. Il sert uniquement à compter les installations et les utilisateurs actifs, et à savoir sur quels PC Jarvis tourne (par exemple pour repérer les PC trop lents). Il ne contient ni phrase, ni erreur, ni rien de ce que vous faites avec Jarvis.
+Un numéro propre à votre PC (depuis la version 1.63 : l'empreinte, illisible et à sens unique, de l'identifiant que Windows garde pour la machine, jamais l'identifiant lui-même ; il reste le même si vous réinstallez Jarvis et il ne dit rien de vous), la version de Jarvis, la version de Windows, le niveau de rapport choisi et, depuis la version 1.50, le type de matériel : le processeur et son nombre de cœurs, la mémoire, la carte graphique, et si le PC est un portable ou un fixe. Il sert uniquement à compter les installations et les utilisateurs actifs, et à savoir sur quels PC Jarvis tourne (par exemple pour repérer les PC trop lents). Il ne contient ni phrase, ni erreur, ni rien de ce que vous faites avec Jarvis.
 
 Si vous donnez vous-même un nom à votre PC (« Jarvis, nomme ce PC… »), ce nom est envoyé avec le compteur. Personne n'a besoin de le faire : cela sert surtout au créateur de Jarvis pour reconnaître ses propres PC d'essai. « Jarvis, oublie le nom de ce PC » l'enlève.
 
@@ -34,7 +34,7 @@ Si vous donnez vous-même un nom à votre PC (« Jarvis, nomme ce PC… »), ce 
 
 ## Le rapport complet
 
-Le rapport technique, plus vos conversations avec Jarvis (ce que vous avez demandé, ce qu'il a répondu).
+Le rapport technique, plus vos conversations avec Jarvis : ce que vous avez demandé (comme Jarvis l'a compris, avec l'autre version entendue quand la reconnaissance vocale hésite), ce qu'il a répondu, et si la réponse est venue de Jarvis lui-même ou de Claude. Cela sert à améliorer la compréhension de Jarvis. Jamais pour un profil enfant ni en mode invité.
 
 ## Ce qui n'est jamais envoyé
 
@@ -59,7 +59,7 @@ Dans les réglages de Jarvis, rubrique **« Rapports »** :
 - couper le compteur anonyme ;
 - **« Je veux tester les nouvelles versions en avance »** : vous recevez les versions d'essai avant tout le monde (votre numéro anonyme est alors marqué « testeur ») ;
 - **« Voir ce qui partirait »** : le prochain rapport s'ouvre, tel qu'il serait envoyé ;
-- **« Effacer mes données »** : tout ce qui a été envoyé depuis votre PC est supprimé, et un nouveau numéro anonyme est tiré.
+- **« Effacer mes données »** : tout ce qui a été envoyé depuis votre PC est supprimé sur le dépôt. Le numéro anonyme de votre PC reste le même : si vous gardez le compteur anonyme, le PC réapparaît au signal suivant ; coupez-le dans les réglages pour ne plus rien envoyer du tout.
 
 Si l'envoi échoue (pas d'Internet), Jarvis réessaie trois fois, puis abandonne ce rapport : rien ne s'accumule sur votre PC, et Jarvis n'est jamais bloqué.
 

@@ -138,7 +138,7 @@ def _invite():
         return False
 
 
-def noter_echange(demande, reponse):
+def noter_echange(demande, reponse, par="", autre=""):
     if not demande or not reponse or _invite():         # mode invité : rien n'est enregistré
         return
     with _verrou:
@@ -146,9 +146,15 @@ def noter_echange(demande, reponse):
         donnees["echanges"].append({"date": _maintenant(), "demande": demande[:400], "reponse": reponse[:600]})
         del donnees["echanges"][:-NB_ECHANGES_GARDES]
         _enregistrer()
-    try:                              # rapport complet (seulement si l'utilisateur l'a choisi) : texte nettoyé
+    try:                              # rapport complet (seulement si l'utilisateur l'a choisi) : texte nettoyé, jamais en profil enfant
+        import jarvis_enfant
+        if jarvis_enfant.actif():
+            return
+    except Exception:
+        pass
+    try:
         import jarvis_rapports
-        jarvis_rapports.conversation(demande, reponse)
+        jarvis_rapports.conversation(demande, reponse, par, autre)
     except Exception:
         pass
 

@@ -1014,6 +1014,11 @@ def _conversation(s):
 
 def calendrier(t):
     """Les questions de date et de calendrier (aussi appelées avant le raccourci « quelle date »)."""
+    try:
+        import jarvis_savoir
+        t = jarvis_savoir.annees_en_chiffres(t)   # « deux mille trente » -> 2030
+    except Exception:
+        pass
     return _calendrier(_phrase(t))
 
 
@@ -1059,6 +1064,12 @@ def sans_claude(t, brut, demander_confirmation, ouvrir):
         import jarvis_enfant
         import jarvis_extras
         if jarvis_enfant.actif() or jarvis_extras.invite():
+            return None
+    except Exception:
+        pass
+    try:                                    # un autre assistant est branché : c'est lui qui répondra, pas Google
+        import jarvis_assistants
+        if jarvis_assistants.utilisable_maintenant():
             return None
     except Exception:
         pass

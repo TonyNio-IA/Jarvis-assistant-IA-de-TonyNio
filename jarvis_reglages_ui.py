@@ -1742,10 +1742,347 @@ def _construire():
         tk.Label(page, text="À la voix : « premiers pas » rappelle ce que Claude apporte.", bg=PANNEAU, fg=DISCRET,
                  font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
 
+    assistants_etat = {"fournisseur": None, "message": "", "occupe": False, "avance": False, "cle_visible": False,
+                       "cle": "", "nom": "", "adresse": "", "modele": ""}
+
+    def ouvrir_assistants():
+        """Clic sur « Assistants » dans le menu : on repart toujours de la première page (la liste des assistants),
+        même si un formulaire était resté à moitié rempli. (Les boutons internes redessinent avec page_assistants.)"""
+        if not assistants_etat["occupe"]:
+            assistants_etat.update(fournisseur=None, message="", cle="", nom="", adresse="", modele="",
+                                   avance=False, cle_visible=False)
+        page_assistants()
+
+    def page_assistants():
+        """BÊTA - connecter d'autres assistants IA (secours quand Claude n'est pas là ou a atteint sa limite)."""
+        import webbrowser
+        import time as _t
+        import jarvis_assistants as ja
+        vider()
+        titre("Autres assistants IA (bêta)",
+              "Tu n'utilises pas Claude ? Pas de problème : branche un autre assistant (Gemini, Mistral, ChatGPT…) et "
+              "il répondra à tes questions. Si tu as aussi Claude, il reste le premier ; les autres prennent le relais "
+              "quand il n'est pas disponible. Tout est expliqué pas à pas ci-dessous.")
+        if assistants_etat["message"]:               # résultat de la dernière action, bien visible tout en haut
+            tk.Label(page, text=assistants_etat["message"], bg=PANNEAU2, fg=accent["c"],
+                     font=("Segoe UI Semibold", 10), wraplength=px(500), justify="left", padx=12, pady=8
+                     ).pack(anchor="w", padx=22, pady=(4, 6))
+        try:
+            import jarvis_enfant
+            if jarvis_enfant.actif() or jarvis_extras.invite():
+                tk.Label(page, text="Ces réglages sont réservés aux parents : ils ne s'ouvrent pas en mode enfant ni "
+                                    "en mode invité.", bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
+                         justify="left").pack(anchor="w", padx=22, pady=12)
+                return
+        except Exception:
+            pass
+
+        def texte(parent, contenu, fort=False, couleur=None, haut=0):
+            tk.Label(parent, text=contenu, bg=PANNEAU2, fg=couleur or (TEXTE if fort else DISCRET),
+                     font=("Segoe UI Semibold", 10) if fort else POLICE, wraplength=px(480),
+                     justify="left").pack(anchor="w", pady=(haut, 0))
+
+        def maj():
+            """Redessine la page, seulement si on est encore dessus."""
+            try:
+                if courant.get("nom") == "Assistants":
+                    page_assistants()
+            except Exception:
+                pass
+
+        def plus_tard(f):
+            try:
+                racine.after(0, f)
+            except Exception:
+                pass
+
+        d = ja.charger()
+
+        # --- l'avertissement bêta
+        cb = tk.Frame(ligne(), bg=PANNEAU2)
+        cb.pack(fill="x", padx=12, pady=9)
+        texte(cb, "VERSION DE TEST (BÊTA)", fort=True, couleur="#E8A33D")
+        texte(cb, "Cet onglet est nouveau : il peut y avoir des problèmes. Si quelque chose ne marche pas, rien "
+                  "n'est cassé : Claude continue de fonctionner comme avant, et tu peux retirer un assistant à tout "
+                  "moment. Dis-le-moi si tu rencontres un souci.", haut=2)
+
+        section("Comment ça marche")
+        cc = tk.Frame(ligne(), bg=PANNEAU2)
+        cc.pack(fill="x", padx=12, pady=9)
+        texte(cc, "Claude reste l'assistant principal : Jarvis lui pose toujours la question en premier.")
+        texte(cc, "Si Claude n'est pas installé, pas connecté, ou a atteint sa limite d'utilisation, Jarvis pose la "
+                  "question au premier assistant de ta liste. S'il est lui aussi à court, il passe au suivant.",
+              haut=4)
+        texte(cc, "Ces assistants répondent par du texte. Ils ne peuvent pas agir sur ton PC (ouvrir, modifier, "
+                  "chercher sur ton ordinateur) : cela reste réservé à Claude.", haut=4)
+        texte(cc, "Ils ne se connectent pas avec ton mot de passe, mais avec une « clé » que tu crées toi-même sur "
+                  "le site de l'assistant : c'est expliqué à l'étape 2.", haut=4)
+
+        # --- étape 1 : l'accord
+        section("Étape 1 : donner ton accord")
+        c1 = tk.Frame(ligne(), bg=PANNEAU2)
+        c1.pack(fill="x", padx=12, pady=9)
+        if d.get("consentement"):
+            texte(c1, "✓ Les autres assistants sont autorisés.", fort=True)
+            texte(c1, "Seul le texte de ta question est envoyé au service que tu as choisi, sur Internet. Tu peux "
+                      "tout arrêter quand tu veux.", haut=2)
+            bouton(c1, "Tout arrêter", lambda: (ja.accepter_consentement(False), maj())).pack(anchor="w", pady=(8, 0))
+        else:
+            texte(c1, "Avant de commencer, une chose importante :", fort=True)
+            texte(c1, "quand Jarvis se tourne vers un autre assistant, le texte de ta question est envoyé par "
+                      "Internet à l'entreprise qui le fait fonctionner (Google, Mistral, etc.), qui la traite avec "
+                      "ses propres règles de confidentialité. Rien d'autre de ton PC n'est envoyé : ni tes fichiers, "
+                      "ni ta mémoire, ni tes mots de passe. Tant que tu n'as pas donné ton accord, rien ne part.",
+                  haut=2)
+            bouton(c1, "J'ai compris, j'autorise", lambda: (ja.accepter_consentement(True), maj()),
+                   fort=True).pack(anchor="w", pady=(8, 0))
+
+        # --- étape 2 : ajouter un assistant
+        section("Étape 2 : ajouter un assistant")
+        marqueur = tk.Frame(page, bg=PANNEAU, height=1)
+        marqueur.pack(fill="x")
+        if assistants_etat.pop("aller", False):      # après un ajout : retour en haut de la page Assistants
+            def _aller_haut():
+                try:
+                    page.update_idletasks()
+                    toile.yview_moveto(0)
+                except Exception:
+                    pass
+            racine.after(60, _aller_haut)
+            racine.after(300, _aller_haut)
+        f_choisi = ja.PAR_ID.get(assistants_etat["fournisseur"])
+        if not f_choisi:
+            c2 = tk.Frame(ligne(), bg=PANNEAU2)
+            c2.pack(fill="x", padx=12, pady=9)
+            texte(c2, "A. Choisis l'assistant que tu veux ajouter.", fort=True)
+            texte(c2, "Tu peux en ajouter plusieurs, et même plusieurs comptes du même assistant. Si tu n'en as "
+                      "aucun, les plus simples pour commencer sont Gemini (niveau gratuit) et Mistral (français, "
+                      "forfait gratuit). Les « gratuit » peuvent changer : vérifie sur leur site.", haut=2)
+            for f in ja.FOURNISSEURS:
+                cadre = ligne()
+                g = tk.Frame(cadre, bg=PANNEAU2)
+                g.pack(side="left", padx=12, pady=8)
+                tk.Label(g, text=f["nom"], bg=PANNEAU2, fg=TEXTE, font=("Segoe UI Semibold", 10),
+                         wraplength=px(290), justify="left").pack(anchor="w")
+                tk.Label(g, text=f["gratuit"], bg=PANNEAU2, fg=DISCRET, font=POLICE, wraplength=px(290),
+                         justify="left").pack(anchor="w")
+                deja = [c for c in d.get("comptes", []) if c.get("fournisseur") == f["id"]]
+                if deja:
+                    prets = sum(1 for c in deja if c.get("actif", True))
+                    tk.Label(g, text=("✓ Connecté" if len(deja) == 1 else f"✓ Connecté ({len(deja)} comptes)")
+                             + ("" if prets == len(deja) else " (à vérifier dans la liste)"),
+                             bg=PANNEAU2, fg="#5FBF7F", font=("Segoe UI Semibold", 10)).pack(anchor="w", pady=(2, 0))
+
+                def choisir(i=f["id"]):
+                    assistants_etat.update(fournisseur=i, message="", cle="", nom="", adresse="", modele="",
+                                           avance=(i == "autre"))
+                    maj()
+                bouton(cadre, "Ajouter un autre compte" if deja else "Choisir", choisir).pack(side="right", padx=12, pady=8)
+        else:
+            c2 = tk.Frame(ligne(), bg=PANNEAU2)
+            c2.pack(fill="x", padx=12, pady=9)
+            texte(c2, "Assistant choisi : " + f_choisi["nom"], fort=True)
+            bouton(c2, "Changer d'assistant",
+                   lambda: (assistants_etat.update(fournisseur=None, message=""), maj())).pack(anchor="w", pady=(6, 0))
+
+            sans_cle = bool(f_choisi.get("sans_cle"))
+            c3 = tk.Frame(ligne(), bg=PANNEAU2)
+            c3.pack(fill="x", padx=12, pady=9)
+            if sans_cle:
+                texte(c3, "B. Prépare Ollama sur ce PC.", fort=True)
+                texte(c3, f_choisi["aide"], haut=2)
+                texte(c3, "Ollama n'a pas besoin de clé. Quand c'est prêt, passe à l'étape D.", haut=4)
+            else:
+                texte(c3, "B. Crée ta clé sur le site de l'assistant.", fort=True)
+                texte(c3, "Une « clé API » est une longue suite de lettres et de chiffres, comme un mot de passe "
+                          "spécial réservé aux programmes. Tu la crées toi-même, gratuitement, dans ton compte sur "
+                          "le site de l'assistant. Ton vrai mot de passe ne sert qu'à te connecter là-bas : "
+                          "Jarvis ne le demande jamais.", haut=2)
+                texte(c3, f_choisi["aide"], haut=4)
+                texte(c3, "Garde la clé secrète : ne la montre à personne. Le site ne te la montre souvent qu'une "
+                          "seule fois, copie-la tout de suite.", haut=4)
+            if f_choisi.get("cle_url"):
+                bouton(c3, "Ouvrir le site de " + f_choisi["nom"].split(" (")[0],
+                       lambda: webbrowser.open(f_choisi["cle_url"])).pack(anchor="w", pady=(8, 0))
+
+            v_cle = tk.StringVar(value=assistants_etat["cle"])
+            v_nom = tk.StringVar(value=assistants_etat["nom"])
+            v_adr = tk.StringVar(value=assistants_etat["adresse"] or f_choisi["adresse"])
+            v_mod = tk.StringVar(value=assistants_etat["modele"] or f_choisi["modele"])
+            for var, cle_etat in ((v_cle, "cle"), (v_nom, "nom"), (v_adr, "adresse"), (v_mod, "modele")):
+                var.trace_add("write", lambda *a, v=var, k=cle_etat: assistants_etat.__setitem__(k, v.get()))
+
+            def champ(parent, var, secret=False):
+                e = tk.Entry(parent, textvariable=var, bg=BORD, fg=TEXTE, insertbackground=TEXTE, relief="flat",
+                             font=POLICE, width=44, show="•" if secret and not assistants_etat["cle_visible"] else "")
+                e.pack(anchor="w", pady=(4, 0), ipady=4)
+                return e
+
+            if not sans_cle:
+                c4 = tk.Frame(ligne(), bg=PANNEAU2)
+                c4.pack(fill="x", padx=12, pady=9)
+                texte(c4, "C. Colle ta clé ici.", fort=True)
+                texte(c4, "Dans ton navigateur, copie la clé (Ctrl+C), puis clique sur « Coller » ci-dessous.", haut=2)
+                e_cle = champ(c4, v_cle, secret=True)
+                rang = tk.Frame(c4, bg=PANNEAU2)
+                rang.pack(anchor="w", pady=(6, 0))
+
+                def coller():
+                    try:
+                        v_cle.set(racine.clipboard_get().strip())
+                    except Exception:
+                        assistants_etat["message"] = "Je ne trouve rien à coller : copie d'abord la clé (Ctrl+C)."
+                        maj()
+                bouton(rang, "Coller", coller, fort=True).pack(side="left", padx=(0, 8))
+                bouton(rang, "Masquer" if assistants_etat["cle_visible"] else "Afficher",
+                       lambda: (assistants_etat.update(cle_visible=not assistants_etat["cle_visible"]), maj())
+                       ).pack(side="left")
+
+            c5 = tk.Frame(ligne(), bg=PANNEAU2)
+            c5.pack(fill="x", padx=12, pady=9)
+            texte(c5, "Réglages avancés (facultatif)", fort=True)
+            texte(c5, "Tu peux ignorer cette partie : Jarvis choisit tout seul le bon modèle.", haut=2)
+            if assistants_etat["avance"]:
+                texte(c5, "Nom pour t'y retrouver (par exemple « compte perso ») :", haut=6)
+                champ(c5, v_nom)
+                texte(c5, "Adresse du service :", haut=6)
+                champ(c5, v_adr)
+                texte(c5, "Modèle (laisse vide pour un choix automatique) :", haut=6)
+                champ(c5, v_mod)
+                bouton(c5, "Masquer les réglages avancés",
+                       lambda: (assistants_etat.update(avance=False), maj())).pack(anchor="w", pady=(8, 0))
+            else:
+                bouton(c5, "Afficher les réglages avancés",
+                       lambda: (assistants_etat.update(avance=True), maj())).pack(anchor="w", pady=(6, 0))
+
+            def ajouter():
+                if assistants_etat["occupe"]:
+                    return
+                ok, msg, cid = ja.ajouter_compte(f_choisi["id"], v_cle.get(), v_mod.get(), v_adr.get(), v_nom.get())
+                if not ok:
+                    assistants_etat["message"] = msg
+                    assistants_etat["aller"] = True
+                    return maj()
+                assistants_etat.update(occupe=True, message="Je teste ton assistant, quelques secondes…")
+
+                def travail():
+                    try:
+                        ok2, m2, genre = ja.tester_detail(cid)
+                        if ok2:
+                            assistants_etat.update(fournisseur=None, cle="", nom="", adresse="", modele="")
+                            m2 += " Il est dans ta liste, tout en bas. Tu peux en ajouter un autre juste ci-dessous."
+                        elif genre in ("cle", "adresse", "modele", "autre"):
+                            ja.supprimer_compte(cid)
+                            m2 += " Je n'ai pas gardé ce compte : corrige puis réessaie."
+                        else:
+                            assistants_etat.update(fournisseur=None, cle="", nom="", adresse="", modele="")
+                            m2 += " Je garde le compte : réessaie plus tard avec « Tester »."
+                    except Exception as erreur:
+                        m2 = f"Le test a échoué ({erreur})."
+                    assistants_etat.update(occupe=False, message=m2, aller=True)
+                    plus_tard(maj)
+                threading.Thread(target=travail, daemon=True).start()
+                assistants_etat["aller"] = True
+                maj()
+
+            c6 = tk.Frame(ligne(), bg=PANNEAU2)
+            c6.pack(fill="x", padx=12, pady=9)
+            texte(c6, "D. Ajoute et teste." if not sans_cle else "D. Ajoute et teste Ollama.", fort=True)
+            texte(c6, "Jarvis enregistre ta clé (chiffrée par Windows, elle ne quitte pas ce PC) puis fait un petit "
+                      "essai pour vérifier que tout fonctionne.", haut=2)
+            if not d.get("consentement"):
+                texte(c6, "N'oublie pas l'étape 1 : sans ton accord, l'assistant ne sera pas utilisé.", haut=4,
+                      couleur="#E8A33D")
+            bouton(c6, "Ajouter et tester", ajouter, fort=True).pack(anchor="w", pady=(8, 0))
+
+        # (le message est affiché juste sous le titre de l'étape 2, voir plus haut)
+
+        # --- la liste
+        section("Mes assistants (dans l'ordre d'essai)")
+        comptes = d.get("comptes", [])
+        if not comptes:
+            tk.Label(page, text="Aucun assistant ajouté pour l'instant.", bg=PANNEAU, fg=DISCRET, font=POLICE
+                     ).pack(anchor="w", padx=22, pady=4)
+        for rang_c, c in enumerate(comptes, 1):
+            cc = tk.Frame(ligne(), bg=PANNEAU2)
+            cc.pack(fill="x", padx=12, pady=9)
+            texte(cc, f"{rang_c}. {ja.nom_affiche(c)}", fort=True)
+            cle_claire = ja.dechiffrer_cle(c.get("cle", "")) if c.get("cle") else ""
+            texte(cc, ("Clé " + ja.masquer(cle_claire) if cle_claire else "Sans clé") + " · modèle : "
+                  + (c.get("modele") or "choisi automatiquement"), haut=2)
+            if not c.get("actif", True):
+                etat_txt, coul = "✖ Mis de côté" + (" : " + c["derniere_erreur"] if c.get("derniere_erreur") else ""), "#E06060"
+            elif c.get("pause_jusqua", 0) > _t.time():
+                etat_txt, coul = ("⏸ En pause (limite atteinte ou service en panne), reprise vers "
+                                  + _t.strftime("%H:%M", _t.localtime(c["pause_jusqua"]))), "#E8A33D"
+            else:
+                etat_txt, coul = "✓ Prêt", "#5FBF7F"
+            texte(cc, etat_txt, haut=2, couleur=coul)
+
+            def tester_c(cid=c["id"]):
+                if assistants_etat["occupe"]:
+                    return
+                assistants_etat.update(occupe=True, message="Je teste cet assistant, quelques secondes…")
+
+                def travail():
+                    try:
+                        ok2, m2 = ja.tester(cid)
+                    except Exception as erreur:
+                        m2 = f"Le test a échoué ({erreur})."
+                    assistants_etat.update(occupe=False, message=m2)
+                    plus_tard(maj)
+                threading.Thread(target=travail, daemon=True).start()
+                maj()
+
+            def basculer(cid=c["id"], actif_now=c.get("actif", True)):
+                ja.modifier_compte(cid, actif=not actif_now, pause_jusqua=0)
+                maj()
+
+            def retirer(cid=c["id"], nom=ja.nom_affiche(c)):
+                if messagebox.askyesno("Jarvis", f"Retirer {nom} de la liste ? La clé enregistrée sur ce PC sera "
+                                                 "effacée. (Tu pourras la rajouter plus tard.)", parent=racine):
+                    ja.supprimer_compte(cid)
+                    maj()
+
+            def deplacer(cid=c["id"], sens=0):
+                ja.deplacer_compte(cid, sens)
+                maj()
+            r1 = tk.Frame(cc, bg=PANNEAU2)
+            r1.pack(anchor="w", pady=(8, 0))
+            bouton(r1, "Tester", tester_c).pack(side="left", padx=(0, 8))
+            bouton(r1, "Remettre en service" if not c.get("actif", True) else "Mettre de côté", basculer
+                   ).pack(side="left", padx=(0, 8))
+            bouton(r1, "Retirer", retirer).pack(side="left")
+            if len(comptes) > 1:
+                r2 = tk.Frame(cc, bg=PANNEAU2)
+                r2.pack(anchor="w", pady=(6, 0))
+                if rang_c > 1:
+                    bouton(r2, "Monter", lambda cid=c["id"]: deplacer(cid, -1)).pack(side="left", padx=(0, 8))
+                if rang_c < len(comptes):
+                    bouton(r2, "Descendre", lambda cid=c["id"]: deplacer(cid, 1)).pack(side="left")
+
+        # --- l'aide
+        section("En cas de problème")
+        ch = tk.Frame(ligne(), bg=PANNEAU2)
+        ch.pack(fill="x", padx=12, pady=9)
+        texte(ch, "« La clé est refusée » : la clé est mal copiée, ou elle a expiré. Retire l'assistant, recrée "
+                  "une clé sur le site et recommence. Copie-la en entier, sans espace.")
+        texte(ch, "« Limite atteinte » : tu as utilisé tout ton quota (ou ton crédit) chez cet assistant. Jarvis le "
+                  "met de côté une heure et passe au suivant.", haut=4)
+        texte(ch, "« Impossible de joindre le service » : vérifie ta connexion Internet. Pour Ollama, vérifie qu'il "
+                  "est bien ouvert sur ce PC.", haut=4)
+        texte(ch, "Tes clés sont chiffrées par Windows et restent sur ce PC : elles ne sont jamais envoyées sur "
+                  "GitHub, ni dans les rapports de Jarvis.", haut=4)
+        texte(ch, "Les prix et les offres gratuites sont ceux des entreprises : ils peuvent changer. Regarde "
+                  "toujours sur leur site avant de donner une carte bancaire.", haut=4)
+        tk.Label(page, text="Cet onglet est en test : tes retours m'aident à l'améliorer.", bg=PANNEAU, fg=DISCRET,
+                 font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22, pady=8)
+
     # Rangées par famille (un trait fin les sépare dans la liste) :
     #   réacteur et voix | personnes et services | confidentialité | entretien | informations
     pages = [("Apparence", page_apparence), ("Réacteur", page_reacteur), ("Son", page_son),
-             ("Profils", page_profils), ("Comptes", page_comptes), ("Claude", page_claude), ("Alertes", page_alertes),
+             ("Profils", page_profils), ("Comptes", page_comptes), ("Claude", page_claude), ("Assistants", ouvrir_assistants),
+             ("Alertes", page_alertes),
              ("Rapports", page_rapports), ("Historique", page_historique),
              ("Système", page_systeme), ("Santé", page_sante),
              ("Aide", page_aide), ("À propos", page_a_propos)]
@@ -1755,7 +2092,7 @@ def _construire():
     # une icône Windows (police Segoe MDL2 Assets) devant chaque rubrique
     icones = {"Apparence": "", "Son": "", "Alertes": "", "Profils": "", "Aide": "",
               "Historique": "", "Santé": "", "Système": "", "À propos": "", "Rapports": "\ue939",
-              "Comptes": "\ue715", "Claude": "\ue8bd"}
+              "Comptes": "\ue715", "Claude": "\ue8bd", "Assistants": "\ue774"}
 
     icones["Réacteur"] = ""
 

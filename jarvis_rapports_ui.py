@@ -27,7 +27,7 @@ DETAIL = ("Rapport technique : les phrases mal comprises, les erreurs, les fonct
           "Rapport complet : la même chose, plus vos conversations avec Jarvis.\n\n"
           "Avant l'envoi, les textes sont nettoyés : prénoms des profils, ville, adresses mail, numéros de téléphone et "
           "codes sont remplacés. Aucune voix n'est envoyée. Les rapports sont gardés 12 mois, puis effacés.\n\n"
-          "Dans tous les cas, un compteur anonyme (un numéro tiré au hasard, la version de Jarvis et de Windows, et le "
+          "Dans tous les cas, un compteur anonyme (un numéro propre à ce PC, sans lien avec vous, la version de Jarvis et de Windows, et le "
           "type de matériel : processeur, mémoire, carte graphique, portable ou fixe) sert à "
           "compter les utilisateurs ; il se coupe dans les réglages.\n\n"
           "Vous pouvez changer d'avis à tout moment (Réglages, rubrique « Rapports »), et y effacer vos données. "

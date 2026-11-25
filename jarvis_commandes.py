@@ -71,6 +71,7 @@ import jarvis_fenetres
 import jarvis_memoire
 import jarvis_maj
 import jarvis_pratique
+import jarvis_savoir
 import jarvis_reglages
 import jarvis_web
 import urllib.parse
@@ -1829,7 +1830,11 @@ def commande_micro(t):
         deja = not jarvis_claude.micro_coupe
         jarvis_claude.regler_micro(False)
         print("(Micro rallumé.)")
-        return "Mon micro est déjà allumé, je t'écoute." if deja else "C'est fait, je t'écoute de nouveau."
+        reponse = "Mon micro est déjà allumé, je t'écoute." if deja else "C'est fait, je t'écoute de nouveau."
+        import jarvis_voix
+        if jarvis_voix.mode_nuit():
+            reponse += " Je réponds par écrit parce que je suis en mode nuit : dis « désactive le mode nuit » pour que je reparle."
+        return reponse
     return None
 
 
@@ -1898,6 +1903,9 @@ def commande_instantanee(textes, annoncer=None):
             reponse = jarvis_local.calendrier(t)         # « quelle est la date », « dans combien de jours Noël »...
             if reponse:
                 return reponse
+            reponse = jarvis_savoir.commande(t, brut)    # mois, saison, calculs de tête, « combien de X dans Y », capitales...
+            if reponse:
+                return reponse
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
@@ -1932,6 +1940,9 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_mails.commande_envoi(t, brut, demander_confirmation,
                                                                  enfant=jarvis_enfant.actif(),
                                                                  invite=jarvis_extras.invite()),
+                             lambda: jarvis_mails.commande_marquer_lus(t, demander_confirmation,
+                                                                       enfant=jarvis_enfant.actif(),
+                                                                       invite=jarvis_extras.invite()),
                              lambda: jarvis_mails.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: jarvis_appletv.commande(t, enfant=jarvis_enfant.actif()),
                              lambda: _commande_appareil_inconnu(t, teles_seulement=True),
@@ -1948,6 +1959,7 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_local.commande(t, brut),
                              lambda: jarvis_personnalite.commande(t),
                              lambda: jarvis_reglages.commande_mode_nuit(t),
+                             lambda: jarvis_reglages.commande_pourquoi_silence(t),
                              lambda: jarvis_reglages.commande_voix(t),
                              lambda: jarvis_reglages.commande_luminosite(t),
                              lambda: jarvis_reglages.commande_bluetooth(t),

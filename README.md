@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.62**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.63**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,15 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.63
+
+- **« Marque tous mes mails comme lus »** : Jarvis compte tes mails non lus, te demande confirmation (« Je vais marquer N mails comme lus. Je ne supprime rien. Je le fais ? »), puis les passe en « lus ». Rien n'est supprimé ni déplacé ; seule la boîte de réception est touchée. Les phrases mal entendues (« mark, tout mes mails comme lui ») sont reconnues. Réservé aux parents (refusé en mode enfant et invité).
+- **Si la messagerie ne permet pas de modifier les mails**, Jarvis répond simplement : « Je ne sais pas faire ça. »
+- **Micro perdu ou absent** : si le micro se tait, Jarvis fait 3 essais pour le retrouver (sans redémarrer). Sans succès, « Aucun micro détecté » s'affiche environ 2 minutes au-dessus du réacteur. Sans micro du tout, la fenêtre de discussion reste utilisable : Jarvis répond aux demandes écrites (et aux rappels et alertes), et reprend l'écoute dès qu'un micro est branché.
+- **Mode nuit expliqué** : quand Jarvis est en mode nuit (il répond par écrit, sans voix) et qu'on lui demande de parler (« parle un peu », « pourquoi tu ne parles plus », « rallume le micro »), il répond qu'il est en mode nuit et comment en sortir (« désactive le mode nuit »). Avec des horaires de nuit automatiques, il indique aussi le réglage « Mode nuit automatique » (Apparence).
+- **Fenêtre de discussion** : le curseur d'écriture reste visible après un clic, même quand une réponse est affichée, et on peut écrire une deuxième demande à la suite.
+- **Autres assistants IA (bêta)** : nouvel onglet « Assistants » dans les réglages, pour brancher un autre assistant (Gemini, Mistral, DeepSeek, Grok, Qwen, Amazon Nova, Muse Spark, OpenRouter, Mammouth, ChatGPT, Ollama sur le PC, ou tout service compatible OpenAI) quand Claude n'est pas installé, pas connecté ou a atteint sa limite. Claude reste toujours interrogé en premier ; on peut ajouter plusieurs comptes, les ordonner, et Jarvis passe au suivant quand l'un atteint sa limite. Connexion guidée pas à pas avec une clé API (aucun mot de passe), accord demandé avant tout envoi, clés chiffrées par Windows et jamais publiées. Réponses en texte seulement ; jamais en mode enfant ni invité. Version de test : l'onglet l'indique.
 
 ## Nouveau en 1.62
 
@@ -236,7 +245,7 @@ Jarvis s'adapte à ce que tu utilises, au lieu de demander Chrome et iCloud.
 
 ## Nouveau en 1.30 : aider à améliorer Jarvis
 
-- **Des rapports, seulement avec ton accord** : au premier lancement, Jarvis te demande s'il peut envoyer une fois par jour un rapport technique (phrases mal comprises, erreurs, temps de réponse, fonctions utilisées…) ou un rapport complet (avec les conversations). Les prénoms, la ville, les mails et les numéros sont retirés avant l'envoi ; la voix n'est jamais envoyée. Tout se change ou s'efface dans les réglages, rubrique « Rapports ». Un compteur anonyme (un numéro tiré au hasard) compte les utilisateurs ; il se coupe aussi. Tout est expliqué dans [docs/confidentialite.md](docs/confidentialite.md).
+- **Des rapports, seulement avec ton accord** : au premier lancement, Jarvis te demande s'il peut envoyer une fois par jour un rapport technique (phrases mal comprises, erreurs, temps de réponse, fonctions utilisées…) ou un rapport complet (avec les conversations). Les prénoms, la ville, les mails et les numéros sont retirés avant l'envoi ; la voix n'est jamais envoyée. Tout se change ou s'efface dans les réglages, rubrique « Rapports ». Un compteur anonyme (un numéro propre à ce PC, sans lien avec toi) compte les utilisateurs ; il se coupe aussi. Tout est expliqué dans [docs/confidentialite.md](docs/confidentialite.md).
 - **« Signaler un problème » et « Proposer une amélioration »** : dans le menu du clic droit et dans les réglages.
 - **Un questionnaire de trois questions**, une seule fois, au bout d'une semaine.
 - **Le micro coupé seulement pour Jarvis** : « coupe ton micro » ne touche pas au micro de Windows, et « **Jarvis, rallume ton micro** » le rallume à la voix.
@@ -622,6 +631,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.63 | « Marque tous mes mails comme lus » (avec confirmation, rien n'est supprimé) ; « Je ne sais pas faire ça. » si la messagerie refuse ; micro perdu : 3 essais puis « Aucun micro détecté », et la fenêtre de discussion reste utilisable sans micro. |
 | 1.62 | « Accède à Claude » mieux reconnu (ouvre l'onglet Claude des Réglages) ; une question de météo ou une phrase mal entendue ne déclenche plus de réponse sur le volume. |
 | 1.61 | Remerciements après mise à jour dits même si des versions sont sautées, une seule fois par version. |
 | 1.60 | Rapports plus discrets (ville, objet et expéditeur des mails masqués), messages de limite Claude moins répétés, « tais-toi / silence / chut » sans Claude, Riot Games et Opera GX avec « ferme », « installe Claude » ouvre l'onglet Claude des Réglages. |

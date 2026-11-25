@@ -65,3 +65,12 @@ rapports.json.tmp
 rapports_journal.jsonl
 ateliers_en_cours.json
 ateliers_en_cours.json.tmp
+
+assistants.json
+assistants.json.tmp
+test_assistants.flag
+
+assistants_journal.jsonl
+
+mode_leger.json
+cap_*.png

@@ -38,7 +38,7 @@ FICHIERS_PERSONNELS = ("config.json", "ville.txt", "memoire.json", "rappels.json
                        "notes.txt", "position.txt", "volumes.json", "liste.json", "reglages_voix.json", "enfant.json",
                        "apparence.json", "accueil.json", "profils.json", "calendrier.json", "messages.json",
                        "preferences.json", "corrections.json", "infos.json", "personnalite.json", "recette.json",
-                       "vigilance.json", "cameras.json", "tablette.json")
+                       "vigilance.json", "cameras.json", "tablette.json", "assistants.json", "assistants_journal.jsonl")
 DOSSIERS_PERSONNELS = ("profils", "tele", "mot_appel", "tablette")   # tablette : historique et réglages de la tablette
 CLAUDE_EXE = os.path.expanduser(r"~\.local\bin\claude.exe")
 

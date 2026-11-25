@@ -3,7 +3,8 @@
 JARVIS - rapports pour améliorer Jarvis.
 
 Ce que Jarvis envoie, et quand (le détail est dans docs/confidentialite.md) :
-  - Compteur anonyme (tout le monde, désactivable dans les réglages) : un numéro tiré au hasard sur ce PC,
+  - Compteur anonyme (tout le monde, désactivable dans les réglages) : un numéro propre à ce PC (l'empreinte,
+    à sens unique, de l'identifiant que Windows garde pour la machine ; jamais l'identifiant lui-même),
     la version de Jarvis et celle de Windows, au démarrage puis toutes les heures. Il sert à compter les
     installations et les utilisateurs actifs. Rien d'autre.
   - Rapport technique (seulement si l'utilisateur l'a accepté) : une fois par jour, les phrases mal comprises,
@@ -20,6 +21,7 @@ L'envoi se fait en arrière-plan ; s'il échoue, Jarvis réessaie trois fois, pu
 
 import collections
 import difflib
+import hashlib
 import json
 import os
 import platform
@@ -46,7 +48,7 @@ JOURS_RAPPEL = 14                   # un seul rappel, deux semaines après un «
 MAX_EVENEMENTS = 3000
 DELAI_NOUVEL_ESSAI = 6 * 3600       # un envoi qui a échoué (pas de réseau...) est retenté 6 h plus tard, pas le lendemain
 # Combien d'événements récents on garde par sorte : une sorte très bavarde (faux réveils, réponses) ne chasse plus les autres
-PLAFONDS = {"reponse": 1200, "conversation": 300, "demande_claude": 200, "faux_reveil": 200, "incompris": 200,
+PLAFONDS = {"reponse": 1200, "conversation": 600, "demande_claude": 200, "faux_reveil": 200, "incompris": 200,
             "erreur": 300, "refaite": 100, "annulation": 100, "atelier": 100, "appareil_non_gere": 100}
 PLAFOND_DEFAUT = 200
 
@@ -61,6 +63,25 @@ _demarre = False
 
 # ---------- Réglages des rapports ----------
 
+SEL_NUMERO = "jarvis-compteur-v1"
+
+
+def _numero_du_pc():
+    """Numéro anonyme propre à ce PC : l'empreinte (SHA-256, à sens unique, coupée à 32 caractères) de l'identifiant
+    que Windows garde pour la machine (MachineGuid), mélangée à un mot fixe. Il reste le même quand on réinstalle
+    Jarvis et ne permet pas de retrouver l'identifiant. None si Windows ne le donne pas (alors : numéro au hasard)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0,
+                            winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0)) as cle:
+            guid = str(winreg.QueryValueEx(cle, "MachineGuid")[0]).strip().lower()
+    except Exception:
+        return None
+    if len(guid) < 8:
+        return None
+    return hashlib.sha256((SEL_NUMERO + ":" + guid).encode("utf-8")).hexdigest()[:32]
+
+
 def _lire():
     global _donnees
     if _donnees is None:
@@ -72,8 +93,15 @@ def _lire():
         if not isinstance(_donnees, dict):
             _donnees = {}
         change = False
-        if not re.fullmatch(r"[0-9a-f]{32}", str(_donnees.get("id", ""))):
-            _donnees["id"] = secrets.token_hex(16)              # numéro tiré au hasard, sans lien avec la personne
+        numero_pc = _numero_du_pc()
+        id_actuel = str(_donnees.get("id", ""))
+        if numero_pc and id_actuel != numero_pc:             # numéro lié au PC : le même après une réinstallation
+            if re.fullmatch(r"[0-9a-f]{32}", id_actuel):
+                _donnees["ancien_id"] = id_actuel            # reste sur ce PC, n'est jamais envoyé
+            _donnees["id"] = numero_pc
+            change = True
+        elif not re.fullmatch(r"[0-9a-f]{32}", id_actuel):
+            _donnees["id"] = secrets.token_hex(16)           # Windows ne donne rien : numéro tiré au hasard
             change = True
         _donnees.setdefault("niveau", None)                     # None : pas encore demandé
         _donnees.setdefault("compteur", True)
@@ -388,8 +416,15 @@ def faux_reveil(cause, entendu=""):
     noter("faux_reveil", cause=cause, entendu=anonymiser(entendu, 80))
 
 
-def conversation(texte_demande, texte_reponse):
-    noter("conversation", demande=anonymiser(texte_demande, 400), reponse=anonymiser(texte_reponse, 600))
+def conversation(texte_demande, texte_reponse, par="", autre=""):
+    """Un échange (niveau « Complet » seulement) : ce que Jarvis a compris, sa réponse, qui a répondu (« local » ou « claude »)
+    et, si Whisper et Vosk n'ont pas entendu la même chose, l'autre version : c'est ce qui permet d'améliorer la compréhension."""
+    infos = {"demande": anonymiser(texte_demande, 400), "reponse": anonymiser(texte_reponse, 600)}
+    if par in ("local", "claude"):
+        infos["par"] = par
+    if autre and str(autre).strip().lower() != str(texte_demande).strip().lower():
+        infos["autre"] = anonymiser(autre, 400)
+    noter("conversation", **infos)
 
 
 def atelier(nom, fin, questions, etoiles=0):
@@ -803,8 +838,8 @@ def construire_rapport():
     if ignores:
         rapport["evenements_ignores"] = ignores           # trop nombreux : seuls les plus récents de leur sorte sont là
     if niveau() == "complet":
-        rapport["conversations"] = [{k: e.get(k) for k in ("t", "demande", "reponse")}
-                                    for e in par_genre["conversation"][-150:]]
+        rapport["conversations"] = [{k: e.get(k) for k in ("t", "demande", "reponse", "par", "autre") if e.get(k) is not None}
+                                    for e in par_genre["conversation"][-400:]]
     return rapport, len(ev)
 
 
@@ -973,11 +1008,12 @@ def _dernieres_lignes_log(n=80):
 
 
 def effacer_mes_donnees():
-    """Supprime sur le dépôt tout ce qui vient de ce PC, vide le journal local et tire un nouveau numéro."""
+    """Supprime sur le dépôt tout ce qui vient de ce PC et vide le journal local. Le numéro du PC reste le même
+    (nouveau numéro au hasard seulement si Windows ne donne pas d'identifiant)."""
     ok = _envoyer({"genre": "effacer", "id": valeur("id")})
     _vider_journal()
     if ok:
-        regler("id", secrets.token_hex(16))
+        regler("id", _numero_du_pc() or secrets.token_hex(16))
     return ok
 
 

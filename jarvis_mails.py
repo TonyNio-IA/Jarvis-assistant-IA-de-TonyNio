@@ -250,14 +250,16 @@ def _texte(message):
     return texte_html or ""
 
 
-def _connexion():
+def _connexion(ecriture=False):
     _bon_compte()
     ident = identifiants(cible())
     if not ident or not ident[0] or not ident[1]:
         raise LookupError
     boite = imaplib.IMAP4_SSL(_serveur(), 993, timeout=15)
     boite.login(*ident)
-    boite.select("INBOX", readonly=True)          # lecture seule : rien n'est modifié, les mails restent non lus
+    statut = boite.select("INBOX", readonly=not ecriture)    # lecture seule sauf « marque comme lus »
+    if ecriture and statut[0] != "OK":
+        raise PermissionError
     return boite
 
 
@@ -409,6 +411,93 @@ def commande(t, enfant=False):
     if re.search(r"\b(?:nouveaux?|nouvelles?|non lus?|reçu|j'ai des|ai-je des|combien|des mails|mes mails)\b", t):
         return nouveaux()
     return None
+
+
+
+# ---------- Marquer comme lus : toujours après un « oui » ----------
+#
+#   « Jarvis, marque tous mes mails comme lus »
+# Seul changement fait dans la boîte : le drapeau « lu » sur les mails non lus de la boîte de réception.
+# Rien n'est supprimé ni déplacé. Si la messagerie refuse la modification : « Je ne sais pas faire ça. »
+
+_MARQUER = re.compile(r"\b(?:marque|marques|marquer|mark|marc|mets|met|mettre|passe|passer|coche|cocher|considère)\b"
+                      r".*\b" + _MAIL + r"\b.*\b(?:comme|en)\s+(?:lus?|lue?s?|lui)\b")
+_MARQUER_TOUT = re.compile(r"\b(?:marque|marquer|mark|marc|mets|met|mettre|passe|passer)\b.*\btout\b.*\bcomme\s+(?:lus?|lue?s?)\b")
+_MARQUER_APRES = re.compile(r"\b(?:marque|marques|marquer|mark|marc|mets|met|mettre|passe|passer)\b.*\b(?:comme|en)\s+(?:lus?|lue?s?|lui)\b.*\b" + _MAIL + r"\b")
+NE_SAIT_PAS = "Je ne sais pas faire ça."
+_TRANCHE = 400
+
+
+def _compter_non_lus():
+    boite = _connexion()
+    try:
+        return len(_non_lus(boite))
+    finally:
+        try:
+            boite.logout()
+        except Exception:
+            pass
+
+
+def marquer_lus():
+    """Marque comme lus tous les mails non lus de la boîte de réception. Renvoie la phrase à dire."""
+    try:
+        boite = _connexion(ecriture=True)
+    except PermissionError:
+        return NE_SAIT_PAS
+    except Exception as erreur:
+        if not isinstance(erreur, LookupError):
+            print("Mails :", erreur)
+        return _erreur(erreur)
+    try:
+        numeros = _non_lus(boite)
+        if not numeros:
+            return "Tu n'as aucun mail non lu."
+        try:
+            for i in range(0, len(numeros), _TRANCHE):
+                statut = boite.store(b",".join(numeros[i:i + _TRANCHE]), "+FLAGS", "\\Seen")[0]
+                if statut != "OK":
+                    return NE_SAIT_PAS
+            reste = len(_non_lus(boite))
+        except Exception as erreur:
+            print("Mails (marquer comme lus) :", erreur)
+            return NE_SAIT_PAS
+        fait = len(numeros) - reste
+        if fait <= 0:
+            return NE_SAIT_PAS
+        pluriel = "s" if fait > 1 else ""
+        if reste:
+            return f"J'ai marqué {fait} mail{pluriel} comme lu{pluriel}. Il en reste {reste} que je n'ai pas réussi à marquer."
+        return f"C'est fait, {fait} mail{pluriel} marqué{pluriel} comme lu{pluriel}."
+    finally:
+        try:
+            boite.logout()
+        except Exception:
+            pass
+
+
+def commande_marquer_lus(t, confirmer, enfant=False, invite=False):
+    """« marque tous mes mails comme lus » : compte, demande « oui », puis marque."""
+    t = re.sub(r"^\W*(?:jarvis\W+)?", "", t.lower().replace("’", "'")).strip(" .!?")
+    if not (_MARQUER.search(t) or _MARQUER_APRES.search(t) or (_MARQUER_TOUT.search(t) and re.search(r"\b" + _MAIL + r"\b", t))):
+        return None
+    if re.search(r"\b(?:envoie|envoyer|supprime|efface|lis|lit|lire|ouvre)\b", t):
+        return None
+    if enfant:
+        return "Les mails, c'est réservé aux parents."
+    if invite:
+        return "En mode invité, je ne touche pas aux mails."
+    try:
+        total = _compter_non_lus()
+    except Exception as erreur:
+        if not isinstance(erreur, LookupError):
+            print("Mails :", erreur)
+        return _erreur(erreur)
+    if not total:
+        return "Tu n'as aucun mail non lu."
+    confirmer(marquer_lus)
+    quoi = "1 mail" if total == 1 else f"{total} mails"
+    return f"Je vais marquer {quoi} comme lu{'s' if total > 1 else ''}. Je ne supprime rien. Je le fais ? Dis oui pour confirmer."
 
 
 # ---------- Envoi : toujours relu et confirmé par un « oui » ----------

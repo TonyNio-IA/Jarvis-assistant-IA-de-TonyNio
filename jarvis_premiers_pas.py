@@ -28,7 +28,8 @@ AVEC_CLAUDE = ("Claude est relié : tu peux aussi poser n'importe quelle questio
 SANS_CLAUDE = ("Sans Claude, Jarvis fait les commandes immédiates (heure, météo, minuteurs, applications, fenêtres, "
                "musique, mails…). Avec Claude (il faut un abonnement Claude Pro), il répond aussi à n'importe quelle "
                "question, résume une page ou écrit un texte. Pour l'ajouter plus tard : ouvre mes Réglages, onglet « Claude », "
-               "et clique sur « Installer Claude », puis sur « Connecter mon compte ».")
+               "et clique sur « Installer Claude », puis sur « Connecter mon compte ». Tu peux aussi brancher un autre assistant "
+"(Gemini, Mistral, ChatGPT…) dans l'onglet « Assistants » (bêta).")
 
 _COMMANDE = re.compile(r"\bpremiers pas\b|^\W*(?:jarvis\W+)?comment (?:[çc]a|tu) marches?\W*$"
                        r"|^\W*(?:jarvis\W+)?comment (?:je )?(?:t'utilise|te parler?|on te parle|on t'utilise)\W*$"

@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.62**
+**Français : [README.md](README.md)** · **Current version: 1.63**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,15 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.63
+
+- **"Mark all my emails as read"** (in French): Jarvis counts your unread emails, asks for confirmation, then marks them as read. Nothing is deleted or moved; only the inbox is touched. Misheard phrasings are recognized. Parents only (refused in child and guest modes).
+- **If the mailbox does not allow changing emails**, Jarvis simply answers "I don't know how to do that." (in French).
+- **Lost or missing microphone**: if the microphone goes silent, Jarvis tries 3 times to get it back (without restarting). If that fails, "No microphone detected" is shown for about 2 minutes above the reactor. With no microphone at all, the chat window stays usable: Jarvis answers typed requests (and reminders and alerts), and starts listening again as soon as a microphone is plugged in.
+- **Night mode explained**: when Jarvis is in night mode (it answers in writing, without voice) and someone asks it to speak ("parle un peu", "pourquoi tu ne parles plus", "rallume le micro", in French), it says it is in night mode and how to leave it ("désactive le mode nuit"). With automatic night hours, it also points to the "Mode nuit automatique" setting (Appearance).
+- **Other AI assistants (beta)**: new "Assistants" tab in the settings to plug in another assistant (Gemini, Mistral, DeepSeek, Grok, Qwen, Amazon Nova, Muse Spark, OpenRouter, Mammouth, ChatGPT, Ollama on the PC, or any OpenAI-compatible service) when Claude is not installed, not signed in or has reached its limit. Claude is always asked first; several accounts can be added and ordered, and Jarvis moves to the next one when one reaches its limit. Guided step-by-step setup with an API key (no password), consent asked before anything is sent, keys encrypted by Windows and never published. Text answers only; never in child or guest mode. Test version: the tab says so.
+- **Chat window**: the text cursor stays visible after a click, even while an answer is displayed, and you can type a second request right after.
 
 ## New in 1.62
 
@@ -238,7 +247,7 @@ Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
 
 ## New in 1.30: help improve Jarvis
 
-- **Reports, only with your consent**: on first launch, Jarvis asks whether it may send a daily technical report (misunderstood phrases, errors, response times, features used…) or a full report (with conversations). First names, city, emails and numbers are removed before sending; your voice is never sent. Everything can be changed or erased in the settings, "Rapports" section. An anonymous counter (a random number) counts users; it can be switched off too. Details: [docs/confidentialite.md](docs/confidentialite.md) (French).
+- **Reports, only with your consent**: on first launch, Jarvis asks whether it may send a daily technical report (misunderstood phrases, errors, response times, features used…) or a full report (with conversations). First names, city, emails and numbers are removed before sending; your voice is never sent. Everything can be changed or erased in the settings, "Rapports" section. An anonymous counter (a number specific to this PC, unrelated to you) counts users; it can be switched off too. Details: [docs/confidentialite.md](docs/confidentialite.md) (French).
 - **"Report a problem" and "Suggest an improvement"**: in the right-click menu and in the settings.
 - **A three-question survey**, once, after one week.
 - **The microphone muted for Jarvis only**: the Windows microphone stays on, and "**Jarvis, rallume ton micro**" turns it back on by voice.

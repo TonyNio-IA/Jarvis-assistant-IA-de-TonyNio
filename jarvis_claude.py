@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.62"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.63"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -100,6 +100,11 @@ SAMPLE_RATE = 16000
 ECONOMIE_SILENCE = True
 MICRO_MUET = 10               # secondes sans aucun son du micro avant de relancer Jarvis (micro débranché)
 MICRO_MUET_DEMARRAGE = 90     # au lancement, tant qu'aucun son n'est arrivé : Windows peut être occupé, on attend plus longtemps
+MICRO_ESSAIS = 3                # essais pour retrouver un micro qui se tait, avant d'afficher « Aucun micro détecté »
+MICRO_ESSAI_ATTENTE = 4         # secondes d'attente d'un son à chaque essai
+MICRO_MESSAGE_DUREE = 120       # le message « Aucun micro détecté » reste affiché environ 2 minutes
+MICRO_MESSAGE = "Aucun micro détecté. Branche-en un, ou écris-moi ici : je réponds quand même."
+MICRO_ABANDON = 600             # sans micro depuis 10 minutes (et rien d'écrit depuis 1 minute) : Jarvis se relance
 REPOS_APRES = 3.0             # secondes de silence avant le repos
 SEUIL_SON_MIN = 0.008         # un son plus fort que ce niveau (0 à 1) relance l'écoute...
                               # (mesuré : la voix dépasse toujours 0,024 ; à 0,003, les petits bruits de la
@@ -1169,7 +1174,8 @@ class ClaudeContinu:
 
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
                "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres, l'ouverture des applications. "
-               "Pour ajouter Claude, ouvre mes Réglages, onglet Claude, et clique sur Installer Claude, puis sur Connecter mon compte.")
+               "Pour ajouter Claude, ouvre mes Réglages, onglet Claude, et clique sur Installer Claude, puis sur Connecter mon compte. "
+               "Tu peux aussi utiliser un autre assistant, comme Gemini, Mistral ou ChatGPT : onglet Assistants, c'est expliqué pas à pas.")
 _derniers_messages = {}
 
 
@@ -1198,11 +1204,60 @@ def message_sans_claude():
     return "Cette demande a besoin de Claude, que je n'ai pas sur ce PC."
 
 
+# --- Secours (BÊTA) : un autre assistant, seulement si Claude est absent, déconnecté ou à sa limite -------------
+_CLAUDE_INDISPONIBLE = ("Claude a rencontré un problème avec cette demande.", "Je n'arrive pas à joindre Claude.",
+                        "Cette demande a besoin de Claude, que je n'ai pas sur ce PC.",
+                        "Claude est toujours à sa limite d'utilisation, je ne peux pas répondre à cette demande.")
+
+
+def claude_indisponible(reponse):
+    """Vrai si la réponse est l'un des messages « Claude n'est pas là / pas relié / à sa limite »."""
+    r = str(reponse or "")
+    return r in _CLAUDE_INDISPONIBLE or r == SANS_CLAUDE or r.startswith("La limite d'utilisation de Claude est atteinte")
+
+
+def demander_avec_secours(message, demande, longue=False):
+    """Claude d'abord, toujours. Si Claude est indisponible (absent, pas relié, à sa limite) ET que l'utilisateur a
+    branché un autre assistant (onglet « Assistants », avec son accord), la question seule (sans les notes internes de
+    Jarvis) part vers cet assistant : il sert aussi d'assistant unique pour ceux qui n'ont pas Claude du tout.
+    Jamais en mode enfant ni en mode invité. Renvoie (réponse, erreur), comme claude.demander."""
+    try:                                   # essai oral : on fait comme si Claude était à sa limite (voir jarvis_assistants)
+        import jarvis_assistants as _essai
+        if _essai.essai_actif() and not longue:
+            dit = _essai.tour_de_essai(demande)
+            if dit:
+                return dit, False
+    except Exception as erreur_essai:
+        print("Essai assistants :", erreur_essai)
+    reponse, erreur = claude.demander(message)
+    if not erreur or not claude_indisponible(reponse):
+        return reponse, erreur
+    try:
+        import jarvis_assistants
+        if not jarvis_assistants.utilisable_maintenant():
+            return reponse, erreur
+        texte, nom, _ = (jarvis_assistants.demander(demande, True) if longue
+                         else jarvis_assistants.demander(demande))
+        if texte:
+            print("Secours :", nom)
+            if os.path.exists(CLAUDE_EXE):         # Claude est là mais indisponible : on le dit ; sinon, pas de bavardage
+                return f"Claude n'est pas disponible, j'ai demandé à {nom}. {texte}", False
+            return texte, False
+    except Exception as erreur_secours:
+        print("Secours :", erreur_secours)
+    return reponse, erreur
+
+
 claude = ClaudeContinu()
 
 
 def oublier_conversation():
     """Repart de zéro : Claude est relancé (en arrière-plan)."""
+    try:
+        import jarvis_assistants
+        jarvis_assistants.oublier()
+    except Exception:
+        pass
     threading.Thread(target=claude.demarrer, daemon=True).start()
 
 
@@ -1644,7 +1699,7 @@ def traiter(demande, recognizer):
         print(f"(Durées : {mesure}commande {time.time() - debut_traitement:.2f} s)")
         rapport("reponse", demande, "local", time.time() - debut_traitement + whisper_ici,
                 etape=f"whisper {whisper_ici:.1f} s" if whisper_ici else "")
-        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
+        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse, "local", demande)
         etat("reponse")
         interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil(reponse))
         if not interrompu and jarvis_locuteur.guide_demande():     # « apprends ma voix » : phrase par phrase
@@ -1723,7 +1778,7 @@ def traiter(demande, recognizer):
         return raconter(note + demande, demande, recognizer)
 
     def travail():
-        resultat["r"] = claude.demander(note + demande)
+        resultat["r"] = demander_avec_secours(note + demande, demande)
 
     fil = threading.Thread(target=travail, daemon=True)
     fil.start()
@@ -1751,7 +1806,7 @@ def traiter(demande, recognizer):
         reponse = jarvis_ecran.appliquer_copie(reponse)        # texte corrigé ou traduit -> presse-papiers
         reponse = re.sub(r"[*_#`>]", "", reponse)
         reponse = jarvis_memoire.appliquer_balises(reponse) or "C'est noté."
-        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse)
+        jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse, "claude", demande)
     derniere_reponse = reponse
     etat("erreur" if erreur else "reponse")
     if not erreur:
@@ -1868,6 +1923,16 @@ def raconter(message, demande, recognizer):
     def travail():
         try:
             reponse, erreur = claude.demander(message, morceau=recevoir)
+            if erreur and claude_indisponible(reponse):              # pas de Claude : un autre assistant raconte
+                try:
+                    import jarvis_assistants
+                    if jarvis_assistants.utilisable_maintenant():
+                        texte_autre, _nom, _e = jarvis_assistants.demander(demande, True)
+                        if texte_autre:
+                            reponse, erreur = texte_autre, False
+                            recevoir(reponse)
+                except Exception as e_autre:
+                    print("Secours histoire :", e_autre)
             if not erreur:
                 reponse = jarvis_enfant.appliquer(reponse)       # résumé gardé pour « la suite »
                 jarvis_memoire.noter_echange(demande, reponse)
@@ -1946,6 +2011,11 @@ def conversation(demande, recognizer):
     """Traite la demande, puis accepte des suites sans redire « Jarvis »."""
     essais_courts = 0
     while demande:
+        try:                                    # journal local seulement : ce que Jarvis a compris, pour améliorer la compréhension
+            autres = [x for x in (derniers_textes or []) if x and x != demande]
+            print("Demande comprise :", repr(demande) + (" | autre version : " + repr(autres[0]) if autres else ""))
+        except Exception:
+            pass
         # « Jarvis » redit pendant la conversation : on écoute la suite, sans déranger Claude
         if re.fullmatch(r"\W*jarvis\W*", demande, re.I) or (
                 derniers_textes and re.fullmatch(r"\W*jarvis\W*", derniers_textes[0], re.I)):
@@ -2037,30 +2107,156 @@ def _prochain_bloc(file_audio, debut, deja_recu):
                 _prochain_bloc.attente_dite = True
                 print("(Le micro n'a encore rien envoyé : j'attends encore un peu, Windows est peut-être occupé.)")
             return None, False
+        bloc = _retablir_micro()                       # 3 essais pour le retrouver, puis le message
+        if bloc is not None:
+            return bloc, True
         raise RuntimeError("le micro n'envoie plus de son (débranché ?)")
 
 
 _prochain_bloc.attente_dite = False
 
 
-def attendre_micro():
-    """Sans micro, Jarvis attend qu'on en branche un, au lieu de s'arrêter et d'être relancé toutes les minutes."""
-    annonce = False
+_micro_actif = None
+
+
+class _MicroRobuste:
+    """Le micro ouvert, qu'on peut rouvrir sans arrêter Jarvis quand il se tait."""
+
+    def __init__(self):
+        self.flux = None
+
+    def __enter__(self):
+        global _micro_actif
+        self.flux = _ouvrir_micro()
+        self.flux.start()
+        _micro_actif = self
+        return self
+
+    def __exit__(self, *args):
+        global _micro_actif
+        _micro_actif = None
+        self.fermer()
+        return False
+
+    def fermer(self):
+        flux, self.flux = self.flux, None
+        if flux is not None:
+            for action in (flux.stop, flux.close):
+                try:
+                    action()
+                except Exception:
+                    pass
+
+    def rouvrir(self, reinitialiser, attente):
+        """Ferme et rouvre le micro (en réinitialisant PortAudio si demandé). Renvoie un bloc de son, ou None."""
+        self.fermer()
+        if reinitialiser:
+            try:
+                sd._terminate()
+                sd._initialize()
+            except Exception:
+                pass
+        while True:
+            try:
+                audio_queue.get_nowait()
+            except queue.Empty:
+                break
+        try:
+            self.flux = _ouvrir_micro()
+            self.flux.start()
+            return audio_queue.get(timeout=attente)
+        except queue.Empty:
+            return None
+        except Exception as erreur:
+            print("(Micro : réouverture impossible :", erreur, ")")
+            return None
+
+
+_sans_micro_traiter = None      # fonction de main() : traite la fenêtre de discussion, les rappels et les alertes
+
+
+def _patienter(secondes):
+    """Attend sans rien bloquer : pendant ce temps la fenêtre de discussion, les rappels et les alertes sont traités,
+    pour que Jarvis reste utilisable même quand aucun micro n'est branché."""
+    for _ in range(max(1, int(secondes / 0.3))):
+        if _sans_micro_traiter is not None:
+            try:
+                _sans_micro_traiter()
+            except Exception as erreur:
+                print("(Sans micro, traitement ignoré :", erreur, ")")
+        time.sleep(0.3)
+
+
+def _retablir_micro():
+    """Le micro ne répond plus : 3 essais pour le retrouver. Sans succès, « Aucun micro détecté » reste affiché environ
+    2 minutes au-dessus du réacteur (en continuant d'essayer). Renvoie un bloc de son, ou None si le micro reste muet
+    (Jarvis s'arrête alors et le gardien le relance, comme avant)."""
+    micro = _micro_actif
+    if micro is None:
+        return None
+    for essai in range(1, MICRO_ESSAIS + 1):
+        print(f"(Le micro ne répond plus : essai {essai} sur {MICRO_ESSAIS} pour le retrouver.)")
+        bloc = micro.rouvrir(essai > 1, MICRO_ESSAI_ATTENTE)
+        if bloc is not None:
+            print("(Micro retrouvé.)")
+            return bloc
+    print(f"Aucun micro détecté après {MICRO_ESSAIS} essais : message affiché {MICRO_MESSAGE_DUREE} secondes ; "
+          "la fenêtre de discussion reste utilisable.")
+    etat("erreur")
+    sous_titre(MICRO_MESSAGE)
+    debut = time.time()
+    message = True
+    while True:
+        _patienter(6)
+        bloc = micro.rouvrir(True, 2)
+        if bloc is not None:
+            print("(Micro retrouvé.)")
+            sous_titre("")
+            etat("veille")
+            return bloc
+        duree = time.time() - debut
+        if message and duree >= MICRO_MESSAGE_DUREE:
+            sous_titre("")
+            message = False
+        if duree >= MICRO_ABANDON and time.time() - derniere_activite >= 60:
+            sous_titre("")
+            return None             # Jarvis s'arrête, le gardien le relance : PortAudio repart de zéro
+
+
+def attendre_micro(entre_temps=None):
+    """Sans micro, Jarvis attend qu'on en branche un, au lieu de s'arrêter et d'être relancé toutes les minutes.
+    Après 3 essais sans micro, « Aucun micro détecté » s'affiche environ 2 minutes au-dessus du réacteur."""
+    echecs = 0
+    message_a = None
     while True:
         try:
             nom = sd.query_devices(kind="input")["name"]
-            if annonce:
+            if os.environ.get("JARVIS_TEST_SANS_MICRO"):      # essais : fait comme s'il n'y avait pas de micro
+                raise RuntimeError("micro simulé absent")
+            if echecs:
                 print("Micro trouvé :", nom)
                 sous_titre("")
             return
         except Exception:
             pass
-        if not annonce:
-            annonce = True
+        echecs += 1
+        if echecs == MICRO_ESSAIS:
             print("Aucun micro trouvé : branche un micro, Jarvis démarrera tout seul (vérification toutes les 5 secondes).")
             etat("erreur")
-            sous_titre("Aucun micro : branche un micro")
-        time.sleep(5)
+            sous_titre(MICRO_MESSAGE)
+            message_a = time.time()
+        elif message_a and time.time() - message_a >= MICRO_MESSAGE_DUREE:
+            sous_titre("")                      # le message a duré 2 minutes ; Jarvis continue d'attendre en silence
+            message_a = None
+        if entre_temps is None:
+            time.sleep(5)
+        else:                   # pendant l'attente : la fenêtre de discussion, les rappels et les alertes fonctionnent
+            for _ in range(17):
+                try:
+                    entre_temps()
+                except Exception as erreur:
+                    print("(Sans micro, traitement ignoré :", erreur, ")")
+                time.sleep(0.3)
         try:                    # PortAudio ne voit un micro branché après coup qu'après avoir été relancé
             sd._terminate()
             sd._initialize()
@@ -2074,7 +2270,7 @@ _RALLUMER_MICRO = re.compile(r"\bjarvis\b.*\b(?:rallume|allume|réactive|reactiv
 
 
 def main():
-    global rec_stop, rec_coupure, micro_coupe
+    global rec_stop, rec_coupure, micro_coupe, _sans_micro_traiter
     if AudioUtilities is not None:
         try:
             comtypes.CoInitialize()
@@ -2153,13 +2349,43 @@ def main():
         threading.Thread(target=preparer_point_du_jour, args=(POINT_DU_JOUR_ATTENTE,),
                          daemon=True).start()
 
-    attendre_micro()
+    def hors_micro():
+        """Sans micro : les demandes écrites, les rappels, les alertes et les mises à jour forcées sont traités."""
+        if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.CALME_AVANT_FORCEE
+                and demandes_ecrites.empty() and point_pret.empty() and jarvis_maj.forcee_a_installer()):
+            etat("reponse")
+            sous_titre("Mise à jour importante : je m'installe.", reponse=True)
+            parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
+                   "Je m'arrête quelques minutes, puis je redémarre tout seul." + jarvis_maj.avertissement_windows())
+            print("Mise à jour forcée :", jarvis_maj.installer())
+            etat("erreur")
+        if not point_pret.empty():
+            texte, erreur = point_pret.get()
+            if erreur == "rappel":
+                etat("rappel")
+                sous_titre(re.sub(r"^Rappel : |\.$", "", texte))
+            else:
+                etat("erreur" if erreur is True else "reponse")
+            baisser_son()
+            try:
+                urgent = erreur in ("rappel", "alerte")
+                bip(toujours=urgent)
+                parler(texte, toujours=urgent)
+            finally:
+                remonter_son()
+            etat("erreur")
+        if not demandes_ecrites.empty():
+            traiter_ecrit(demandes_ecrites.get(), recognizer)
+            etat("erreur")                  # le réacteur reste en erreur tant qu'il n'y a pas de micro
+
+    _sans_micro_traiter = hors_micro
+    attendre_micro(hors_micro)
     etat("veille")
     if reprise:
         sous_titre("Je redémarre.", reponse=True)
     avec_claude = os.path.exists(CLAUDE_EXE)       # Jarvis installé sans Claude : commandes immédiates seulement
     print(f"\nJARVIS version {VERSION} EST EN ÉCOUTE PERMANENTE "
-          f"({'relié à Claude' if avec_claude else 'sans Claude : commandes immédiates seulement'}).")
+          f"({'relié à Claude' if avec_claude else 'sans Claude : commandes immédiates, et un autre assistant si tu en as branché un'}).")
     print("Dis : « Jarvis », puis ta demande.\n")
 
     tampon = bytearray()             # audio de la phrase en cours
@@ -2175,7 +2401,7 @@ def main():
     reveil_son_bloque = 0.0
 
     try:
-        with _ouvrir_micro():
+        with _MicroRobuste():
             debut_ecoute = time.time()
             premier_son_recu = False
             while True:
