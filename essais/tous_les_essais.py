@@ -65,6 +65,11 @@ def tout():
             r["connu"] = CONNUS[nom]
         resultats.append(r)
         print(("OK   " if r["bon"] else "connu" if r.get("connu") else "NON  "), nom, "|", r["bilan"], flush=True)
+        if not r["bon"]:
+            for ligne in (r.get("echecs") or [])[:5]:      # le détail, pour comprendre sans relancer
+                print("        >", ligne, flush=True)
+            if not r.get("echecs") and r.get("code"):
+                print("        > code de sortie", r.get("code"), flush=True)
 
     # 1. tous les programmes se compilent
     mauvais = []
