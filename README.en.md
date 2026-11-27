@@ -2,7 +2,7 @@
 
 **Français : [README.md](README.md)** · **Current version: 1.64**
 
-**Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
+**To install Jarvis** (recommended method, it works on every PC): open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
@@ -341,16 +341,44 @@ Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
 
 **On video:** [the installation tutorial, step by step (8 min, in French)](https://youtu.be/ZbBA3TN2o9E), one chapter per step, including what to do if Windows blocks the file.
 
+### Recommended method: one line to paste into the Terminal (works on every PC)
+
+Windows often blocks a small free program downloaded by the browser. This method avoids that block without turning anything off.
+
+1. Press the Windows key + X, then choose **Terminal** (or **Windows PowerShell**).
+2. Copy this line, paste it into the window (right-click), then press Enter:
+
+```
+$f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
+```
+
+3. The Jarvis installation window opens: continue at "In the installation window" below. Nothing is installed until you click « Installer ».
+
+**Before pasting the line, check:**
+- that you copied it from this official page (`github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio`), or from the « Lisez-moi-si-Windows-bloque.txt » file attached to the releases of this page;
+- that it contains a single address, starting with `https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/`.
+
+Never paste into the Terminal a command received by message or email, or found on another site: it is a common trick to install malware.
+
+**What the line does:** `iwr … -OutFile $f` downloads the installer of the latest release of this page into the Windows temporary folder, and `Start-Process $f` opens it. It is exactly the same file as the one attached to the releases; you can read all of it in [`installateur/Installer-Jarvis.bat`](installateur/Installer-Jarvis.bat).
+
+### Other method: the Installer-Jarvis.exe file
+
 1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 230 KB).
 2. **Double-click it.** Windows will probably show a blue screen, "Windows protected your PC": this is normal for a small free program that is not signed by a paid publisher. Click **More info**, then **Run anyway**.
-3. **Answer the questions** (in French): your first name, your town, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
+
+<a id="blocked-by-windows"></a>**If Windows shows "Smart App Control blocked a file that may be unsafe":** this Windows 11 protection (not active on every PC) only lets through programs Microsoft already knows, or those signed with a paid certificate. Jarvis is neither: it is a free personal project. The block does not mean the file is dangerous, and there is no "Run anyway" button. In that case, use the recommended method above. Do not turn Smart App Control off: once off, Windows does not let you turn it back on without resetting the PC.
+
+### In the installation window
+
+1. **Answer the questions** (in French): your first name, your town, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
    - Python 3.14 (from python.org), in your user folder;
    - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes** (in the installer window this instruction is written in green);
    - Jarvis, its modules (PlayStation 5 included), its speech model and the one that recognises who is speaking, in `C:\Jarvis`;
    - Claude Code (from claude.ai), if you chose it;
    - a "Jarvis" shortcut on the desktop and at Windows startup.
-4. **If you chose Claude**, your browser opens so you can sign in to your Claude account. On a new PC, it may first show its own welcome screen: skip it. Sign in, accept the authorization, then go back to the installer window.
-5. **At the end, Jarvis starts.** The first launch takes a minute or two: it downloads its second speech model (Whisper). The very first check can also be slow on a new PC, while Windows examines the new files.
+2. **If you chose Claude**, your browser opens so you can sign in to your Claude account. On a new PC, it may first show its own welcome screen: skip it. Sign in, accept the authorization, then go back to the installer window.
+3. **At the end, Jarvis starts.** The first launch takes a minute or two: it downloads its second speech model (Whisper). The very first check can also be slow on a new PC, while Windows examines the new files.
 
 <p align="center">
 <img src="docs/installateur_accueil.png" alt="The Jarvis installer: the first questions, with the 'click Yes' instruction in green" width="49%">

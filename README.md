@@ -2,7 +2,7 @@
 
 **English: [README.en.md](README.en.md)** · **Version actuelle : 1.64**
 
-**Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
+**Pour installer Jarvis** (méthode recommandée, elle marche sur tous les PC) : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
@@ -342,25 +342,9 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 **En vidéo :** [le tutoriel d'installation, pas à pas (8 min)](https://youtu.be/ZbBA3TN2o9E), avec un chapitre par étape, y compris quoi faire si Windows bloque le fichier.
 
-1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 230 Ko).
-2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
-3. **Réponds aux questions** : ton prénom, ta ville, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
-   - Python 3.14 (depuis python.org), dans ton dossier personnel ;
-   - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** (dans la fenêtre de l'installateur, cette consigne est écrite en vert) ;
-   - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
-   - Claude Code (depuis claude.ai), si tu l'as choisi ;
-   - un raccourci « Jarvis » sur le Bureau et au démarrage de Windows.
-4. **Si tu as choisi Claude**, ton navigateur s'ouvre pour te connecter à ton compte Claude. Sur un PC neuf, il montre peut-être d'abord son propre écran d'accueil : passe-le. Connecte-toi, accepte l'autorisation, puis reviens dans la fenêtre de l'installateur.
-5. **À la fin, Jarvis démarre.** Le premier lancement prend une minute ou deux : il télécharge son second modèle vocal (Whisper). La toute première vérification peut aussi être lente sur un PC neuf, le temps que Windows examine les nouveaux fichiers.
+### Méthode recommandée : une ligne à coller dans le Terminal (marche sur tous les PC)
 
-<p align="center">
-<img src="docs/installateur_accueil.png" alt="L'installateur de Jarvis : les questions du début, et en vert la consigne « clique sur le bouton Oui »" width="49%">
-<img src="docs/installateur_progression.png" alt="L'installateur de Jarvis pendant l'installation : la barre d'avancement et la consigne en vert" width="49%">
-</p>
-
-Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
-
-<a id="bloque-par-windows"></a>**Si Windows affiche « Contrôle intelligent des applications a bloqué un fichier potentiellement dangereux » :** c'est une protection de Windows 11 (elle n'est pas active sur tous les PC). Elle laisse passer les programmes que Microsoft connaît déjà, ou ceux signés avec un certificat payant. Jarvis n'est ni l'un ni l'autre : c'est un projet personnel et gratuit. Ce blocage ne veut pas dire que le fichier est dangereux, et il n'y a pas de bouton « Exécuter quand même ». Pour installer Jarvis sans passer par le navigateur, et sans rien désactiver :
+Windows bloque souvent un petit programme gratuit téléchargé par le navigateur. Cette méthode évite ce blocage, sans rien désactiver : c'est celle qui réussit sur tous les PC.
 
 1. Appuie sur la touche Windows + X, puis choisis **Terminal** (ou **Windows PowerShell**).
 2. Copie cette ligne, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :
@@ -369,7 +353,7 @@ Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est*
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
 ```
 
-3. La fenêtre d'installation de Jarvis s'ouvre : continue comme ci-dessus à partir de l'étape 3. Rien n'est installé avant que tu cliques sur « Installer ».
+3. La fenêtre d'installation de Jarvis s'ouvre : continue à « Dans la fenêtre d'installation », plus bas. Rien n'est installé avant que tu cliques sur « Installer ».
 
 **Avant de coller la ligne, vérifie :**
 - que tu l'as copiée depuis cette page officielle (`github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio`), ou depuis le fichier « Lisez-moi-si-Windows-bloque.txt » joint aux versions de cette page ;
@@ -382,6 +366,31 @@ Ne colle jamais dans le Terminal une commande reçue par message, par mail ou tr
 - `Start-Process $f` l'ouvre. C'est exactement le même fichier que celui des versions publiées : tu peux lire tout son contenu ici, dans [`installateur/Installer-Jarvis.bat`](installateur/Installer-Jarvis.bat).
 
 Ça marche parce que le fichier est téléchargé par Windows lui-même, sans la marque « venu d'Internet » que le navigateur ajoute. Ne désactive pas le Contrôle intelligent des applications : une fois désactivé, Windows ne permet plus de le réactiver sans réinitialiser le PC.
+
+### Autre méthode : le fichier Installer-Jarvis.exe
+
+1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 230 Ko).
+2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
+
+<a id="bloque-par-windows"></a>**Si Windows affiche « Contrôle intelligent des applications a bloqué un fichier potentiellement dangereux » :** c'est une protection de Windows 11 (elle n'est pas active sur tous les PC). Elle laisse passer les programmes que Microsoft connaît déjà, ou ceux signés avec un certificat payant. Jarvis n'est ni l'un ni l'autre : c'est un projet personnel et gratuit. Ce blocage ne veut pas dire que le fichier est dangereux, et il n'y a pas de bouton « Exécuter quand même ». Dans ce cas, utilise la méthode recommandée ci-dessus : elle ne passe pas par le navigateur et ne désactive rien.
+
+### Dans la fenêtre d'installation
+
+1. **Réponds aux questions** : ton prénom, ta ville, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
+   - Python 3.14 (depuis python.org), dans ton dossier personnel ;
+   - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** (dans la fenêtre de l'installateur, cette consigne est écrite en vert) ;
+   - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
+   - Claude Code (depuis claude.ai), si tu l'as choisi ;
+   - un raccourci « Jarvis » sur le Bureau et au démarrage de Windows.
+2. **Si tu as choisi Claude**, ton navigateur s'ouvre pour te connecter à ton compte Claude. Sur un PC neuf, il montre peut-être d'abord son propre écran d'accueil : passe-le. Connecte-toi, accepte l'autorisation, puis reviens dans la fenêtre de l'installateur.
+3. **À la fin, Jarvis démarre.** Le premier lancement prend une minute ou deux : il télécharge son second modèle vocal (Whisper). La toute première vérification peut aussi être lente sur un PC neuf, le temps que Windows examine les nouveaux fichiers.
+
+<p align="center">
+<img src="docs/installateur_accueil.png" alt="L'installateur de Jarvis : les questions du début, et en vert la consigne « clique sur le bouton Oui »" width="49%">
+<img src="docs/installateur_progression.png" alt="L'installateur de Jarvis pendant l'installation : la barre d'avancement et la consigne en vert" width="49%">
+</p>
+
+Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
 
 **Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. Pour ajouter Claude, tu peux aussi dire « Jarvis, ouvre les réglages » et aller dans l'onglet « Claude ». La mise à jour garde tes réglages, sa mémoire et tes rappels.
 
