@@ -52,6 +52,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Réponses sans Claude corrigées** : « racine carré de deux » (Jarvis répondait 4) et « combien de jours dans un février de 2018 » donnent maintenant la bonne réponse.
 - **Tablettes** : la liste des tablettes reliées s'affiche de nouveau correctement sur le PC.
 - **Assistants (bêta)** : Kimi (Moonshot AI) est ajouté à la liste des assistants que l'on peut brancher. Ce service est payant à l'usage ; c'est indiqué dans la fenêtre.
+- **Première installation** : un nouvel utilisateur installe maintenant directement la 1.64 (avant, l'installation commençait par la 1.47, puis se mettait à jour).
 
 ## Nouveau en 1.63
 
@@ -341,16 +342,21 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 **En vidéo :** [le tutoriel d'installation, pas à pas (8 min)](https://youtu.be/ZbBA3TN2o9E), avec un chapitre par étape, y compris quoi faire si Windows bloque le fichier.
 
-1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 200 Ko).
+1. **Télécharge l'installateur : [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (environ 230 Ko).
 2. **Double-clique dessus.** Windows affiche sans doute un écran bleu « Windows a protégé votre ordinateur » : c'est normal pour un petit programme gratuit qui n'est pas signé par un éditeur payant. Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
 3. **Réponds aux questions** : ton prénom, ta ville, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
    - Python 3.14 (depuis python.org), dans ton dossier personnel ;
-   - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** ;
+   - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** (dans la fenêtre de l'installateur, cette consigne est écrite en vert) ;
    - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
    - Claude Code (depuis claude.ai), si tu l'as choisi ;
    - un raccourci « Jarvis » sur le Bureau et au démarrage de Windows.
 4. **Si tu as choisi Claude**, ton navigateur s'ouvre pour te connecter à ton compte Claude. Sur un PC neuf, il montre peut-être d'abord son propre écran d'accueil : passe-le. Connecte-toi, accepte l'autorisation, puis reviens dans la fenêtre de l'installateur.
 5. **À la fin, Jarvis démarre.** Le premier lancement prend une minute ou deux : il télécharge son second modèle vocal (Whisper). La toute première vérification peut aussi être lente sur un PC neuf, le temps que Windows examine les nouveaux fichiers.
+
+<p align="center">
+<img src="docs/installateur_accueil.png" alt="L'installateur de Jarvis : les questions du début, et en vert la consigne « clique sur le bouton Oui »" width="49%">
+<img src="docs/installateur_progression.png" alt="L'installateur de Jarvis pendant l'installation : la barre d'avancement et la consigne en vert" width="49%">
+</p>
 
 Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
 
@@ -377,7 +383,7 @@ Ne colle jamais dans le Terminal une commande reçue par message, par mail ou tr
 
 Ça marche parce que le fichier est téléchargé par Windows lui-même, sans la marque « venu d'Internet » que le navigateur ajoute. Ne désactive pas le Contrôle intelligent des applications : une fois désactivé, Windows ne permet plus de le réactiver sans réinitialiser le PC.
 
-**Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. La mise à jour garde tes réglages, sa mémoire et tes rappels.
+**Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. Pour ajouter Claude, tu peux aussi dire « Jarvis, ouvre les réglages » et aller dans l'onglet « Claude ». La mise à jour garde tes réglages, sa mémoire et tes rappels.
 
 <a id="desinstaller"></a>**Désinstaller :** dans les réglages de Jarvis, onglet « À propos », clique sur « Désinstaller Jarvis… » (ou relance l'installateur et choisis « Désinstaller »). Une première fenêtre te demande quoi faire de tes fichiers personnels (réglages, profils et voix, mémoire, rappels, notes, listes) : les garder dans un dossier « Jarvis - fichiers personnels » sur le Bureau, ou les supprimer, avec si tu veux une copie compressée. Une dernière fenêtre liste tout ce qui va être retiré : le dossier de Jarvis, ses raccourcis (Bureau et démarrage de Windows), son repère dans le registre, ses fichiers temporaires, ainsi que Python, Claude Code et les composants Microsoft Visual C++. Ces trois derniers sont cochés d'office : **décoche ceux que tu utilises pour autre chose**. Rien n'est supprimé tant que tu n'as pas écrit « confirmer ». Si tu réinstalles Jarvis plus tard, l'installateur te propose de reprendre les fichiers gardés.
 
@@ -607,7 +613,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tts.py` | La voix Windows de secours |
 | `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
-| `installation-stable.txt` | Une ligne : la version stable sur laquelle démarre une nouvelle installation (les mises à jour vont toujours vers la dernière version) |
+| `installation-stable.txt` | Une ligne : la version sur laquelle démarre une nouvelle installation, actuellement la 1.64 (les mises à jour vont toujours vers la dernière version) |
 | `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` ; `Lisez-moi-si-Windows-bloque.txt` est l'aide en cas de blocage par Windows |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |

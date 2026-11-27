@@ -52,6 +52,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Fixed local answers**: square root of two, and the number of days in a given February.
 - **Tablets**: the list of linked tablets is displayed correctly again on the PC.
 - **Assistants (beta)**: Kimi (Moonshot AI) added to the list (pay-as-you-go service, stated in the window).
+- **First installation**: a new user now installs 1.64 directly (previously, setup started with 1.47 and then updated).
 
 ## New in 1.63
 
@@ -340,16 +341,21 @@ Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
 
 **On video:** [the installation tutorial, step by step (8 min, in French)](https://youtu.be/ZbBA3TN2o9E), one chapter per step, including what to do if Windows blocks the file.
 
-1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 200 KB).
+1. **Download the installer: [Installer-Jarvis.exe](https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.exe)** (about 230 KB).
 2. **Double-click it.** Windows will probably show a blue screen, "Windows protected your PC": this is normal for a small free program that is not signed by a paid publisher. Click **More info**, then **Run anyway**.
-3. **Answer the two questions** (in French): your first name, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
+3. **Answer the questions** (in French): your first name, your town, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
    - Python 3.14 (from python.org), in your user folder;
-   - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes**;
+   - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes** (in the installer window this instruction is written in green);
    - Jarvis, its modules (PlayStation 5 included), its speech model and the one that recognises who is speaking, in `C:\Jarvis`;
    - Claude Code (from claude.ai), if you chose it;
    - a "Jarvis" shortcut on the desktop and at Windows startup.
 4. **If you chose Claude**, your browser opens so you can sign in to your Claude account. On a new PC, it may first show its own welcome screen: skip it. Sign in, accept the authorization, then go back to the installer window.
 5. **At the end, Jarvis starts.** The first launch takes a minute or two: it downloads its second speech model (Whisper). The very first check can also be slow on a new PC, while Windows examines the new files.
+
+<p align="center">
+<img src="docs/installateur_accueil.png" alt="The Jarvis installer: the first questions, with the 'click Yes' instruction in green" width="49%">
+<img src="docs/installateur_progression.png" alt="The Jarvis installer during setup: progress bar and the instruction in green" width="49%">
+</p>
 
 To get your local weather, say once: "**Jarvis, ma ville est** …" followed by the name of your town.
 
