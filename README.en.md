@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.68**
+**Français : [README.md](README.md)** · **Current version: 1.69**
 
 **To install Jarvis** $\color{limegreen}{\textsf{\textbf{(recommended method, it works on every PC)}}}$: open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
@@ -42,6 +42,12 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.69
+
+- **Signed updates.** Each release now comes with a manifest signed by TonyNio (version, installer and code file hashes); the signing key never lives on GitHub. Jarvis refuses an update without a valid signature or with a modified file, and keeps its current version. The installer re-checks every downloaded file before stopping Jarvis.
+- **Reports: a refusal is always respected**, including after an update from an old version or a reinstallation that restores the user's files. "Technique" stays the default for a fresh install.
+- **Public tests.** Jarvis's automated tests are in the `essais` folder and run on a GitHub Windows machine on every push; a release is only published when they pass.
 
 ## New in 1.68
 
@@ -116,7 +122,7 @@ Everything can be set without editing a file: right-click the reactor then « R�
 
 ## New in 1.60
 
-- **More discreet reports**: the weather city is hidden even when written differently ("Saint Lubin" or "Saint-Lubin"), as are the subject and sender of mails read aloud, "my city is…", "I live in…" and the city named in a weather request.
+- **More discreet reports**: the weather city is hidden even when written differently ("Saint Martin" or "Saint-Martin"), as are the subject and sender of mails read aloud, "my city is…", "I live in…" and the city named in a weather request.
 - **Less repetition**: the "Claude usage limit reached" (or "Claude is not installed") message is spoken in full once an hour, then in one short sentence.
 - **Be quiet without Claude**: "shut up", "silence", "chut", "that's enough" or "go to sleep" (in French) stop Jarvis right away.
 - **Riot Games and Opera GX** are better recognized with "close", "quit" and "stop" too.

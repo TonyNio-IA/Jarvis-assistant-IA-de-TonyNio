@@ -263,7 +263,7 @@ _INDICE = re.compile(r"^(.+?)(?:\s*,\s*|\s+dans\s+)(?:le |la |les |l')?(?:dépar
 
 
 def _separer_indice(nom):
-    """« Saint-Lubin dans le Loir-et-Cher » -> (« Saint-Lubin », « Loir-et-Cher »). Sans département : (nom, « »)."""
+    """« Saint-Martin dans la Manche » -> (« Saint-Martin », « Manche »). Sans département : (nom, « »)."""
     m = _INDICE.match(nom or "")
     return (m.group(1).strip(" ,"), m.group(2).strip(" ,.")) if m else (nom, "")
 
@@ -314,7 +314,7 @@ def _lieu(nom):
     defaut = _sans_accents(VILLE_DEFAUT[0])
     if not nom or _sans_accents(nom) in (defaut, defaut[:-1]):   # la dernière lettre est parfois mal entendue
         return VILLE_DEFAUT
-    if jarvis_fenetres.ressemblance(nom, VILLE_DEFAUT[0]) >= 0.85:      # « four » entendu pour « Fouras »
+    if jarvis_fenetres.ressemblance(nom, VILLE_DEFAUT[0]) >= 0.85:      # « foie » entendu pour « Foix »
         return VILLE_DEFAUT
     # Un lieu que tu as noté dans ville.txt (3e ligne), même mal entendu
     connus = [x.strip() for x in re.split(r"[,;]", LIEUX_CONNUS) if x.strip()]
@@ -381,7 +381,7 @@ def _commande_ville(brut):
         nom = (nom[:code.start()] + " " + nom[code.end():]).strip(" .!?,;:«»\"'()")
         nom = re.sub(r"\s*,?\s*(?:code postal|dans le|au)\s*$", "", nom, flags=re.I).strip(" ,")
         code = code.group(1) + code.group(2)
-    nom, indice = _separer_indice(nom)           # « Saint-Lubin, dans le Loir-et-Cher » : la ville et son département
+    nom, indice = _separer_indice(nom)           # « Saint-Martin, dans la Manche » : la ville et son département
     if (not nom and not code) or len(nom.split()) > 5 or len(indice.split()) > 6:
         return None
     try:

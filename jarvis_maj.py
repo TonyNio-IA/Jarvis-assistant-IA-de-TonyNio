@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 
 import jarvis_config
@@ -54,6 +55,108 @@ DOSSIER_PRECEDENT = jarvis_config.chemin("version_precedente")   # les programme
 FICHIER_RETOUR = jarvis_config.chemin("retour_version.json")     # écrit par le gardien s'il a dû revenir en arrière
 _installateur = None     # l'installateur de la version trouvée (une pré-version, pour un testeur)
 _etiquette = None        # son étiquette sur GitHub (« v1.33 ») : l'installateur prend exactement cette version
+
+# ---------- Signature des versions (1.69) ----------
+# Chaque version publiée est accompagnée d'un manifeste (manifeste.json) : son numéro, et l'empreinte SHA-256 de
+# l'installateur et de chaque fichier du code. Ce manifeste est signé (manifeste.sig, RSA-3072 / SHA-256) avec une clé
+# que TonyNio garde hors de GitHub. Jarvis n'installe une mise à jour que si la signature correspond à l'une de ces
+# clés publiques : un compte GitHub piraté ne suffit plus pour envoyer un faux Jarvis. « secours » sert si la clé
+# principale est perdue.
+CLES_PUBLIQUES = {
+    "principale": ("ybCA8Kk7xHDqWkgiqox/5pdReNlmviBQFcC2l2sBOXRmMqWs6nV58pDSZiu5DoUoRLqiR8GwPuwzvPeyJp1oIKaNp2EMCnfDeSLr2Wenl112c98IuewF71BDR8lNNVCQb4GmSaC7YbTzf+by0cZI8hh9oClVG/x0fzUvTXfmq8R2nEyE+7EJEgnmpXnCiaJfDM8WXbiI+H3N0hdh1I5JdV2QqKzLhG2DcZpa4C+VHSIjnEDV2TgMictz5xKZiFHFBSQxl880q6+cUzRRdSmqBsXWvxfq7Ww+psLcJ+CGj4dz5EfNUBemqzZM5wvTFhyNRoACfGdmhN6txIuA7j8eSgd1fQxvnpc8t+yP66rfABiqv9ffD0Gv3jYNeSYarhuxeg5LAYY/hR+bKrqLO6Vn3a9D90pKjK7WmYYcqG288Ws5x7cMEsbAr6AlwIiyMIPdI6l8OifYqSUFp782RMuP/ZW2kAByXKWsxnY0Al4Y4cX/TrceHaOgQSyZ7qOZD/7P", 65537),
+    "secours": ("1EYKlOz7NQHGX/kBSaqUrpuDl7I8id7y91Su5COWL5bN/6qce0D+TFSUg/eom5lBJVlgI2UhdakjQv7BY31MIIqtExqHkixquJgq3fvcaAHfbJ4YSNLDbW1/FXiBwwdH58cxrSTkeEdKo4HDfUJbxvz8vR4ZxUHFMCsdSZF1qqGr20xqf55eHr6cWIxpfwwYKsm/9pNCb1Tzf2MzQLU/3Ek49BDY1usyHbP1UuaFtMqtbLm5UUXtOn7RWV+oomO7T8/0Hocpb5ck4w2bzgWtSHhNJFI/Eg3BJ9KsaRIn3wJNJOfgUxfN4oIjCQ4xHJJFlmUhLkEq0+uT4kV0lAz/Whpw0md1c5N1XwZqjyPz1QX5ycx/PqijKYmHFRjrRNhS955DEHd2fK/edCHsAkHwI3BxyoTiVng+G3BLfPxpY7p3EON9S/asvB2IuPRbrPLiIk0/qJ3SO+AjubXKVGQVnsx6noxjCV7GfyXvh8BW5lDatpbL+iAY1BkPsRhak2lH", 65537),
+}
+_PREFIXE_SHA256 = bytes.fromhex("3031300d060960864801650304020105000420")     # en-tête PKCS#1 v1.5 d'une empreinte SHA-256
+TEXTES_SIGNES = (".py", ".md", ".txt", ".json", ".gitignore", ".gitattributes", ".ps1", ".bat", ".cs", ".gs", ".yml",
+                 ".yaml", ".html", ".css", ".js")
+FICHIER_SIGNATURE = jarvis_config.chemin("signature_refusee.json")   # une version refusée : pas de nouvel essai avant 6 h
+ATTENTE_APRES_REFUS_SIGNATURE = 6 * 3600
+_manifeste_url = None    # adresses du manifeste et de sa signature dans la version trouvée sur GitHub
+_signature_url = None
+_manifeste = None        # le manifeste vérifié de la mise à jour en cours (dictionnaire)
+
+
+def verifier_signature(donnees, signature):
+    """Vrai si « signature » (base64) est la signature RSA PKCS#1 v1.5 / SHA-256 de « donnees » par l'une des clés
+    de CLES_PUBLIQUES. Fait sans bibliothèque extérieure : la vérification marche sur tous les PC."""
+    import base64
+    import hashlib
+    try:
+        brute = base64.b64decode(signature.strip() if isinstance(signature, (bytes, str)) else b"", validate=True)
+    except (ValueError, TypeError):
+        return None
+    attendu_fin = _PREFIXE_SHA256 + hashlib.sha256(donnees).digest()
+    for nom, (module64, exposant) in CLES_PUBLIQUES.items():
+        n = int.from_bytes(base64.b64decode(module64), "big")
+        k = (n.bit_length() + 7) // 8
+        if len(brute) != k:
+            continue
+        s = int.from_bytes(brute, "big")
+        if s >= n:
+            continue
+        em = pow(s, exposant, n).to_bytes(k, "big")
+        attendu = b"\x00\x01" + b"\xff" * (k - 3 - len(attendu_fin)) + b"\x00" + attendu_fin
+        if hashlib.sha256(em).digest() == hashlib.sha256(attendu).digest():
+            return nom
+    return None
+
+
+def verifier_manifeste(donnees, signature):
+    """Le manifeste (octets exacts) s'il est bien signé, en dictionnaire. Lève ValueError sinon."""
+    cle = verifier_signature(donnees, signature)
+    if not cle:
+        raise ValueError("signature du manifeste absente ou fausse")
+    try:
+        m = json.loads(donnees.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("manifeste illisible")
+    if not isinstance(m, dict) or not isinstance(m.get("code"), dict) or not m.get("etiquette"):
+        raise ValueError("manifeste incomplet")
+    m["_cle"] = cle
+    return m
+
+
+def empreinte_canonique(nom, donnees):
+    """SHA-256 en majuscules ; pour les fichiers texte, fins de ligne ramenées à « \\n » (même calcul qu'à la publication)."""
+    import hashlib
+    if nom.lower().endswith(TEXTES_SIGNES) or os.path.basename(nom).startswith("."):
+        donnees = donnees.replace(b"\r\n", b"\n")
+    return hashlib.sha256(donnees).hexdigest().upper()
+
+
+def _telecharger(adresse, timeout=60):
+    requete = urllib.request.Request(adresse, headers={"User-Agent": "Jarvis"})
+    with urllib.request.urlopen(requete, timeout=timeout) as r:
+        return r.read()
+
+
+def signature_refusee():
+    """La version refusée pour une signature fausse, si c'était il y a moins de 6 heures, sinon « »."""
+    try:
+        with open(FICHIER_SIGNATURE, encoding="utf-8") as f:
+            d = json.load(f)
+        if time.time() - float(d.get("quand", 0)) < ATTENTE_APRES_REFUS_SIGNATURE:
+            return str(d.get("version") or "")
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+    return ""
+
+
+def charger_manifeste(cible):
+    """Télécharge et vérifie le manifeste signé de la version trouvée. Lève ValueError s'il manque ou ne va pas."""
+    global _manifeste
+    _manifeste = None
+    if not _manifeste_url or not _signature_url:
+        raise ValueError("cette version n'a pas de manifeste signé")
+    donnees = _telecharger(_manifeste_url, 30)
+    signature = _telecharger(_signature_url, 30)
+    m = verifier_manifeste(donnees, signature)
+    if _etiquette and m.get("etiquette") != _etiquette:
+        raise ValueError(f"le manifeste est celui de {m.get('etiquette')}, pas de {_etiquette}")
+    if cible and _nombres(str(m.get("version"))) != _nombres(cible):
+        raise ValueError(f"le manifeste annonce la version {m.get('version')}, pas la {cible}")
+    _manifeste = m
+    return m, donnees, signature
 
 
 def _testeur():
@@ -120,15 +223,20 @@ def verifier():
         derniere = publiees[0] if publiees else {}
     if derniere.get("draft") or (derniere.get("prerelease") and not testeur):
         return None
-    global _installateur, _etiquette
+    global _installateur, _etiquette, _manifeste_url, _signature_url
     _etiquette = str(derniere.get("tag_name") or "") or None
     _installateur = next((a.get("browser_download_url") for a in derniere.get("assets", [])
                           if a.get("name") == "Installer-Jarvis.exe"), None) or INSTALLATEUR
+    _manifeste_url = next((a.get("browser_download_url") for a in derniere.get("assets", [])
+                           if a.get("name") == "manifeste.json"), None)
+    _signature_url = next((a.get("browser_download_url") for a in derniere.get("assets", [])
+                           if a.get("name") == "manifeste.sig"), None)
     version = str(derniere.get("tag_name", "")).lstrip("vV")
     global _empreintes
     _empreintes = lire_empreintes(str(derniere.get("body") or ""))
     with _verrou:
-        if _nombres(version) > _nombres(version_actuelle()) and _nombres(version) != _nombres(version_refusee()):
+        if (_nombres(version) > _nombres(version_actuelle()) and _nombres(version) != _nombres(version_refusee())
+                and _nombres(version) != _nombres(signature_refusee())):
             titre = str(derniere.get("name") or "").split(":", 1)[-1].strip()
             disponible = (version, titre)
             forcee = MARQUE_FORCEE in str(derniere.get("body") or "") or _forcee_entre(version_actuelle(), version)
@@ -391,11 +499,17 @@ def _empreinte(chemin):
 
 
 def controler_empreinte(chemin):
-    """Le fichier téléchargé est-il bien celui qui est publié ? Lève ValueError sinon. Sans empreinte publiée
-    (anciennes versions), rien n'est contrôlé, comme avant."""
-    attendue = _empreintes.get(os.path.basename(chemin))
+    """Le fichier téléchargé est-il bien celui qui est publié ? Lève ValueError sinon. L'empreinte vient du manifeste
+    signé (obligatoire depuis la 1.69) ; sans manifeste vérifié, rien n'est accepté."""
+    if _manifeste is None:
+        raise ValueError("aucun manifeste signé vérifié pour cette mise à jour")
+    attendue = str((_manifeste.get("publication") or {}).get(os.path.basename(chemin)) or "").upper()
     if not attendue:
-        return False
+        try:
+            os.remove(chemin)
+        except OSError:
+            pass
+        raise ValueError(f"{os.path.basename(chemin)} n'est pas dans le manifeste signé")
     if _empreinte(chemin) != attendue:
         try:
             os.remove(chemin)
@@ -446,6 +560,16 @@ def installer():
     dossier = os.path.join(tempfile.gettempdir(), "Jarvis-mise-a-jour")
     os.makedirs(dossier, exist_ok=True)
     programme = os.path.join(dossier, "Installer-Jarvis.exe")
+    # 1.69 : rien n'est téléchargé ni lancé sans un manifeste signé par TonyNio
+    try:
+        _m, octets_manifeste, octets_signature = charger_manifeste(disponible[0] if disponible else None)
+        with open(os.path.join(dossier, "manifeste.json"), "wb") as f:
+            f.write(octets_manifeste)
+        with open(os.path.join(dossier, "manifeste.sig"), "wb") as f:
+            f.write(octets_signature)
+        _noter(f"Mise à jour : manifeste signé vérifié (clé {_m.get('_cle')}, {len(_m.get('code') or {})} fichiers).")
+    except Exception as erreur:
+        return _refuser_signature(cible, erreur)
     try:
         requete = urllib.request.Request(_installateur or INSTALLATEUR, headers={"User-Agent": "Jarvis"})
         with urllib.request.urlopen(requete, timeout=60) as r, open(programme, "wb") as f:
@@ -456,6 +580,8 @@ def installer():
         if controler_empreinte(programme):
             _noter("Mise à jour : empreinte SHA-256 de l'installateur vérifiée.")
     except Exception as erreur:
+        if isinstance(erreur, ValueError) and re.search(r"empreinte|manifeste", str(erreur)):
+            return _refuser_signature(cible, erreur)        # installateur différent de celui qui est signé
         _telechargement_rate = True
         _noter("Téléchargement de la mise à jour impossible :", erreur)
         if noter_echec("telechargement", cible):
@@ -473,6 +599,9 @@ def installer():
         environnement["JARVIS_SOURCE"] = source_essai
     if _etiquette:
         environnement["JARVIS_ETIQUETTE"] = _etiquette
+    # le manifeste déjà vérifié : l'installateur le revérifie, puis contrôle chaque fichier du code téléchargé
+    environnement["JARVIS_MANIFESTE"] = os.path.join(dossier, "manifeste.json")
+    environnement["JARVIS_MANIFESTE_SIG"] = os.path.join(dossier, "manifeste.sig")
 
     def lancer():
         # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance
@@ -521,6 +650,34 @@ def installer():
     version = f"la version {cible}" if disponible else "la dernière version"
     return (f"Je lance la mise à jour vers {version}. Je vais m'arrêter quelques minutes, "
             "puis je redémarrerai tout seul.")
+
+
+def _refuser_signature(cible, erreur):
+    """Mise à jour non signée, mal signée, ou fichier différent du manifeste : rien n'est lancé, Jarvis reste tel quel."""
+    global lancee, disponible, forcee, _telechargement_rate
+    lancee = False
+    _telechargement_rate = False
+    if not isinstance(erreur, ValueError):       # panne de réseau, GitHub qui ne répond pas : pas une question de sécurité
+        _noter("Téléchargement du manifeste de la mise à jour impossible :", erreur)
+        _telechargement_rate = True
+        if noter_echec("telechargement", cible):     # comme un téléchargement raté de l'installateur
+            return echec_a_dire()
+        return "Je n'arrive pas à télécharger la mise à jour. Vérifie la connexion Internet, puis redemande-le-moi."
+    _noter("Mise à jour REFUSÉE (sécurité) :", erreur)
+    try:
+        with open(FICHIER_SIGNATURE, "w", encoding="utf-8") as f:
+            json.dump({"version": cible, "quand": time.time(), "raison": str(erreur)[:200]}, f, ensure_ascii=False)
+    except OSError:
+        pass
+    try:
+        import jarvis_rapports
+        jarvis_rapports.erreur("signature", texte=f"mise à jour {cible} refusée : {erreur}")
+    except Exception:
+        pass
+    disponible = None
+    forcee = False
+    return (f"Je n'installe pas la version {cible} : elle n'a pas la signature de TonyNio, ou un de ses fichiers "
+            f"a été modifié. Par sécurité, je reste en version {version_actuelle()}.")
 
 
 _echec = None

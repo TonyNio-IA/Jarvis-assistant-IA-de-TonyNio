@@ -112,13 +112,8 @@ def _lire():
             _donnees["par_defaut"] = True                       # la fenêtre d'accord reste à montrer une fois
             change = True
         if not _donnees.get("bascule_165"):
-            # 1.65 : une seule fois, « Rien » devient « Technique » (« Complet » ne bouge pas). Ensuite, celui qui
-            # remet « Rien » dans les Réglages le garde : ce repère empêche de recommencer.
-            if _donnees.get("niveau") == "aucun":
-                _donnees["niveau"] = "technique"
-                _donnees.pop("refuse_le", None)
-                _donnees["rappel_fait"] = True
-                print("(Rapports : passé de « Rien » à « Technique » avec la 1.65 ; modifiable dans les Réglages.)")
+            # 1.69 : un refus n'est plus jamais réactivé. La 1.65 faisait passer une fois « Rien » à « Technique » ;
+            # un PC qui arrive d'une version plus ancienne garde maintenant « Rien ». Seul le repère est posé.
             _donnees["bascule_165"] = True
             change = True
         _donnees.setdefault("compteur", True)

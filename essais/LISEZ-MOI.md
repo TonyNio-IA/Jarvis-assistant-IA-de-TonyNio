@@ -4,4 +4,4 @@ Ces séries d'essais tournent sur GitHub (Windows) à chaque envoi de code, et s
 
 Elles ne touchent jamais une vraie installation : chaque essai travaille dans une copie provisoire (bac à sable) ou un dossier temporaire. Les essais qui demandent un micro, des appareils, le vrai Claude ou des données personnelles ne sont pas publiés ; ils restent sur le PC de développement.
 
-52 séries publiées.
+53 séries publiées.

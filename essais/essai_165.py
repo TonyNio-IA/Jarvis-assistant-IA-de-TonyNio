@@ -56,16 +56,16 @@ verifier("nouveau PC : « Technique » par défaut", r.niveau() == "technique")
 verifier("nouveau PC : la fenêtre d'accord reste montrée une fois", r.a_demander())
 r.choisir_niveau("complet")
 verifier("choix « Complet » : plus de fenêtre", not r.a_demander() and r.niveau() == "complet")
-for ancien, plus, attendu in (("complet", {}, "complet"), ("aucun", {}, "technique"), ("technique", {}, "technique"),
+for ancien, plus, attendu in (("complet", {}, "complet"), ("aucun", {}, "aucun"), ("technique", {}, "technique"),
                               (None, {}, "technique"), ("aucun", {"bascule_165": True}, "aucun")):
     with open(r.FICHIER, "w", encoding="utf-8") as f:
         json.dump(dict({"id": "0" * 32, "niveau": ancien, "refuse_le": 1}, **plus), f)
     r._donnees = None
     verifier(f"mise à jour : « {ancien} » {plus or ''} devient « {attendu} »", r.niveau() == attendu, r.niveau())
     if ancien == "aucun" and not plus:
-        verifier("basculé de « Rien » : pas de fenêtre ni de rappel", not r.a_demander())
+        # 1.69 : un refus n'est plus jamais réactivé (la bascule de la 1.65 est retirée)
         r._donnees = None
-        verifier("basculé une seule fois (relu au démarrage suivant)", r.niveau() == "technique" and r.valeur("bascule_165"))
+        verifier("refus gardé (relu au démarrage suivant)", r.niveau() == "aucun" and r.valeur("bascule_165"))
         r.choisir_niveau("aucun")
         r._donnees = None
         verifier("remis sur « Rien » dans les Réglages : gardé", r.niveau() == "aucun")

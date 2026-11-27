@@ -42,6 +42,11 @@ try {
 
 $VERSION_INSTALLATEUR = '1.2'
 $DEPOT      = 'TonyNio-IA/Jarvis-assistant-IA-de-TonyNio'
+# Clés publiques de TonyNio (principale, secours) : le code téléchargé n'est installé que si son manifeste est signé par l'une d'elles
+$CLES_SIGNATURE = @(
+    '<RSAKeyValue><Modulus>ybCA8Kk7xHDqWkgiqox/5pdReNlmviBQFcC2l2sBOXRmMqWs6nV58pDSZiu5DoUoRLqiR8GwPuwzvPeyJp1oIKaNp2EMCnfDeSLr2Wenl112c98IuewF71BDR8lNNVCQb4GmSaC7YbTzf+by0cZI8hh9oClVG/x0fzUvTXfmq8R2nEyE+7EJEgnmpXnCiaJfDM8WXbiI+H3N0hdh1I5JdV2QqKzLhG2DcZpa4C+VHSIjnEDV2TgMictz5xKZiFHFBSQxl880q6+cUzRRdSmqBsXWvxfq7Ww+psLcJ+CGj4dz5EfNUBemqzZM5wvTFhyNRoACfGdmhN6txIuA7j8eSgd1fQxvnpc8t+yP66rfABiqv9ffD0Gv3jYNeSYarhuxeg5LAYY/hR+bKrqLO6Vn3a9D90pKjK7WmYYcqG288Ws5x7cMEsbAr6AlwIiyMIPdI6l8OifYqSUFp782RMuP/ZW2kAByXKWsxnY0Al4Y4cX/TrceHaOgQSyZ7qOZD/7P</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>',
+    '<RSAKeyValue><Modulus>1EYKlOz7NQHGX/kBSaqUrpuDl7I8id7y91Su5COWL5bN/6qce0D+TFSUg/eom5lBJVlgI2UhdakjQv7BY31MIIqtExqHkixquJgq3fvcaAHfbJ4YSNLDbW1/FXiBwwdH58cxrSTkeEdKo4HDfUJbxvz8vR4ZxUHFMCsdSZF1qqGr20xqf55eHr6cWIxpfwwYKsm/9pNCb1Tzf2MzQLU/3Ek49BDY1usyHbP1UuaFtMqtbLm5UUXtOn7RWV+oomO7T8/0Hocpb5ck4w2bzgWtSHhNJFI/Eg3BJ9KsaRIn3wJNJOfgUxfN4oIjCQ4xHJJFlmUhLkEq0+uT4kV0lAz/Whpw0md1c5N1XwZqjyPz1QX5ycx/PqijKYmHFRjrRNhS955DEHd2fK/edCHsAkHwI3BxyoTiVng+G3BLfPxpY7p3EON9S/asvB2IuPRbrPLiIk0/qJ3SO+AjubXKVGQVnsx6noxjCV7GfyXvh8BW5lDatpbL+iAY1BkPsRhak2lH</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>'
+)
 $PYTHON_VER = '3.14.10'
 $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VER/python-$PYTHON_VER-amd64.exe"
 $VC_URL     = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'      # composants Microsoft Visual C++ (site de Microsoft)
@@ -844,8 +849,96 @@ function Version-Stable-Choisie($client) {
     return $null
 }
 
-function Copier-Programme($dossier) {
-    New-Item -ItemType Directory -Path $dossier -Force | Out-Null
+# ---------- Vérifier que le code vient bien de TonyNio (1.69) ----------
+$TEXTES_SIGNES = '.py', '.md', '.txt', '.json', '.gitignore', '.gitattributes', '.ps1', '.bat', '.cs', '.gs', '.yml', '.yaml', '.html', '.css', '.js'
+function Empreinte-Canonique($chemin) {
+    # SHA-256 ; fichiers texte : fins de ligne ramenées à LF (même calcul qu'à la publication et que dans Jarvis)
+    $octets = [IO.File]::ReadAllBytes($chemin)
+    $nom = [IO.Path]::GetFileName($chemin).ToLowerInvariant()
+    $texte = $nom.StartsWith('.')
+    foreach ($e in $TEXTES_SIGNES) { if ($nom.EndsWith($e)) { $texte = $true } }
+    if ($texte) {
+        $latin = [Text.Encoding]::GetEncoding(28591)            # un octet = un caractère : rien n'est transformé d'autre
+        $octets = $latin.GetBytes($latin.GetString($octets).Replace("`r`n", "`n"))
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($octets)) -replace '-', '') } finally { $sha.Dispose() }
+}
+function Verifier-Signature([byte[]]$octets, $signatureTexte) {
+    try { $sig = [Convert]::FromBase64String(("$signatureTexte" -replace '\s', '')) } catch { return $false }
+    foreach ($xml in $CLES_SIGNATURE) {
+        $rsa = New-Object Security.Cryptography.RSACryptoServiceProvider
+        try { $rsa.FromXmlString($xml); if ($rsa.VerifyData($octets, 'SHA256', $sig)) { return $true } } catch {} finally { $rsa.Dispose() }
+    }
+    return $false
+}
+function Telecharger-Petit($adresse, $fichier) {
+    if (Test-Path -LiteralPath $fichier) { Remove-Item -LiteralPath $fichier -Force }
+    foreach ($attente in 0, 5, 15) {
+        if ($attente) { Start-Sleep -Seconds $attente }
+        $p = Start-Process -FilePath curl.exe -ArgumentList ('-L --fail --retry 2 --connect-timeout 30 -sS -o "' + $fichier + '" "' + $adresse + '"') -WindowStyle Hidden -PassThru
+        Patienter $p
+        if ($p.ExitCode -eq 0 -and (Test-Path -LiteralPath $fichier) -and (Get-Item -LiteralPath $fichier).Length -gt 0) { return $true }
+        if ($p.ExitCode -eq 22) { break }                       # 404 : le fichier n'existe pas, inutile d'insister
+    }
+    return $false
+}
+function Lire-Manifeste($etiquette) {
+    # Le manifeste signé de cette version : celui que Jarvis a déjà vérifié (mise à jour), sinon téléchargé sur GitHub.
+    # $etiquette = 'main' : la dernière version publiée (son étiquette est lue dans le manifeste lui-même).
+    $json = Join-Path $TEMP 'manifeste.json'
+    $sig = Join-Path $TEMP 'manifeste.sig'
+    if ($env:JARVIS_MANIFESTE -and (Test-Path -LiteralPath $env:JARVIS_MANIFESTE) -and $env:JARVIS_MANIFESTE_SIG -and (Test-Path -LiteralPath $env:JARVIS_MANIFESTE_SIG)) {
+        Copy-Item -LiteralPath $env:JARVIS_MANIFESTE -Destination $json -Force
+        Copy-Item -LiteralPath $env:JARVIS_MANIFESTE_SIG -Destination $sig -Force
+    } else {
+        $base = if ($etiquette -eq 'main') { "https://github.com/$DEPOT/releases/latest/download" } else { "https://github.com/$DEPOT/releases/download/$etiquette" }
+        if ($env:JARVIS_URL_MANIFESTES) { $base = $env:JARVIS_URL_MANIFESTES + '/' + $etiquette }     # essais
+        if (-not (Telecharger-Petit "$base/manifeste.json" $json) -or -not (Telecharger-Petit "$base/manifeste.sig" $sig)) {
+            Echec "Par sécurité, l'installation s'arrête : la version $etiquette n'a pas de manifeste signé (ou il n'a pas pu être téléchargé).`n  Rien n'a été modifié sur ce PC. Vérifie la connexion Internet, puis relance l'installateur."
+        }
+    }
+    $octets = [IO.File]::ReadAllBytes($json)
+    if (-not (Verifier-Signature $octets ([IO.File]::ReadAllText($sig)))) {
+        Echec "Par sécurité, l'installation s'arrête : la signature de la version $etiquette ne correspond pas à celle de TonyNio.`n  Rien n'a été modifié sur ce PC."
+    }
+    $m = [Text.Encoding]::UTF8.GetString($octets) | ConvertFrom-Json
+    if ($etiquette -ne 'main' -and $m.etiquette -ne $etiquette) {
+        Echec "Par sécurité, l'installation s'arrête : le manifeste signé est celui de $($m.etiquette), pas de $etiquette.`n  Rien n'a été modifié sur ce PC."
+    }
+    Journal "Manifeste signé vérifié : $($m.etiquette) ($(@($m.code.PSObject.Properties).Count) fichiers)."
+    return $m
+}
+function A-Copier($relatif) {
+    # Les fichiers que l'installateur met dans le dossier de Jarvis (le reste du dépôt n'est jamais copié)
+    if ($relatif -like 'docs/*') { return $true }
+    if ($relatif.Contains('/')) { return $false }
+    return ($relatif -like 'jarvis_*.py' -or $relatif -like '*.md' -or $relatif -in 'requirements.txt', 'requirements-ps5.txt', 'config.exemple.json', '.gitignore')
+}
+function Controler-Code($source, $m) {
+    # Chaque fichier qui sera copié doit être dans le manifeste signé, avec la même empreinte ; aucun ne doit manquer.
+    $attendu = @{}
+    foreach ($p in $m.code.PSObject.Properties) { $attendu[$p.Name] = "$($p.Value)".ToUpperInvariant() }
+    $vus = @{}
+    $fichiers = @(Get-ChildItem -LiteralPath $source -File -Force)
+    $docs = Join-Path $source 'docs'
+    if (Test-Path -LiteralPath $docs) { $fichiers += @(Get-ChildItem -LiteralPath $docs -File -Recurse -Force) }
+    $racine = (Get-Item -LiteralPath $source).FullName.TrimEnd('\') + '\'
+    foreach ($f in $fichiers) {
+        $relatif = $f.FullName.Substring($racine.Length).Replace('\', '/')
+        if (-not (A-Copier $relatif)) { continue }
+        $vus[$relatif] = $true
+        if (-not $attendu.ContainsKey($relatif)) { Echec "Par sécurité, l'installation s'arrête : le fichier $relatif n'est pas dans la version signée.`n  Rien n'a été modifié sur ce PC." }
+        if ((Empreinte-Canonique $f.FullName) -ne $attendu[$relatif]) { Echec "Par sécurité, l'installation s'arrête : le fichier $relatif a été modifié depuis la signature.`n  Rien n'a été modifié sur ce PC." }
+    }
+    foreach ($relatif in $attendu.Keys) {
+        if ((A-Copier $relatif) -and -not $vus.ContainsKey($relatif)) { Echec "Par sécurité, l'installation s'arrête : le fichier $relatif manque dans ce qui a été téléchargé.`n  Rien n'a été modifié sur ce PC." }
+    }
+    Bon "Fichiers de Jarvis vérifiés : signés par TonyNio ($($vus.Count) fichiers)."
+}
+
+function Preparer-Programme($dossier) {
+    # Télécharge et vérifie le code AVANT d'arrêter Jarvis : si quelque chose ne va pas, rien n'est touché.
     $miseAJour = Test-Path -LiteralPath (Join-Path $dossier 'jarvis_gardien.py')       # Jarvis est déjà là : c'est une mise à jour
     $source = $env:JARVIS_SOURCE                       # dossier local (essais avant publication)
     $etiquette = 'copie locale'
@@ -865,22 +958,32 @@ function Copier-Programme($dossier) {
                 if ($etiquette -eq 'main') { $etiquette = ($client.DownloadString("https://api.github.com/repos/$DEPOT/releases/latest") | ConvertFrom-Json).tag_name }
             }
         } catch { Journal "Dernière version introuvable par l'API GitHub : $($_.Exception.Message)" }
-        $adresse = if ($etiquette -eq 'main') { "https://github.com/$DEPOT/archive/refs/heads/main.zip" } else { "https://github.com/$DEPOT/archive/refs/tags/$etiquette.zip" }
+        if (-not $etiquette) { $etiquette = 'main' }
+        $manifeste = Lire-Manifeste $etiquette
+        $etiquette = "$($manifeste.etiquette)"          # 'main' : l'étiquette signée de la dernière version publiée
         $zip = Join-Path $TEMP 'jarvis.zip'
-        Telecharger $adresse $zip "Jarvis ($etiquette)"
+        Telecharger "https://github.com/$DEPOT/archive/refs/tags/$etiquette.zip" $zip "Jarvis ($etiquette)"
         $extrait = Join-Path $TEMP 'jarvis'
         if (Test-Path -LiteralPath $extrait) { Remove-Item -LiteralPath $extrait -Recurse -Force }
         Expand-Archive -LiteralPath $zip -DestinationPath $extrait -Force
         $source = (Get-ChildItem -LiteralPath $extrait -Directory | Select-Object -First 1).FullName
+        if (-not (Test-Path -LiteralPath (Join-Path $source 'jarvis_gardien.py'))) { Echec "Les fichiers de Jarvis sont incomplets (jarvis_gardien.py absent de $source)." }
+        Controler-Code $source $manifeste
     }
     if (-not (Test-Path -LiteralPath (Join-Path $source 'jarvis_gardien.py'))) { Echec "Les fichiers de Jarvis sont incomplets (jarvis_gardien.py absent de $source)." }
+    return @{ Source = $source; Etiquette = $etiquette }
+}
+
+function Copier-Programme($dossier, $pret) {
+    New-Item -ItemType Directory -Path $dossier -Force | Out-Null
+    $source = $pret.Source
     # Seuls les fichiers du programme sont copiés : les réglages et la mémoire ne sont jamais touchés.
     Get-ChildItem -LiteralPath $source -File | Where-Object {
         $_.Name -like 'jarvis_*.py' -or $_.Name -like '*.md' -or $_.Name -in 'requirements.txt','requirements-ps5.txt','config.exemple.json','.gitignore'
     } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $dossier $_.Name) -Force }
     $docs = Join-Path $source 'docs'
     if (Test-Path -LiteralPath $docs) { Copy-Item -LiteralPath $docs -Destination $dossier -Recurse -Force }
-    Bon "Fichiers de Jarvis en place ($etiquette, version $(Version-Installee $dossier))."
+    Bon "Fichiers de Jarvis en place ($($pret.Etiquette), version $(Version-Installee $dossier))."
 }
 
 function Installer-Modules($dossier, $python) {
@@ -1080,6 +1183,8 @@ function Ecrire-Rapport($dossier, $choix) {
     }
     if (-not $d) { $d = New-Object PSObject }
     if ($choix -eq 'technique' -and $d.niveau -eq 'complet') { Bon 'Rapports : « Complet », comme avant.'; return }
+    # Fichiers repris d'une ancienne installation : un refus n'est jamais réactivé par la case cochée d'office
+    if ($choix -eq 'technique' -and $d.niveau -eq 'aucun') { Bon 'Rapports : aucun, comme avant (modifiable dans les Réglages, rubrique Rapports).'; return }
     $maintenant = [double]([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) / 1000
     $d | Add-Member -NotePropertyName niveau -NotePropertyValue $choix -Force
     $d | Add-Member -NotePropertyName choisi_le -NotePropertyValue $maintenant -Force
@@ -1436,6 +1541,7 @@ function Installer($dossierExistant) {
     }
     New-Item -ItemType Directory -Path $TEMP -Force | Out-Null
     Fenetre-Progression $(if ($maj) { 'Mise à jour de Jarvis' } else { 'Installation de Jarvis' })
+    $pret = Preparer-Programme $dossier          # téléchargé et vérifié AVANT d'arrêter Jarvis : un refus ne casse rien
     Arreter-Jarvis
 
     # 3. Python
@@ -1456,7 +1562,7 @@ function Installer($dossierExistant) {
 
     # 4 à 7. Jarvis, ses modules, le modèle vocal, les réglages
     Titre "Jarvis"
-    Copier-Programme $dossier
+    Copier-Programme $dossier $pret
     $env_py = Installer-Modules $dossier $python
     Installer-Vosk $dossier
     Installer-Vosk-Voix $dossier

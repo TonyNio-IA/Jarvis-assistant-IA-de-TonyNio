@@ -16,6 +16,13 @@ class R(io.BytesIO):
 def faux_urlopen(requete, timeout=0):
     return R(b"MZ" + b"x" * 80_000)
 urllib.request.urlopen = faux_urlopen
+# 1.69 : la mise à jour est accompagnée d'un manifeste signé (sa signature est essayée dans essai_signature_169)
+import hashlib
+_emp = hashlib.sha256(b"MZ" + b"x" * 80_000).hexdigest().upper()
+def faux_manifeste(cible):
+    m._manifeste = {"publication": {"Installer-Jarvis.exe": _emp, "Installer-Jarvis.bat": _emp}, "code": {}, "etiquette": "v9.99"}
+    return m._manifeste, b"{}", b"signature"
+m.charger_manifeste = faux_manifeste
 
 lances = []
 drap = []

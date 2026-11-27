@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.68**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.69**
 
 **Pour installer Jarvis** $\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
@@ -41,6 +41,12 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.69
+
+- **Mises à jour signées.** Chaque version est maintenant accompagnée d'un manifeste signé par TonyNio : le numéro de la version, et l'empreinte de l'installateur et de chaque fichier du code. La clé qui signe n'est jamais sur GitHub. Jarvis n'installe plus une mise à jour sans signature valide, ou dont un seul fichier a été modifié : il le dit et reste dans sa version. L'installateur revérifie chaque fichier téléchargé avant d'arrêter Jarvis : un refus ne casse rien.
+- **Rapports : un refus est toujours respecté.** Un PC qui avait choisi « Rien » le garde, même en venant d'une ancienne version ou après une réinstallation qui reprend ses fichiers. « Technique » reste le réglage proposé d'office pour une installation neuve.
+- **Essais publics.** Les essais automatiques de Jarvis sont dans le dossier `essais` du dépôt et tournent sur une machine Windows de GitHub à chaque envoi de code. Une version n'est publiée que si tout est vert.
 
 ## Nouveau en 1.68
 
@@ -127,7 +133,7 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 
 ## Nouveau en 1.60
 
-- **Rapports plus discrets** : la ville de la météo est masquée même écrite autrement (« Saint Lubin » ou « Saint-Lubin »), ainsi que l'objet et l'expéditeur des mails lus à voix haute, « ma ville est… », « j'habite à… » et la ville citée dans une demande de météo.
+- **Rapports plus discrets** : la ville de la météo est masquée même écrite autrement (« Saint Martin » ou « Saint-Martin »), ainsi que l'objet et l'expéditeur des mails lus à voix haute, « ma ville est… », « j'habite à… » et la ville citée dans une demande de météo.
 - **Moins de répétitions** : le message « limite d'utilisation de Claude atteinte » (ou « Claude n'est pas installé ») est dit en entier une fois par heure, puis en une phrase courte.
 - **Se taire sans Claude** : « tais-toi », « silence », « chut », « ça suffit » ou « mets-toi en veille » arrêtent Jarvis tout de suite.
 - **Riot Games et Opera GX** mieux reconnus aussi avec « ferme », « quitte » et « arrête ».
@@ -712,6 +718,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.69 | Mise à jour forcée : mises à jour signées (manifeste signé, chaque fichier vérifié avant d'arrêter Jarvis) ; un refus des rapports n'est plus jamais réactivé ; essais publics lancés par GitHub à chaque envoi. |
 | 1.68 | Limite de Claude : Jarvis propose de brancher un assistant gratuit ; « lors / los » compris comme « lance » ; PC modeste prévenu dès l'installation ; le rapport dit si le micro capte du son et si « Jarvis » est reconnu (compteurs). Apporte à tous les nouveautés de la 1.67. |
 | 1.67 | Pré-version (testeurs) : empreinte SHA-256 vérifiée et retour à la version d'avant si la nouvelle ne démarre pas ; Jarvis figé relancé ; mémoire rangée par catégorie et par sujet ; enchaîner sans redire « Jarvis » (3 à 20 s). |
 | 1.66 | Mise à jour bloquée : Jarvis explique comment la débloquer ; « Tu voulais dire… ? » ; plus d'actions et de réponses sans Claude ; alerte disque presque plein ; IA gratuite sur le PC pas à pas (Ollama) ; un seul onglet « Assistants » ; couper la parole avec « Jarvis ». |

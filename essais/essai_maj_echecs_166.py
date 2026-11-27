@@ -43,6 +43,10 @@ m.echec_a_dire()
 # téléchargement raté (réseau coupé dans le bac à sable) : 1er message normal, 2e = l'aide
 m.oublier_echecs()
 m.disponible = ("9.98", "essai")
+m.FICHIER_SIGNATURE = os.path.join(os.environ["TEMP"], "essai_signature_refusee.json")
+# 1.69 : la version a bien un manifeste ; c'est le réseau qui manque (coupé dans le bac à sable)
+m._manifeste_url = "https://github.com/essai/releases/download/v9.98/manifeste.json"
+m._signature_url = "https://github.com/essai/releases/download/v9.98/manifeste.sig"
 r1 = m.installer()
 r2 = m.installer()
 verifier("connexion Internet" in r1, "1er téléchargement raté : " + r1)

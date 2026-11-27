@@ -66,9 +66,9 @@ FAMILLES = {
     "quel jour de la semaine est le 1er mai", "dans combien de jours le week-end", "combien de jours avant la fin du mois",
     "quel jour est-on", "on est quel mois", "en quelle année sommes-nous", "quelle saison sommes-nous"],
  "départements et régions": [
-    "quel est le département 82", "c'est quoi le département 31", "quel est le numéro du département du Tarn",
-    "quel est le numéro de la Haute-Garonne", "quelle est la préfecture du Tarn-et-Garonne", "quel est le chef-lieu du Lot",
-    "dans quelle région est le Tarn-et-Garonne", "dans quel département est Toulouse", "quelle région pour le département 33",
+    "quel est le département 29", "c'est quoi le département 31", "quel est le numéro du département du Tarn",
+    "quel est le numéro de la Haute-Garonne", "quelle est la préfecture du Finistère", "quel est le chef-lieu du Lot",
+    "dans quelle région est le Finistère", "dans quel département est Toulouse", "quelle région pour le département 33",
     "combien de départements en France", "combien y a-t-il de régions en France", "quels sont les départements d'Occitanie"],
  "culture générale stable": [
     "quelle est la capitale de l'Italie", "quelle est la capitale de l'Allemagne", "capitale du Brésil",
