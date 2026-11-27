@@ -85,7 +85,12 @@ jr._signal()
 verifie("compteur coupé : aucun signal envoyé", not envois, str(envois))
 
 print("--- 4. Réinstallation avec reprise des fichiers (case « rapport technique » cochée d'office)")
-corps = os.path.join(RACINE, "installateur", "corps.ps1")
+# la partie PowerShell de l'installateur publié (tout ce qui suit la marque dans Installer-Jarvis.bat)
+with open(os.path.join(RACINE, "installateur", "Installer-Jarvis.bat"), "rb") as f:
+    _lot = f.read()
+corps = os.path.join(TMP, "corps.ps1")
+with open(corps, "wb") as f:
+    f.write(_lot[_lot.index(b"#==JARVIS-POWERSHELL==#"):])
 script = r'''
 $ErrorActionPreference = 'Stop'
 $texte = [IO.File]::ReadAllText('%s', [Text.Encoding]::UTF8)
