@@ -2,7 +2,7 @@
 
 **Français : [README.md](README.md)** · **Current version: 1.64**
 
-**To install Jarvis** (recommended method, it works on every PC): open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
+**To install Jarvis** $\color{green}{\textsf{\textbf{(recommended method, it works on every PC)}}}$: open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
@@ -343,7 +343,7 @@ Jarvis adapts to what you use, instead of requiring Chrome and iCloud.
 
 ### Recommended method: one line to paste into the Terminal (works on every PC)
 
-Windows often blocks a small free program downloaded by the browser. This method avoids that block without turning anything off.
+$\color{green}{\textsf{\textbf{(recommended method, it works on every PC)}}}$ Windows often blocks a small free program downloaded by the browser. This method avoids that block without turning anything off.
 
 1. Press the Windows key + X, then choose **Terminal** (or **Windows PowerShell**).
 2. Copy this line, paste it into the window (right-click), then press Enter:
