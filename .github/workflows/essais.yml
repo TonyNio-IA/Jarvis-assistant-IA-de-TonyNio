@@ -1,0 +1,60 @@
+# Essais automatiques de Jarvis, sur une machine Windows de GitHub (gratuit pour un dépôt public).
+# À chaque envoi de code : Jarvis est copié dans C:\Jarvis comme chez un utilisateur, ses modules sont installés,
+# puis toutes les séries du dossier essais\ sont lancées. Une publication n'est faite que si ces essais sont verts.
+name: Essais de Jarvis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: essais-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  essais:
+    name: Essais (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Jarvis dans C:\Jarvis, comme chez un utilisateur
+        shell: pwsh
+        run: |
+          robocopy $env:GITHUB_WORKSPACE C:\Jarvis /E /NFL /NDL /NJH /NJS /XD .git | Out-Null
+          if ($LASTEXITCODE -ge 8) { exit 1 }
+          robocopy C:\Jarvis\essais C:\Jarvis\tests /E /NFL /NDL /NJH /NJS | Out-Null
+          if ($LASTEXITCODE -ge 8) { exit 1 }
+          exit 0
+
+      - name: Python de Jarvis et ses modules
+        shell: pwsh
+        run: |
+          python -m venv C:\Jarvis\python-env
+          C:\Jarvis\python-env\Scripts\python.exe -m pip install --upgrade pip --quiet
+          C:\Jarvis\python-env\Scripts\python.exe -m pip install -r C:\Jarvis\requirements.txt --quiet
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Essais
+        shell: pwsh
+        env:
+          PYTHONIOENCODING: utf-8
+        run: C:\Jarvis\python-env\Scripts\python.exe C:\Jarvis\tests\tous_les_essais.py --sans-fenetre
+
+      - name: Résultats détaillés
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-essais
+          path: C:\Jarvis\tests\tous_les_essais.json
+          if-no-files-found: ignore

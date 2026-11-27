@@ -1,0 +1,30 @@
+# Minuteurs nommés : noms mal entendus, et « annule » ne supprime jamais les vrais rappels (fichier d'essai)
+import sys, os, time, tempfile
+sys.path.insert(0, r"C:\Jarvis"); os.chdir(r"C:\Jarvis")
+sys.stdout.reconfigure(encoding="utf-8")
+import jarvis_commandes as c
+c.FICHIER_RAPPELS = os.path.join(tempfile.mkdtemp(), "rappels.json")
+def dit(p):
+    r = c.commande_instantanee([p]); print(f"{p!r:55} -> {r}")
+dit("rappelle-moi à 23 h 50 d'appeler le garage")
+dit("rappele-moi à 23h58, d'appeler le plombier")
+dit("minuteur pas 5 minutes")
+dit("un minuteur de 8 minutes pour le faut")
+dit("combien de temps pour les pattes")
+dit("annule le minuteur du gâteau")
+dit("annule le minuteur du faux")
+dit("où en sont les minuteurs")
+dit("annule les minuteurs")
+dit("quels sont mes rappels")
+dit("minuteur riz 4 minutes")
+dit("annule le minuteur")
+dit("où en sont les minuteurs")
+dit("minuteur four 6 minutes")
+dit("combien de temps pour les pâtes")
+dit("annule les minuteurs")
+dit("quels sont mes rappels")
+erreurs = 0
+import json
+reste = json.load(open(c.FICHIER_RAPPELS, encoding="utf-8"))
+print("reste:", [r["message"] for r in reste])
+print("garage garde:", any("garage" in r["message"] for r in reste))

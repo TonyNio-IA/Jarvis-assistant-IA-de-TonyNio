@@ -1,0 +1,29 @@
+{
+ "bons": [
+  "essai_12_restants.py",
+  "essai_accueil_une_fois.py",
+  "essai_agenda_flou.py",
+  "essai_annee_mots.py",
+  "essai_badges_pc.py",
+  "essai_chaine_savoir.py",
+  "essai_conv_rapport.py",
+  "essai_corrections_tablettes.py",
+  "essai_coupure_166.py",
+  "essai_enfant_web.py",
+  "essai_eventail_controle.py",
+  "essai_eventail_local.py",
+  "essai_imprimante.py",
+  "essai_infos.py",
+  "essai_marquer_lus.py",
+  "essai_merci.py",
+  "essai_micro_perdu.py",
+  "essai_nuit_explique.py",
+  "essai_parefeu.py",
+  "essai_question_a_part.py",
+  "essai_rapports_tablette.py",
+  "essai_reglages_persistance.py",
+  "essai_reponses_locales.py",
+  "essai_tablette_112.py",
+  "essai_tablette_m4a.py"
+ ]
+}
