@@ -320,6 +320,18 @@ foreach ($lien in @($p.raccourcis)) {
 }
 if ($retires) { Fait "les raccourcis de Jarvis (Bureau, démarrage de Windows)" }
 
+# 3 ter. Les rappels confiés à Windows (Planificateur de tâches, dossier « Jarvis »)
+if ($p.taches) {
+    try {
+        $taches = @(Get-ScheduledTask -TaskPath '\Jarvis\' -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like 'Rappel-*' })
+        foreach ($tache in $taches) { Unregister-ScheduledTask -TaskName $tache.TaskName -TaskPath '\Jarvis\' -Confirm:$false -ErrorAction SilentlyContinue }
+        if ($taches.Count) { Fait "les rappels confiés à Windows" }
+        $planificateur = New-Object -ComObject Schedule.Service
+        $planificateur.Connect()
+        if (-not $planificateur.GetFolder('\Jarvis').GetTasks(1).Count) { $planificateur.GetFolder('\').DeleteFolder('Jarvis', 0) }
+    } catch {}
+}
+
 # 3 bis. La règle du pare-feu pour les tablettes (Windows demande l'autorisation), seulement si elle existe
 try { & netsh.exe advfirewall firewall show rule name="Jarvis - tablettes" | Out-Null } catch {}
 if ($LASTEXITCODE -eq 0) {
@@ -427,7 +439,7 @@ def preparer(garder_dans=None, fichier_zip=None, retirer=(), supprimer_extras=Fa
     plan = {"dossier": dossier or jarvis_config.DOSSIER, "raccourcis": raccourcis() if liens is None else list(liens),
             "autres": list(autres), "cle": cle, "garde": garder_dans or "", "zip": fichier_zip or "",
             "python": "python" in retirer, "vc": "vc" in retirer, "claude": "claude" in retirer,
-            "silencieux": bool(silencieux), "resultat": resultat or ""}
+            "silencieux": bool(silencieux), "resultat": resultat or "", "taches": dossier is None}
     script, fichier_plan = os.path.join(travail, "desinstaller.ps1"), os.path.join(travail, "plan.json")
     with open(script, "w", encoding="utf-8-sig") as f:          # avec BOM : PowerShell lit bien les accents
         f.write(SCRIPT)

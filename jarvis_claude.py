@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.64"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.65"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -887,7 +887,7 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
         print("Erreur Whisper :", erreur)
         return texte_vosk
     # Hallucinations connues de Whisper sur du bruit
-    if not texte or re.search(r"amara|sous-titr", texte, re.I):
+    if not texte or _HALLUCINATION.search(texte):
         return texte_vosk
     if _repetitif(texte):
         print("Whisper a inventé une phrase en boucle (bruit) : demande ignorée. Vosk :", texte_vosk)
@@ -902,6 +902,15 @@ def transcrire(octets, texte_vosk, bip_au_debut=False):
         sons_perdus = 0
     garder_enregistrement(octets, texte, texte_vosk)
     return texte
+
+
+# Phrases que Whisper invente sur du silence ou du bruit (elles viennent des vidéos qui l'ont entraîné) :
+# personne ne les dit à Jarvis. Quand il en sort une, on garde ce qu'a entendu la première écoute (Vosk).
+_HALLUCINATION = re.compile(
+    r"amara|sous-?titr|soustitreur|merci d'avoir (?:regard|suivi|visionn|[ée]cout)|merci (?:à tous )?pour (?:votre|ton) (?:attention|[ée]coute|visionnage)|"
+    r"abonnez[- ]vous|abonne[- ]toi|n'oublie(?:z)? pas de (?:vous |t')abonner|(?:à|a) bient[ôo]t (?:pour|dans) une (?:prochaine|nouvelle|autre) vid[ée]o|"
+    r"(?:c'est|c'était) la fin de (?:cette|la) vid[ée]o|laissez (?:un|vos) (?:commentaires?|pouce)|pouce bleu|"
+    r"activez la cloche|radio-canada|merci d'avoir regard[ée] cette vid[ée]o", re.I)
 
 
 def combiner(texte_whisper, texte_vosk):
@@ -2329,6 +2338,16 @@ def main():
     except Exception as erreur_fenetres:
         print("Premiers pas :", erreur_fenetres)
     jarvis_commandes.demarrer_rappels(lambda texte: point_pret.put((texte, "rappel")))
+    try:                                         # Wikipédia tarde (sans Claude) : « Je regarde sur Wikipédia. »
+        import jarvis_wikipedia
+        jarvis_wikipedia.patienter = lambda phrase: speak(phrase)
+    except Exception as erreur_wiki:
+        print("Wikipédia :", erreur_wiki)
+    try:                                         # Ctrl + Alt + J : écrire à Jarvis depuis n'importe quelle fenêtre
+        import jarvis_raccourci
+        jarvis_raccourci.demarrer(jarvis_raccourci.ouvrir_saisie)
+    except Exception as erreur_raccourci:
+        print("Raccourci clavier :", erreur_raccourci)
     jarvis_commandes.precharger_applications()
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
@@ -2359,7 +2378,10 @@ def main():
               "Je prépare ton point du jour, je te le lis dès qu'il est prêt.",
               "D'accord, j'annule le point du jour.", "Aucun point du jour n'est en préparation.",
               "Avec plaisir.", "C'est fait.", "C'est retenu.", "C'est noté.",
-              "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt."],), daemon=True).start()
+              "Ton point du jour est déjà en préparation, je te le lis dès qu'il est prêt.",
+              "Je regarde sur Wikipédia.", "Dans le doute, je ne fais rien. Redemande-le-moi, puis réponds juste oui.",
+              "Je règle mon micro sur le bruit de la pièce. Ne parle pas pendant une dizaine de secondes, "
+              "je te dis quand c'est fini."],), daemon=True).start()
     threading.Thread(target=claude.demarrer, daemon=True).start()   # Claude prêt d'avance
     bilan = jarvis_maj.bilan_au_demarrage()       # après une mise à jour lancée par Jarvis : a-t-elle réussi ?
     if bilan:
@@ -2377,13 +2399,18 @@ def main():
         threading.Thread(target=preparer_point_du_jour, args=(POINT_DU_JOUR_ATTENTE,),
                          daemon=True).start()
 
+    def _dire_forcee(texte):
+        """La mise à jour forcée est annoncée à voix haute au premier essai seulement, pas à chaque nouvel essai."""
+        if jarvis_maj.premier_essai_forcee():
+            parler(texte)
+
     def hors_micro():
         """Sans micro : les demandes écrites, les rappels, les alertes et les mises à jour forcées sont traités."""
-        if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.CALME_AVANT_FORCEE
+        if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.calme_requis()
                 and demandes_ecrites.empty() and point_pret.empty() and jarvis_maj.forcee_a_installer()):
             etat("reponse")
             sous_titre("Mise à jour importante : je m'installe.", reponse=True)
-            parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
+            _dire_forcee("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
                    "Je m'arrête quelques minutes, puis je redémarre tout seul." + jarvis_maj.avertissement_windows())
             print("Mise à jour forcée :", jarvis_maj.installer())
             etat("erreur")
@@ -2438,13 +2465,14 @@ def main():
                     continue
                 claude.entretenir()
 
-                # Mise à jour forcée publiée sur GitHub : installée sans question, après une minute de veille
+                # Mise à jour forcée publiée sur GitHub : installée sans question, dès le démarrage de Jarvis,
+                # sinon après vingt secondes de veille
                 # (personne ne parle à Jarvis, aucune demande en cours)
-                if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.CALME_AVANT_FORCEE
+                if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.calme_requis()
                         and demandes_ecrites.empty() and point_pret.empty() and jarvis_maj.forcee_a_installer()):
                     etat("reponse")
                     sous_titre("Mise à jour importante : je m'installe.", reponse=True)
-                    parler("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
+                    _dire_forcee("Une mise à jour importante de Jarvis vient d'arriver : je l'installe maintenant. "
                            "Je m'arrête quelques minutes, puis je redémarre tout seul." + jarvis_maj.avertissement_windows())
                     print("Mise à jour forcée :", jarvis_maj.installer())
                     tampon.clear()

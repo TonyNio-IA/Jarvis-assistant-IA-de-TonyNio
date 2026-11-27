@@ -339,6 +339,29 @@ function Bouton($f, $texte, $x, $y, $l, $principal) {
     return $b
 }
 
+function Fenetre-Choix-Double($carte, $x, $y, $titre, $largeurTitre, $premier, $largeur1, $second, $largeur2) {
+    # Un titre suivi de deux choix (un seul à la fois), sur une ligne. Renvoie les deux boutons ; le premier est coché.
+    [void](Etiquette $carte $titre $x ($y + 5) $largeurTitre 20 9 $false $GRIS)
+    $groupe = New-Object Windows.Forms.Panel             # son propre groupe : les deux paires ne se décochent pas l'une l'autre
+    $groupe.Location = New-Object Drawing.Point(($x + $largeurTitre), $y)
+    $groupe.Size = New-Object Drawing.Size(($largeur1 + $largeur2 + 4), 30)
+    $carte.Controls.Add($groupe)
+    $boutons = @()
+    $gauche = 0
+    foreach ($paire in @(@($premier, $largeur1), @($second, $largeur2))) {
+        $r = New-Object Windows.Forms.RadioButton
+        $r.Text = $paire[0]
+        $r.Font = New-Object Drawing.Font('Segoe UI', 9.5)
+        $r.Location = New-Object Drawing.Point($gauche, 2)
+        $r.Size = New-Object Drawing.Size($paire[1], 26)
+        $groupe.Controls.Add($r)
+        $boutons += $r
+        $gauche += $paire[1] + 4
+    }
+    $boutons[0].Checked = $true
+    return $boutons
+}
+
 function Fenetre-Questions($gardes) {
     # Les trois petites questions d'une nouvelle installation, dans une seule fenêtre. Renvoie $true pour installer.
     $f = Nouvelle-Fenetre 'Installer Jarvis' 600 560
@@ -348,20 +371,28 @@ function Fenetre-Questions($gardes) {
     [void](Fenetre-Entete $f 'Bienvenue dans Jarvis' ("Ton assistant vocal en français. Réponds à ces petites questions, puis clique sur`n" +
                                                       "« Installer » : tout le reste se fait tout seul (10 à 20 minutes selon le PC).") 96)
     # 1. Qui es-tu ?
-    $c1 = Fenetre-Carte $f 24 108 552 86
-    [void](Etiquette $c1 "Ton prénom (Jarvis t'appellera ainsi)" 16 10 256 20 9 $false $GRIS)
-    $prenom = Saisie $c1 16 36 250
-    [void](Etiquette $c1 'Ta ville, pour la météo (facultatif)' 286 10 250 20 9 $false $GRIS)
-    $ville = Saisie $c1 286 36 250
+    $c1 = Fenetre-Carte $f 24 108 552 124
+    [void](Etiquette $c1 "Ton prénom" 16 10 170 20 9 $false $GRIS)
+    $prenom = Saisie $c1 16 36 170
+    [void](Etiquette $c1 'Ta ville, pour la météo' 200 10 210 20 9 $false $GRIS)
+    $ville = Saisie $c1 200 36 210
+    [void](Etiquette $c1 'Code postal' 424 10 112 20 9 $false $GRIS)
+    $codePostal = Saisie $c1 424 36 112
+    $codePostal.MaxLength = 5                      # le code postal départage les villes qui portent le même nom
+    # la voix de Jarvis et la façon dont il s'adresse à toi : choisies ici, Jarvis n'a plus à les demander ensuite
+    $choixVoix = Fenetre-Choix-Double $c1 16 84 'Voix' 46 "d'homme" 86 'de femme' 92
+    $choixVous = Fenetre-Choix-Double $c1 280 84 'Jarvis me' 74 'tutoie' 76 'vouvoie' 90
     # 2. Les options
-    $c2 = Fenetre-Carte $f 24 204 552 $(if ($gardes) { 182 } else { 138 })
+    $c2 = Fenetre-Carte $f 24 ($c1.Bottom + 10) 552 $(if ($gardes) { 226 } else { 182 })
     $claude = Case $c2 "J'ai un abonnement Claude (Pro ou supérieur) : Jarvis pourra répondre à toutes mes questions" 16 6 520 $false
     [void](Etiquette $c2 ("Sans abonnement, Jarvis répond déjà à l'heure, la météo, les minuteurs, les rappels, la musique " +
                           "et aux commandes du PC. Tu pourras ajouter Claude plus tard.") 35 50 500 36 9 $false $GRIS)
     $demarrage = Case $c2 'Lancer Jarvis au démarrage de Windows' 16 88 520 $true
+    # le rapport technique aide à corriger Jarvis : coché d'office, on peut le décocher (ou choisir « Complet » plus tard)
+    $rapport = Case $c2 'Envoyer un rapport technique pour aider à améliorer Jarvis (conseillé, sans tes conversations)' 16 132 520 $true
     $reprendre = $null
     if ($gardes) {
-        $reprendre = Case $c2 "Reprendre mes fichiers personnels d'une ancienne installation (réglages, profils, mémoire)" 16 132 520 $true
+        $reprendre = Case $c2 "Reprendre mes fichiers personnels d'une ancienne installation (réglages, profils, mémoire)" 16 176 520 $true
     }
     # 3. Ce qui sera installé
     $liste = @('Jarvis et son modèle de voix (environ 800 Mo en tout)')
@@ -390,7 +421,11 @@ function Fenetre-Questions($gardes) {
     if ($f.ShowDialog() -ne 'OK') { return $false }
     $script:REPONSES['JARVIS_PRENOM'] = $prenom.Text.Trim()
     $script:REPONSES['JARVIS_VILLE'] = $ville.Text.Trim()
+    $script:REPONSES['JARVIS_CP'] = $codePostal.Text.Trim()
+    $script:REPONSES['JARVIS_VOIX'] = $(if ($choixVoix[1].Checked) { 'femme' } else { 'homme' })
+    $script:REPONSES['JARVIS_VOUS'] = $(if ($choixVous[1].Checked) { 'vous' } else { 'tu' })
     $script:REPONSES['JARVIS_CLAUDE'] = $(if ($claude.Checked) { 'o' } else { 'n' })
+    $script:REPONSES['JARVIS_RAPPORT'] = $(if ($rapport.Checked) { 'technique' } else { 'aucun' })
     if ($reprendre) { $script:REPONSES['JARVIS_REPRENDRE'] = $(if ($reprendre.Checked) { 'o' } else { 'n' }) }
     $script:REPONSES['JARVIS_OK'] = 'o'
     if (-not $demarrage.Checked) { $env:JARVIS_DEMARRAGE = 'n' }
@@ -877,7 +912,154 @@ function Installer-Vosk-Voix($dossier) {
     }
 }
 
-function Ecrire-Reglages($dossier, $prenom, $ville) {
+# ---------- La ville de la météo : nom + code postal ----------
+# Avant, l'installateur prenait le premier résultat du monde entier pour le nom tapé : « bouret » donnait une commune de
+# Roumanie, et « saint-martin » l'une des communes de ce nom, au hasard. Maintenant : l'annuaire officiel des
+# communes françaises d'abord (avec le code postal quand il est donné), le reste du monde ensuite.
+function Ville-Simple($t) {
+    $s = "$t".ToLowerInvariant().Normalize([Text.NormalizationForm]::FormD)
+    $s = [regex]::Replace($s, '\p{Mn}', '')
+    $s = [regex]::Replace($s, '[^a-z0-9]+', ' ').Trim()
+    $s = [regex]::Replace($s, '\bste\b', 'sainte')
+    return [regex]::Replace($s, '\bst\b', 'saint')
+}
+function Ville-Ressemblance($a, $b) {
+    # 1 = même nom ; sinon la part de lettres communes (distance d'édition rapportée à la longueur)
+    $a = Ville-Simple $a; $b = Ville-Simple $b
+    if (-not $a -or -not $b) { return 0.0 }
+    if ($a -eq $b) { return 1.0 }
+    $n = $a.Length; $m = $b.Length
+    $avant = New-Object int[] ($m + 1)
+    for ($j = 0; $j -le $m; $j++) { $avant[$j] = $j }
+    for ($i = 1; $i -le $n; $i++) {
+        $ligne = New-Object int[] ($m + 1)
+        $ligne[0] = $i
+        for ($j = 1; $j -le $m; $j++) {
+            $cout = $(if ($a[$i - 1] -eq $b[$j - 1]) { 0 } else { 1 })
+            $ligne[$j] = [Math]::Min([Math]::Min($avant[$j] + 1, $ligne[$j - 1] + 1), $avant[$j - 1] + $cout)
+        }
+        $avant = $ligne
+    }
+    return 1.0 - ($avant[$m] / [double][Math]::Max($n, $m))
+}
+function Ville-Lire($adresse) {
+    # Une page d'un service de villes, avec un délai court : l'installation n'attend pas un service en panne
+    $demande = [Net.WebRequest]::Create($adresse)
+    $demande.Timeout = 12000
+    $demande.UserAgent = 'Jarvis-Installateur'
+    $reponse = $demande.GetResponse()
+    try {
+        $lecteur = New-Object IO.StreamReader($reponse.GetResponseStream(), [Text.Encoding]::UTF8)
+        return $lecteur.ReadToEnd()
+    } finally { $reponse.Close() }
+}
+function Communes-France($requete) {
+    # Annuaire officiel des communes françaises (geo.api.gouv.fr). Liste vide si rien, ou si le service ne répond pas.
+    try {
+        $texte = Ville-Lire ("https://geo.api.gouv.fr/communes?$requete&fields=nom,centre,population,departement,codesPostaux&format=json")
+        return @($texte | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object { $_.centre -and $_.nom })
+    } catch { Journal "Annuaire des communes ($requete) : $($_.Exception.Message)"; return @() }
+}
+function Ville-Resultat($commune, $note) {
+    $cp = @($commune.codesPostaux)[0]
+    $ou = @($commune.departement.nom, $cp) | Where-Object { $_ }
+    return @{ Nom = [string]$commune.nom; Lat = [double]$commune.centre.coordinates[1]; Lon = [double]$commune.centre.coordinates[0]
+              Ou = ($ou -join ', '); Note = $note }
+}
+function Trouver-Ville($ville, $codePostal) {
+    # Renvoie @{ Nom; Lat; Lon; Ou; Note } ou $null. « Note » : une phrase à montrer quand le choix n'est pas certain.
+    $nom = "$ville".Trim()
+    $cp = "$codePostal" -replace '\D', ''
+    if ($cp.Length -ne 5) { $cp = '' }
+    $plusieurs = $null
+    # 1. Le code postal : la commune de ce code qui porte (à peu près) ce nom
+    if ($cp) {
+        $communes = @(Communes-France "codePostal=$cp")
+        if ($communes.Count) {
+            if ($nom) {
+                $meilleure = @($communes | Sort-Object { Ville-Ressemblance $nom $_.nom } -Descending)[0]
+                if ((Ville-Ressemblance $nom $meilleure.nom) -ge 0.6) { return Ville-Resultat $meilleure '' }
+                $debut = @($communes | Where-Object { (Ville-Simple $_.nom).StartsWith((Ville-Simple $nom) + ' ') })
+                if ($debut.Count -eq 1) { return Ville-Resultat $debut[0] '' }
+            } elseif ($communes.Count -eq 1) { return Ville-Resultat $communes[0] '' }
+            $plusieurs = @($communes | Sort-Object { [int]$_.population } -Descending)[0]
+            if (-not $nom) {
+                return Ville-Resultat $plusieurs ("Plusieurs communes ont le code postal $cp : j'ai pris la plus peuplée. Si ce n'est pas la tienne, dis « Jarvis, ma ville est … » avec son nom.")
+            }
+        }
+    }
+    # 2. Le nom, parmi les communes françaises
+    if ($nom) {
+        $simple = Ville-Simple $nom
+        $communes = @(Communes-France ("nom=" + [uri]::EscapeDataString($simple) + "&boost=population&limit=10"))
+        $departement = $(if ($cp) { $(if ($cp.StartsWith('97') -or $cp.StartsWith('98')) { $cp.Substring(0, 3) } else { $cp.Substring(0, 2) }) } else { '' })
+        if ($departement) {
+            $duCoin = @($communes | Where-Object { $_.departement.code -eq $departement })
+            if ($duCoin.Count) { $communes = $duCoin }
+        }
+        $exactes = @($communes | Where-Object { (Ville-Simple $_.nom) -eq $simple } | Sort-Object { [int]$_.population } -Descending)
+        if ($exactes.Count -eq 1) {
+            $note = $(if ($cp -and @($exactes[0].codesPostaux) -notcontains $cp) { "Le code postal $cp ne correspond pas à $($exactes[0].nom) : j'ai gardé la ville." } else { '' })
+            return Ville-Resultat $exactes[0] $note
+        }
+        if ($exactes.Count -gt 1) {
+            return Ville-Resultat $exactes[0] ("Il existe $($exactes.Count) communes nommées $($exactes[0].nom) : j'ai pris la plus peuplée. Si ce n'est pas la tienne, dis « Jarvis, ma ville est $($exactes[0].nom), » suivi de ton code postal.")
+        }
+        $proches = @($communes | Sort-Object { Ville-Ressemblance $nom $_.nom } -Descending)
+        if ($proches.Count -and (Ville-Ressemblance $nom $proches[0].nom) -ge 0.75) {
+            return Ville-Resultat $proches[0] ("Je n'ai pas trouvé « $nom » : j'ai pris « $($proches[0].nom) ». Si ce n'est pas ta ville, dis « Jarvis, ma ville est … ».")
+        }
+        $debut = @($communes | Where-Object { (Ville-Simple $_.nom).StartsWith($simple + ' ') } | Sort-Object { [int]$_.population } -Descending)
+        if ($plusieurs) {
+            return Ville-Resultat $plusieurs ("Je n'ai pas trouvé « $nom » avec le code postal $cp : j'ai pris la commune la plus peuplée de ce code. Si ce n'est pas la tienne, dis « Jarvis, ma ville est … ».")
+        }
+        # 3. Ailleurs dans le monde (une ville de France passe d'abord, puis le nom le plus proche)
+        try {
+            $r = @((Ville-Lire ('https://geocoding-api.open-meteo.com/v1/search?count=10&language=fr&format=json&name=' + [uri]::EscapeDataString($nom)) | ConvertFrom-Json).results | Where-Object { $_ })
+            $memes = @($r | Where-Object { (Ville-Simple $_.name) -eq $simple })
+            $choix = @($memes | Where-Object { $_.country_code -eq 'FR' })[0]
+            if (-not $choix) { $choix = $memes[0] }
+            if (-not $choix -and $debut.Count) {
+                return Ville-Resultat $debut[0] ("Je n'ai pas trouvé « $nom » : j'ai pris « $($debut[0].nom) ». Si ce n'est pas ta ville, dis « Jarvis, ma ville est … ».")
+            }
+            if (-not $choix) { $choix = @($r | Where-Object { $_.country_code -eq 'FR' })[0] }
+            if (-not $choix) { $choix = $r[0] }
+            if ($choix) {
+                $ou = @($choix.admin1, $choix.country) | Where-Object { $_ }
+                $note = $(if ((Ville-Simple $choix.name) -ne $simple) { "Je n'ai pas trouvé « $nom » : j'ai pris « $($choix.name) ». Si ce n'est pas ta ville, dis « Jarvis, ma ville est … »." } else { '' })
+                return @{ Nom = [string]$choix.name; Lat = [double]$choix.latitude; Lon = [double]$choix.longitude; Ou = ($ou -join ', '); Note = $note }
+            }
+        } catch { Journal "Recherche de la ville dans le monde : $($_.Exception.Message)" }
+        if ($debut.Count) {
+            return Ville-Resultat $debut[0] ("Je n'ai pas trouvé « $nom » : j'ai pris « $($debut[0].nom) ». Si ce n'est pas ta ville, dis « Jarvis, ma ville est … ».")
+        }
+    }
+    return $null
+}
+
+function Ecrire-Rapport($dossier, $choix) {
+    # La case « rapport technique » de l'installateur. Ceux qui avaient choisi « Complet » restent en « Complet ».
+    if ($choix -notin @('technique', 'aucun')) { return }
+    $fichier = Join-Path $dossier 'rapports.json'
+    $d = $null
+    if (Test-Path -LiteralPath $fichier) {
+        try { $d = [IO.File]::ReadAllText($fichier, [Text.Encoding]::UTF8) | ConvertFrom-Json } catch { $d = $null }
+    }
+    if (-not $d) { $d = New-Object PSObject }
+    if ($choix -eq 'technique' -and $d.niveau -eq 'complet') { Bon 'Rapports : « Complet », comme avant.'; return }
+    $maintenant = [double]([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) / 1000
+    $d | Add-Member -NotePropertyName niveau -NotePropertyValue $choix -Force
+    $d | Add-Member -NotePropertyName choisi_le -NotePropertyValue $maintenant -Force
+    $d | Add-Member -NotePropertyName bascule_165 -NotePropertyValue $true -Force
+    if ($choix -eq 'aucun') { $d | Add-Member -NotePropertyName refuse_le -NotePropertyValue $maintenant -Force }
+    if ($d.PSObject.Properties['par_defaut']) { $d.PSObject.Properties.Remove('par_defaut') }
+    try {
+        [IO.File]::WriteAllText($fichier, ($d | ConvertTo-Json -Depth 6), $UTF8)
+        Bon $(if ($choix -eq 'technique') { 'Rapport technique activé (tu peux le changer dans les Réglages, rubrique Rapports).' } else { 'Rapports : aucun.' })
+    } catch { Attention "Le choix des rapports n'a pas pu être enregistré : Jarvis le demandera au premier démarrage." }
+}
+
+function Ecrire-Reglages($dossier, $prenom, $ville, $codePostal = '', $voix = '', $vous = '') {
     $config = Join-Path $dossier 'config.json'
     if (Test-Path -LiteralPath $config) { Bon "Réglages déjà présents : conservés." }
     else {
@@ -889,20 +1071,39 @@ function Ecrire-Reglages($dossier, $prenom, $ville) {
         [IO.File]::WriteAllText($config, $texte, $UTF8)
         Bon "Réglages créés (prénom : $propre). Tu pourras les changer en disant « Jarvis, ouvre les réglages »."
         # nouvel utilisateur : Jarvis fera connaissance pendant les premières conversations (voix, tutoiement...)
-        [IO.File]::WriteAllText((Join-Path $dossier 'accueil.json'), '{"nouveau": true}', $UTF8)
+        # ... sauf pour ce qui a déjà été choisi dans l'installateur : la voix et le tutoiement ou le vouvoiement
+        $faites = @()
+        $accueil = '{"nouveau": true'
+        $v = "$voix".Trim().ToLower()
+        $voixChoisie = $(if ($v -match '^(f|femme|denise)') { 'denise' } elseif ($v -match '^(h|homme|henri)') { 'henri' } else { '' })
+        if ($voixChoisie) {
+            $faites += '"voix"'
+            $fichierVoix = Join-Path $dossier 'reglages_voix.json'
+            if (-not (Test-Path -LiteralPath $fichierVoix)) {
+                [IO.File]::WriteAllText($fichierVoix, ('{"voix": "' + $voixChoisie + '", "vitesse": 12, "nuit": null}'), $UTF8)
+            }
+        }
+        $t = "$vous".Trim().ToLower()
+        $vousChoisi = $(if ($t -match '^(v|vous|vouvoie)') { 'true' } elseif ($t -match '^(t|tu|tutoie)') { 'false' } else { '' })
+        if ($vousChoisi) { $faites += '"tutoiement"'; $accueil += ', "vous": ' + $vousChoisi }
+        if ($faites.Count) { $accueil += ', "faites": [' + ($faites -join ', ') + ']' }
+        [IO.File]::WriteAllText((Join-Path $dossier 'accueil.json'), ($accueil + '}'), $UTF8)
+        $dit = @()
+        if ($voixChoisie) { $dit += "parlera avec une voix $(if ($voixChoisie -eq 'denise') { 'de femme' } else { "d'homme" })" }
+        if ($vousChoisi) { $dit += "te $(if ($vousChoisi -eq 'true') { 'vouvoiera' } else { 'tutoiera' })" }
+        if ($dit.Count) { Bon ("Jarvis " + ($dit -join ' et ') + ".") }
     }
     $fichierVille = Join-Path $dossier 'ville.txt'
-    if ((Test-Path -LiteralPath $fichierVille) -or -not $ville) { return }
+    if ((Test-Path -LiteralPath $fichierVille) -or -not ("$ville$codePostal".Trim())) { return }
     try {
-        $client = New-Object Net.WebClient
-        $client.Encoding = [Text.Encoding]::UTF8
-        $r = ($client.DownloadString('https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name=' + [uri]::EscapeDataString($ville)) | ConvertFrom-Json).results
-        if (-not $r) { Attention "Ville « $ville » introuvable : la météo sera celle de Paris. Plus tard, dis « Jarvis, ma ville est … » (avec le nom de ta ville)."; return }
+        $trouvee = Trouver-Ville $ville $codePostal
+        if (-not $trouvee) { Attention "Ville « $("$ville $codePostal".Trim()) » introuvable : la météo sera celle de Paris. Plus tard, dis « Jarvis, ma ville est … » (avec le nom de ta ville)."; return }
         $ic = [Globalization.CultureInfo]::InvariantCulture
-        $ligne = '{0};{1};{2}' -f ($ville -replace ';', ' '), ([double]$r[0].latitude).ToString('0.####', $ic), ([double]$r[0].longitude).ToString('0.####', $ic)
+        $ligne = '{0};{1};{2}' -f ($trouvee.Nom -replace ';', ' '), $trouvee.Lat.ToString('0.####', $ic), $trouvee.Lon.ToString('0.####', $ic)
         [IO.File]::WriteAllText($fichierVille, $ligne + "`r`n", $UTF8)
-        Bon "Ville de la météo : $ville ($($r[0].admin1), $($r[0].country))."
-    } catch { Attention "La ville n'a pas pu être vérifiée (pas de réponse du service météo) : la météo sera celle de Paris." }
+        Bon "Ville de la météo : $($trouvee.Nom)$(if ($trouvee.Ou) { " ($($trouvee.Ou))" })."
+        if ($trouvee.Note) { Attention $trouvee.Note }
+    } catch { Attention "La ville n'a pas pu être vérifiée (pas de réponse du service) : la météo sera celle de Paris. Plus tard, dis « Jarvis, ma ville est … »." }
 }
 
 function Installer-Claude {
@@ -1140,7 +1341,7 @@ function Installer($dossierExistant) {
         Dire "  La mise à jour remplace le programme. Tes réglages, ta mémoire et tes rappels sont conservés."
         if (-not (OuiNon "Mettre Jarvis à jour maintenant ?" $true 'JARVIS_OK')) { Dire "  Rien n'a été modifié."; return }
         $avecClaude = Test-Path -LiteralPath $CLAUDE_EXE
-        $prenom = ''; $ville = ''; $auDemarrage = Test-Path -LiteralPath (Chemins-Raccourcis).Demarrage
+        $prenom = ''; $ville = ''; $codePostal = ''; $voix = ''; $vous = ''; $auDemarrage = Test-Path -LiteralPath (Chemins-Raccourcis).Demarrage
     } else {
         $gardesVus = Fichiers-Gardes
         if ((Fenetre-Possible) -and -not (Fenetre-Questions $gardesVus)) { Dire "  Installation annulée : rien n'a été installé."; return }
@@ -1159,6 +1360,9 @@ function Installer($dossierExistant) {
         if (-not $reprendre) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }
         # La ville, pour la météo (sinon Paris). Le dossier et le démarrage avec Windows restent ceux par défaut.
         $ville = Demander "Ta ville, pour la météo (ou Entrée seule pour la donner plus tard)" '' 'JARVIS_VILLE'
+        $codePostal = Demander "Ton code postal, pour trouver la bonne ville (ou Entrée seule)" '' 'JARVIS_CP'
+        $voix = Demander "La voix de Jarvis : tape h (voix d'homme) ou f (voix de femme), ou Entrée seule pour choisir plus tard" '' 'JARVIS_VOIX'
+        $vous = Demander "Jarvis te tutoie ou te vouvoie ? Tape t (tutoie) ou v (vouvoie), ou Entrée seule pour choisir plus tard" '' 'JARVIS_VOUS'
         $dossier = if ($env:JARVIS_DOSSIER) { $env:JARVIS_DOSSIER } else { 'C:\Jarvis' }
         $dossier = [IO.Path]::GetFullPath($dossier.Trim('"'))
         if (-not $env:JARVIS_DOSSIER -and (Test-Path -LiteralPath $dossier) -and (Get-ChildItem -LiteralPath $dossier -Force | Select-Object -First 1) -and -not (Test-Path -LiteralPath (Join-Path $dossier 'jarvis_gardien.py'))) {
@@ -1225,7 +1429,8 @@ function Installer($dossierExistant) {
         Reprendre-Fichiers $gardes $dossier
         if (-not (Test-Path -LiteralPath (Join-Path $dossier 'config.json'))) { $prenom = Demander "Ton prénom (Jarvis t'appellera ainsi), puis Entrée" 'Alex' 'JARVIS_PRENOM' }
     }
-    Ecrire-Reglages $dossier $prenom $ville
+    Ecrire-Reglages $dossier $prenom $ville $codePostal $voix $vous
+    if (-not $maj -and $REPONSES.ContainsKey('JARVIS_RAPPORT')) { Ecrire-Rapport $dossier $REPONSES['JARVIS_RAPPORT'] }
 
     # 8. Claude
     if ($avecClaude -and -not $maj) { Titre "Claude"; Installer-Claude }

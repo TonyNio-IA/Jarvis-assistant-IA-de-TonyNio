@@ -253,6 +253,10 @@ def _degrade(couleurs, position):
     return _melange(couleurs[i], couleurs[(i + 1) % n], position - i)
 
 
+demande_saisie = False       # mis à Vrai par le raccourci Ctrl + Alt + J : la fenêtre de discussion s'ouvre pour écrire
+poignee_fenetre = None       # la fenêtre de Jarvis, pour la faire passer devant
+
+
 class Affichage:
     def __init__(self, source):
         """source : le module jarvis_reacteur (réglages, état et texte à afficher)."""
@@ -294,6 +298,7 @@ class Affichage:
         self.ecran = pygame.display.set_mode((self.w, self.h), pygame.NOFRAME)
         pygame.display.set_caption("Jarvis")
         self.hwnd = pygame.display.get_wm_info()["window"]
+        globals()["poignee_fenetre"] = self.hwnd
         # Fenêtre transparente autour du dessin, sans bouton dans la barre des tâches
         user32.ShowWindow(self.hwnd, 0)
         style = user32.GetWindowLongW(self.hwnd, -20)
@@ -655,6 +660,11 @@ class Affichage:
             self._saisie = (self._saisie + colle)[:LONGUEUR_SAISIE]
 
     def _evenements(self):
+        global demande_saisie
+        if demande_saisie:                                 # raccourci Ctrl + Alt + J
+            demande_saisie = False
+            self._dernier_eveil = time.time()              # sort du mode discret : la discussion se déploie
+            self._ouvrir_saisie()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 os._exit(0)

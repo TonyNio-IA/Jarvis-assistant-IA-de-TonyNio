@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.64**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.65**
 
 **Pour installer Jarvis** $\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
@@ -39,6 +39,23 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.65
+
+- **Mises à jour plus rapides** : Jarvis regarde toutes les 5 minutes si une version est publiée. Une mise à jour importante s'installe dès le démarrage de Jarvis, sinon après 20 secondes de calme. Si le téléchargement ou le lancement échoue, Jarvis réessaie tout seul (6 fois au plus), au lieu d'attendre le redémarrage suivant.
+- **Réponses sans Claude, tirées de Wikipédia** : « qui est Victor Hugo », « c'est quoi un trou noir », « parle-moi de la tour Eiffel »… Jarvis lit le début de l'article de Wikipédia en français.
+- **Demandes polies mieux comprises** : « ouvre Chrome s'il te plaît », « tu peux lancer Spotify pour moi », « lance Deezer sur mon PC », « je voudrais baisser le son ».
+- **Moins de phrases fantômes** : les phrases que la reconnaissance vocale invente parfois sur du bruit (« merci d'avoir regardé », « abonnez-vous »…) sont écartées.
+- **Un « oui » franc pour les actions sensibles** : pour éteindre le PC, envoyer un mail ou tout fermer, « oui mais attends », « oui… non » ou « oui ? » ne déclenchent plus rien : Jarvis le dit et attend.
+- **Rappels gardés par Windows** : chaque rappel est aussi confié au Planificateur de tâches de Windows. Si Jarvis est fermé à l'heure dite, Windows affiche le rappel dans une petite fenêtre. Rien n'est en double quand Jarvis est allumé.
+- **Ctrl + Alt + J** : ouvre la fenêtre pour écrire à Jarvis, depuis n'importe quelle fenêtre.
+- **« Règle ton micro »** : Jarvis mesure le bruit de la pièce pendant quelques secondes et choisit seul la bonne sensibilité.
+- **Installateur** : code postal pour trouver la bonne ville, choix de la voix (homme ou femme) et du tutoiement ou du vouvoiement dès la première fenêtre, et case « rapport technique » cochée par défaut (on peut la décocher).
+- **Rapports** : envoyés toutes les heures quand il y a du nouveau (au lieu d'une fois par jour), et juste après une installation ou une mise à jour. Avec cette version, le rapport technique est activé une fois pour tous ceux qui ne l'avaient pas (le rapport complet reste complet) ; chacun peut le couper dans les Réglages, rubrique Rapports, et ce choix est ensuite gardé. Jamais les conversations sans l'avoir choisi. Détails : [docs/confidentialite.md](docs/confidentialite.md).
+- **Beaucoup plus de réponses sans Claude** : pourcentages, chiffres romains, nombres en lettres, jours entre deux dates, départements et régions, conversions, culture générale…
+- **Assistants** : Groq ajouté (offre gratuite, sans carte bancaire). Sans aucun assistant, Jarvis rappelle de temps en temps qu'on peut en brancher un gratuit (les questions lui sont alors envoyées).
+- **Petites corrections** : « 1 degré » au lieu de « 1 degrés » ; message d'erreur de la vigilance météo plus clair dans le journal.
+- **Se faire guider à l'installation** : un texte à coller dans une IA gratuite (ChatGPT, Gemini, Le Chat…) pour être accompagné pas à pas : [docs/installation_guidee_ia.md](docs/installation_guidee_ia.md).
 
 ## Nouveau en 1.64
 
@@ -659,6 +676,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.65 | Mises à jour forcées plus rapides et retentées ; Wikipédia sans Claude ; demandes polies et « oui » franc ; rappels gardés par Windows ; Ctrl + Alt + J ; « règle ton micro » ; installateur (code postal, voix, tutoiement, rapport technique coché) ; rapports toutes les heures ; Groq. |
 | 1.64 | Installateur refait (fenêtres plus claires, consignes « clique sur Oui » en vert) ; ouverture d'applications sans Claude mieux gérée (« lors l'application… », Deezer) ; question d'accueil dite à part ; racine carrée et jours de février corrigés ; Kimi dans les assistants. |
 | 1.63 | « Marque tous mes mails comme lus » (avec confirmation, rien n'est supprimé) ; « Je ne sais pas faire ça. » si la messagerie refuse ; micro perdu : 3 essais puis « Aucun micro détecté », et la fenêtre de discussion reste utilisable sans micro. |
 | 1.62 | « Accède à Claude » mieux reconnu (ouvre l'onglet Claude des Réglages) ; une question de météo ou une phrase mal entendue ne déclenche plus de réponse sur le volume. |

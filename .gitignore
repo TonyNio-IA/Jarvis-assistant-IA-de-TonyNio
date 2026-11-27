@@ -74,3 +74,8 @@ assistants_journal.jsonl
 
 mode_leger.json
 cap_*.png
+
+# 1.65 : fichiers de fonctionnement (restent sur le PC)
+jarvis_en_vie.txt
+astuce_ia.txt
+rappels.json.tmp

@@ -7,8 +7,8 @@ Jarvis est fait par une seule personne, sur son temps libre. Pour savoir ce qui 
 | Quoi | Quand | Votre accord |
 | --- | --- | --- |
 | Compteur anonyme | Au démarrage, puis toutes les heures | Non demandé, mais vous pouvez le couper (Réglages, rubrique « Rapports ») |
-| Rapport technique | Une fois par jour | Oui, demandé au premier lancement |
-| Rapport complet | Une fois par jour | Oui, seulement si vous le choisissez |
+| Rapport technique | Toutes les heures, s'il y a du nouveau (et juste après une installation ou une mise à jour) | Activé par défaut (y compris, une fois, lors du passage à la 1.65 pour ceux qui l'avaient coupé), vous pouvez le couper à tout moment (Réglages, rubrique « Rapports ») : ce choix est alors gardé |
+| Rapport complet | Toutes les heures, s'il y a du nouveau | Oui, seulement si vous le choisissez |
 | « Signaler un problème », « Proposer une amélioration », questionnaire | Quand vous appuyez sur « Envoyer » | Oui, c'est vous qui envoyez |
 
 ## Le compteur anonyme

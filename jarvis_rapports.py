@@ -7,7 +7,7 @@ Ce que Jarvis envoie, et quand (le détail est dans docs/confidentialite.md) :
     à sens unique, de l'identifiant que Windows garde pour la machine ; jamais l'identifiant lui-même),
     la version de Jarvis et celle de Windows, au démarrage puis toutes les heures. Il sert à compter les
     installations et les utilisateurs actifs. Rien d'autre.
-  - Rapport technique (seulement si l'utilisateur l'a accepté) : une fois par jour, les phrases mal comprises,
+  - Rapport technique (activé par défaut, l'utilisateur peut le couper ou choisir « Complet ») : toutes les heures s'il y a du nouveau, les phrases mal comprises,
     les erreurs, les fonctions utilisées, les temps de réponse, les faux réveils, les demandes refaites ou
     annulées, les demandes confiées à Claude, la qualité du micro, les réglages jamais faits, les appareils
     associés (sans leur nom), le matériel du PC et les ateliers des enfants abandonnés (nom et étape seulement).
@@ -41,12 +41,13 @@ FICHIER = jarvis_config.chemin("rapports.json")              # réglages des rap
 JOURNAL = jarvis_config.chemin("rapports_journal.jsonl")     # ce qui attend le prochain rapport (reste sur ce PC)
 CONTACT = "https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/issues"
 INTERVALLE_SIGNAL = 3600            # compteur anonyme : toutes les heures
-INTERVALLE_RAPPORT = 24 * 3600      # rapport technique : une fois par jour
+INTERVALLE_RAPPORT = 3600           # rapport technique : toutes les heures, s'il y a du nouveau
 ESSAIS = 3                          # un envoi qui échoue est retenté 3 fois, puis abandonné
 JOURS_QUESTIONNAIRE = 7
 JOURS_RAPPEL = 14                   # un seul rappel, deux semaines après un « non merci »
 MAX_EVENEMENTS = 3000
-DELAI_NOUVEL_ESSAI = 6 * 3600       # un envoi qui a échoué (pas de réseau...) est retenté 6 h plus tard, pas le lendemain
+DELAI_NOUVEL_ESSAI = 3600           # un envoi qui a échoué (pas de réseau...) est retenté une heure plus tard
+DELAI_APRES_REFUS = 24 * 3600       # le dépôt a répondu « non » : pas avant le lendemain
 # Combien d'événements récents on garde par sorte : une sorte très bavarde (faux réveils, réponses) ne chasse plus les autres
 PLAFONDS = {"reponse": 1200, "conversation": 600, "demande_claude": 200, "faux_reveil": 200, "incompris": 200,
             "erreur": 300, "refaite": 100, "annulation": 100, "atelier": 100, "appareil_non_gere": 100}
@@ -103,7 +104,20 @@ def _lire():
         elif not re.fullmatch(r"[0-9a-f]{32}", id_actuel):
             _donnees["id"] = secrets.token_hex(16)           # Windows ne donne rien : numéro tiré au hasard
             change = True
-        _donnees.setdefault("niveau", None)                     # None : pas encore demandé
+        if _donnees.get("niveau") not in NIVEAUX:               # jamais choisi : « Technique » par défaut
+            _donnees["niveau"] = "technique"
+            _donnees["par_defaut"] = True                       # la fenêtre d'accord reste à montrer une fois
+            change = True
+        if not _donnees.get("bascule_165"):
+            # 1.65 : une seule fois, « Rien » devient « Technique » (« Complet » ne bouge pas). Ensuite, celui qui
+            # remet « Rien » dans les Réglages le garde : ce repère empêche de recommencer.
+            if _donnees.get("niveau") == "aucun":
+                _donnees["niveau"] = "technique"
+                _donnees.pop("refuse_le", None)
+                _donnees["rappel_fait"] = True
+                print("(Rapports : passé de « Rien » à « Technique » avec la 1.65 ; modifiable dans les Réglages.)")
+            _donnees["bascule_165"] = True
+            change = True
         _donnees.setdefault("compteur", True)
         _donnees.setdefault("testeur", False)
         if "premier_lancement" not in _donnees:
@@ -147,6 +161,8 @@ def choisir_niveau(n):
         d = _lire()
         d["niveau"] = n
         d["choisi_le"] = time.time()
+        d.pop("par_defaut", None)
+        d["bascule_165"] = True             # un choix fait par l'utilisateur n'est jamais rebasculé
         if n == "aucun":
             d.setdefault("refuse_le", time.time())
         _ecrire()
@@ -159,7 +175,7 @@ def choisir_niveau(n):
 def a_demander():
     """Vrai s'il faut montrer la fenêtre d'accord : jamais répondu, ou un seul rappel après un « non merci »."""
     d = _lire()
-    if d.get("niveau") is None:
+    if d.get("niveau") is None or d.get("par_defaut"):       # réglé d'office : à confirmer une fois
         return True
     if (d.get("niveau") == "aucun" and not d.get("rappel_fait") and d.get("refuse_le")
             and time.time() - d["refuse_le"] > JOURS_RAPPEL * 86400):
@@ -941,7 +957,7 @@ def envoyer_rapport(force=False):
             _retirer_envoyes(octets)                    # ce qui a été noté pendant l'envoi reste pour le prochain
             print(f"(Rapports : rapport envoyé, {n} événements.)")
         else:                                           # on réessaiera dans quelques heures, pas en boucle
-            delai = INTERVALLE_RAPPORT if _dernier_envoi["refus"] else DELAI_NOUVEL_ESSAI
+            delai = DELAI_APRES_REFUS if _dernier_envoi["refus"] else DELAI_NOUVEL_ESSAI
             regler("dernier_rapport", time.time() - INTERVALLE_RAPPORT + delai)
             if os.path.exists(JOURNAL) and os.path.getsize(JOURNAL) > 2_000_000:
                 _vider_journal()                        # rien ne s'accumule sur le PC
@@ -1020,6 +1036,13 @@ def effacer_mes_donnees():
 def _boucle():
     time.sleep(45)                                   # Jarvis finit de démarrer tranquillement
     _signal()
+    try:                                             # juste après une installation ou une mise à jour : un rapport
+        version = _version_jarvis()                  # tout de suite, pour voir où en est ce PC
+        if valeur("version_rapportee") != version and niveau() != "aucun":
+            if envoyer_rapport(force=True):
+                regler("version_rapportee", version)
+    except Exception as e:
+        print("(Rapports :", type(e).__name__, ")")
     prochain_signal = time.time() + INTERVALLE_SIGNAL
     while True:
         try:

@@ -35,10 +35,19 @@ ATTENTE_AVANT_INSTALLATION = 8          # secondes : le temps que Jarvis finisse
 disponible = None        # (« 1.21 », « titre de la version ») si une version plus récente existe
 forcee = False           # la version disponible est une mise à jour forcée : installée tout de suite, sans question
 MARQUE_FORCEE = "<!-- jarvis:mise-a-jour-forcee -->"     # dans les notes de la version sur GitHub (invisible sur la page)
-INTERVALLE_FORCEES = 15 * 60                              # secondes entre deux coups d'œil à GitHub
+INTERVALLE_FORCEES = 5 * 60                               # secondes entre deux coups d'œil à GitHub
 ATTENTE_APRES_ECHEC = 60                                  # secondes avant de réessayer quand GitHub n'a pas répondu
 ESSAIS_RAPPROCHES = 5                                     # essais rapprochés, puis retour au rythme habituel
 _forcee_lancee = False
+_forcee_lancee_le = 0.0  # quand le dernier essai d'installation forcée a été lancé
+_forcee_essais = 0       # nombre d'essais depuis le démarrage de Jarvis
+_telechargement_rate = False     # le dernier essai a échoué au téléchargement (Internet) : on réessaie vite
+_bloquee_par_windows = False     # Windows a refusé l'installateur : inutile de réessayer tout seul
+ESSAIS_FORCEE = 6                # essais au plus par démarrage de Jarvis
+NOUVEL_ESSAI_TELECHARGEMENT = 5 * 60     # secondes avant de réessayer après un téléchargement raté
+NOUVEL_ESSAI_INSTALLATION = 15 * 60      # installateur lancé mais Jarvis tourne toujours : il n'a pas abouti
+DEMARRAGE = time.time()
+DEMARRAGE_SANS_ATTENTE = 3 * 60          # au démarrage de Jarvis, une forcée s'installe sans attendre la veille
 _installateur = None     # l'installateur de la version trouvée (une pré-version, pour un testeur)
 _etiquette = None        # son étiquette sur GitHub (« v1.33 ») : l'installateur prend exactement cette version
 
@@ -138,7 +147,7 @@ def _forcee_entre(actuelle, derniere):
 
 
 def verifier_en_arriere_plan():
-    """Au démarrage, puis toutes les 15 minutes : une version plus récente est-elle publiée ?
+    """Au démarrage, puis toutes les 5 minutes : une version plus récente est-elle publiée ?
     Une mise à jour ordinaire est annoncée comme d'habitude ; une mise à jour forcée est installée dès que
     Jarvis est en veille (voir forcee_a_installer)."""
     def tache():
@@ -157,13 +166,11 @@ def verifier_en_arriere_plan():
                            ") : nouvel essai dans une minute.")
                 echecs += 1
             premiere = False
-            if _forcee_lancee:
-                return
             time.sleep(ATTENTE_APRES_ECHEC if 0 < echecs <= ESSAIS_RAPPROCHES else INTERVALLE_FORCEES)
     threading.Thread(target=tache, daemon=True).start()
 
 
-CALME_AVANT_FORCEE = 60      # secondes de veille, sans demande, avant d'installer une mise à jour forcée
+CALME_AVANT_FORCEE = 20      # secondes de veille, sans demande, avant d'installer une mise à jour forcée
 CALME_TABLETTE = 5 * 60      # après une demande d'une tablette (atelier, histoire...), on attend plus longtemps
 _activite_tablette = 0.0
 
@@ -173,16 +180,43 @@ def signaler_activite():
     _activite_tablette = time.time()
 
 
+def calme_requis():
+    """Secondes de veille exigées avant une mise à jour forcée : aucune juste après le démarrage de Jarvis."""
+    return 0 if time.time() - DEMARRAGE < DEMARRAGE_SANS_ATTENTE else CALME_AVANT_FORCEE
+
+
+def _rearmer_forcee():
+    """Un essai d'installation forcée n'a pas abouti (téléchargement raté, ou installateur lancé mais Jarvis
+    tourne toujours un quart d'heure plus tard) : on permet un nouvel essai, au lieu de rester bloqué."""
+    global _forcee_lancee, lancee
+    if not _forcee_lancee or _bloquee_par_windows or _forcee_essais >= ESSAIS_FORCEE:
+        return
+    attente = NOUVEL_ESSAI_TELECHARGEMENT if _telechargement_rate else NOUVEL_ESSAI_INSTALLATION
+    if time.time() - _forcee_lancee_le >= attente:
+        _forcee_lancee = False
+        lancee = False
+        _noter("Mise à jour forcée : le dernier essai n'a pas abouti, nouvel essai (", _forcee_essais + 1, "sur",
+               ESSAIS_FORCEE, ").")
+
+
+def premier_essai_forcee():
+    """Vrai au premier essai : Jarvis n'annonce la mise à jour à voix haute qu'une fois, pas à chaque nouvel essai."""
+    return _forcee_essais <= 1
+
+
 def forcee_en_attente():
+    _rearmer_forcee()
     return bool(disponible and forcee and not _forcee_lancee
                 and time.time() - _activite_tablette >= CALME_TABLETTE)
 
 
 def forcee_a_installer():
     """Vrai une seule fois quand une mise à jour forcée attend : Jarvis l'installe alors aussitôt."""
-    global _forcee_lancee
+    global _forcee_lancee, _forcee_lancee_le, _forcee_essais
     if disponible and forcee and not _forcee_lancee:
         _forcee_lancee = True
+        _forcee_lancee_le = time.time()
+        _forcee_essais += 1
         return True
     return False
 
@@ -240,7 +274,8 @@ def _ouvrir_aide():
 def installer():
     """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
     Renvoie la phrase à dire."""
-    global _annoncee, lancee
+    global _annoncee, lancee, _telechargement_rate
+    _telechargement_rate = False
     _annoncee = True          # la mise à jour est lancée : ne plus proposer « tu veux que je l'installe ? »
     lancee = True
     cible = disponible[0] if disponible else "la plus récente"
@@ -255,6 +290,7 @@ def installer():
             if f.read(2) != b"MZ" or os.path.getsize(programme) < 50_000:
                 raise ValueError("le fichier téléchargé n'est pas l'installateur")
     except Exception as erreur:
+        _telechargement_rate = True
         _noter("Téléchargement de la mise à jour impossible :", erreur)
         return "Je n'arrive pas à télécharger la mise à jour. Vérifie la connexion Internet, puis redemande-le-moi."
     try:
@@ -272,7 +308,7 @@ def installer():
 
     def lancer():
         # Une fenêtre montre l'avancée ; l'installateur arrête Jarvis, le met à jour, puis le relance
-        global _echec
+        global _echec, _bloquee_par_windows
         # console cachée : seule la fenêtre claire d'avancement se voit (le journal installation.log garde tout)
         drapeaux = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         try:
@@ -293,6 +329,7 @@ def installer():
         except OSError as erreur:
             _noter("Lancement de l'installateur (.bat) refusé aussi :", erreur)
         _noter("Mise à jour : .exe et .bat refusés par Windows, Bloc-notes ouvert avec la marche à suivre.")
+        _bloquee_par_windows = True
         _echec = ("Windows a bloqué la mise à jour. Je reste en version " + version_actuelle() +
                   ". J'ai ouvert le Bloc-notes avec la marche à suivre : lis-le, la ligne à coller y est "
                   "(elle est aussi copiée : Contrôle V).")

@@ -393,6 +393,8 @@ AIDE = [
     ("Bases", "« Jarvis, stop » / « tais-toi »", "Il se tait. Dire « Jarvis » pendant qu'il parle lui coupe la parole."),
     ("Bases", "« Jarvis, répète »", "Redit la dernière réponse."),
     ("Bases", "« nouvelle conversation »", "Repart de zéro."),
+    ("Bases", "Ctrl + Alt + J", "Ouvre la fenêtre pour écrire à Jarvis, depuis n'importe quelle fenêtre."),
+    ("Bases", "« règle ton micro »", "Jarvis mesure le bruit de la pièce et choisit sa sensibilité tout seul."),
     ("Bases", "« qu'est-ce que tu sais faire ? »", "Le résumé des commandes."),
     ("Bases", "« quand tu entends mes mots, c'est mets-moi »", "Jarvis retient la correction pour la suite. « oublie la correction mes mots »."),
     ("Bases", "« premiers pas »", "Rouvre la fenêtre de bienvenue : comment me parler et quoi essayer."),

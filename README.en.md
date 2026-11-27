@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.64**
+**Français : [README.md](README.md)** · **Current version: 1.65**
 
 **To install Jarvis** $\color{limegreen}{\textsf{\textbf{(recommended method, it works on every PC)}}}$: open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
@@ -40,6 +40,18 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.65
+
+- **Faster updates**: Jarvis checks for a new version every 5 minutes. An important (forced) update installs as soon as Jarvis starts, otherwise after 20 quiet seconds, and is retried automatically (up to 6 times) if the download or launch fails.
+- **Answers without Claude from Wikipedia** ("who is…", "what is…"), read from French Wikipedia.
+- **Polite requests understood** (please, for me, on my PC…), and fewer phantom sentences invented by speech recognition on noise.
+- **A clear "yes" for sensitive actions**: "yes but wait", "yes… no" or "yes?" no longer shut down the PC or send an email.
+- **Reminders kept by Windows**: if Jarvis is closed at the time of a reminder, Windows shows it in a small window.
+- **Ctrl + Alt + J** opens the window to type to Jarvis; **"tune your microphone"** lets Jarvis pick its sensitivity from the room noise.
+- **Installer**: postal code to find the right town, voice and formal/informal address chosen in the first window, "technical report" box checked by default.
+- **Reports** sent hourly when there is something new. With this version the technical report is turned on once for everyone who did not have it (full reports stay full); it can be turned off in the settings, and that choice is then kept.
+- **Many more local answers**, **Groq** added to the assistants, small fixes, and a text to paste into a free AI to be guided through installation ([docs/installation_guidee_ia.md](docs/installation_guidee_ia.md)).
 
 ## New in 1.64
 

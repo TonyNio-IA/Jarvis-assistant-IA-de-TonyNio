@@ -791,7 +791,7 @@ def _meteo(s, brut):
             ciel = _CIEL.get(val("weather_code", i), "temps variable")
             lib = "aujourd'hui" if i == 0 else "demain" if i == 1 else jour_nom(i)
             parties.append(f"{lib} {ciel}, de {c._arrondi(val('temperature_2m_min', i))} à "
-                           f"{c._arrondi(val('temperature_2m_max', i))} degrés")
+                           f"{c._degres(val('temperature_2m_max', i))}")
         pire = max(indices, key=lambda i: val("precipitation_probability_max", i) or 0)
         probabilite = val("precipitation_probability_max", pire) or 0
         nom_pire = "aujourd'hui" if pire == 0 else "demain" if pire == 1 else jour_nom(pire)
@@ -814,7 +814,7 @@ def _meteo(s, brut):
             return None
         pp = d["hourly"]["precipitation_probability"][i]
         reponse = (f"{_maj(ce)} à {nom}, vers {heure} heures : {_CIEL.get(d['hourly']['weather_code'][i], 'temps variable')}, "
-                   f"{c._arrondi(d['hourly']['temperature_2m'][i])} degrés")
+                   f"{c._degres(d['hourly']['temperature_2m'][i])}")
         return reponse + (f". Risque de pluie de {c._arrondi(pp)} pour cent." if pp is not None else ".")
     cur = d["current"]
     if pluie:
@@ -854,11 +854,11 @@ def _meteo(s, brut):
         qualite = ("très froid" if ressenti < 0 else "froid" if ressenti < 8 else "frais" if ressenti < 15
                    else "doux" if ressenti < 22 else "agréable" if ressenti < 28 else "chaud" if ressenti < 35 else "très chaud")
         suite = f", ressenti {c._arrondi(r)}" if r is not None and abs(r - t) >= 2 else ""
-        return f"À {nom}, il fait {c._arrondi(t)} degrés{suite}. C'est {qualite}."
+        return f"À {nom}, il fait {c._degres(t)}{suite}. C'est {qualite}."
     ciel = _CIEL.get(val("weather_code", n), "temps variable")
     pp = val("precipitation_probability_max", n)
     return (f"{quand} à {nom} : {ciel}, de {c._arrondi(val('temperature_2m_min', n))} à "
-            f"{c._arrondi(val('temperature_2m_max', n))} degrés."
+            f"{c._degres(val('temperature_2m_max', n))}."
             + (f" Risque de pluie de {c._arrondi(pp)} pour cent." if pp is not None else ""))
 
 
@@ -1051,6 +1051,29 @@ _QUESTION = re.compile(r"^(?:qui|que|quoi|qu'|quel|quelle|quels|quelles|combien|
 _ACTU = re.compile(r"\b(?:actualites?|nouvelles|infos du jour|informations du jour|a la une)\b")
 
 
+FICHIER_ASTUCE = jarvis_config.chemin("astuce_ia.txt")
+JOURS_ASTUCE = 7
+
+
+def _astuce_ia(vous):
+    """Une fois par semaine au plus : rappelle qu'une IA gratuite peut être branchée, et ce que cela implique."""
+    try:
+        if time.time() - os.path.getmtime(FICHIER_ASTUCE) < JOURS_ASTUCE * 86400:
+            return ""
+    except OSError:
+        pass
+    try:
+        with open(FICHIER_ASTUCE, "w", encoding="utf-8") as f:
+            f.write(time.strftime("%d/%m/%Y"))
+    except OSError:
+        return ""
+    if vous:
+        return (" Astuce : vous pouvez me brancher une IA gratuite, comme Gemini ou Groq, dans les Réglages, "
+                "page Assistants. Vos questions lui seront alors envoyées.")
+    return (" Astuce : tu peux me brancher une IA gratuite, comme Gemini ou Groq, dans les Réglages, "
+            "page Assistants. Tes questions lui seront alors envoyées.")
+
+
 def _claude_installe():
     try:
         import jarvis_claude_reglages
@@ -1077,6 +1100,13 @@ def sans_claude(t, brut, demander_confirmation, ouvrir):
             return None
     except Exception:
         pass
+    try:                                    # « qui est... », « c'est quoi... » : le début de l'article de Wikipédia
+        import jarvis_wikipedia
+        reponse = jarvis_wikipedia.repondre(brut)
+        if reponse:
+            return reponse
+    except Exception as erreur:
+        print("Wikipédia :", type(erreur).__name__, erreur)
     s = _phrase(t)
     mots = s.split()
     if len(mots) < 3 or len(mots) > 25 or not _QUESTION.match(s):
@@ -1096,5 +1126,5 @@ def sans_claude(t, brut, demander_confirmation, ouvrir):
 
     demander_confirmation(lancer)
     if _vous():
-        return f"Je n'ai pas Claude sur ce PC pour vous répondre moi-même. Voulez-vous que je cherche {quoi} sur Google ? Dites oui."
-    return f"Je n'ai pas Claude sur ce PC pour te répondre moi-même. Veux-tu que je cherche {quoi} sur Google ? Dis oui."
+        return f"Je n'ai pas Claude sur ce PC pour vous répondre moi-même.{_astuce_ia(True)} Voulez-vous que je cherche {quoi} sur Google ? Dites oui."
+    return f"Je n'ai pas Claude sur ce PC pour te répondre moi-même.{_astuce_ia(False)} Veux-tu que je cherche {quoi} sur Google ? Dis oui."

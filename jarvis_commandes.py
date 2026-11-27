@@ -72,6 +72,8 @@ import jarvis_memoire
 import jarvis_maj
 import jarvis_pratique
 import jarvis_savoir
+import jarvis_eventail
+import jarvis_rappels_windows
 import jarvis_reglages
 import jarvis_web
 import urllib.parse
@@ -327,6 +329,12 @@ def _arrondi(x):
     return str(int(round(x)))
 
 
+def _degres(x):
+    """« 1 degré », « 12 degrés », « -1 degré » : le pluriel à partir de 2 seulement."""
+    n = int(round(float(x)))
+    return f"{n} degré" + ("s" if abs(n) >= 2 else "")
+
+
 # Vosk et Whisper entendent souvent « ma ville et Toulouse » ou « mavile et Toulouse » : on les accepte aussi.
 _VILLE = (r"\W*(?:ma ?vill?e(?: pour la météo)?,? (?:est|et|es|c'est|sera)|j'habite (?:à|a|au|aux|en)|"
           r"(?:règle|regle|change|mets|met|définis|choisis) (?:ma ville|la ville|la météo)(?: de la météo)? (?:sur|à|a|pour|par))"
@@ -335,20 +343,54 @@ _conseil_ville_donne = False
 _VILLE_INCONNUE = "\x00"          # marque interne : la ville entendue n'existe pas, on essaie l'autre retranscription
 
 
+_CODE_POSTAL = re.compile(r"(?<!\d)(\d{2})[ .]?(\d{3})(?!\d)")
+
+
+def _commune_code_postal(nom, code):
+    """La commune française de ce code postal qui porte (à peu près) ce nom : le code postal départage les villes de
+    même nom (« Saint-Denis, 93200 »). Sans nom : seulement si le code ne désigne qu'une commune. None sinon."""
+    communes = [c for c in _json("https://geo.api.gouv.fr/communes?codePostal=" + code
+                                 + "&fields=nom,centre,population,departement&format=json") if c.get("centre")]
+    if not communes:
+        return None
+    if nom:
+        notes = sorted(((jarvis_fenetres.ressemblance(nom, c["nom"]), c["nom"]) for c in communes), reverse=True)
+        if notes[0][0] < 0.6:
+            return None
+        commune = next(c for c in communes if c["nom"] == notes[0][1])
+    elif len(communes) == 1:
+        commune = communes[0]
+    else:
+        return None
+    lon, lat = commune["centre"]["coordinates"]
+    return {"name": commune["nom"], "latitude": lat, "longitude": lon,
+            "admin1": (commune.get("departement") or {}).get("nom", ""), "country": "France", "country_code": "FR"}
+
+
 def _commande_ville(brut):
-    """« Jarvis, ma ville est Toulouse » : règle la ville de la météo (fichier ville.txt, gardé sur ce PC)."""
+    """« Jarvis, ma ville est Toulouse » : règle la ville de la météo (fichier ville.txt, gardé sur ce PC).
+    Avec un code postal (« ma ville est Bourret, 82700 »), la bonne commune est prise même si plusieurs ont ce nom."""
     global VILLE_DEFAUT, VILLE_PRECISION
     m = re.match(_VILLE, brut.strip(), re.I)
     if not m:
         return None
     nom = m.group(1).strip(" .!?,;:«»\"'")
+    code = _CODE_POSTAL.search(nom)
+    if code:
+        nom = (nom[:code.start()] + " " + nom[code.end():]).strip(" .!?,;:«»\"'()")
+        nom = re.sub(r"\s*,?\s*(?:code postal|dans le|au)\s*$", "", nom, flags=re.I).strip(" ,")
+        code = code.group(1) + code.group(2)
     nom, indice = _separer_indice(nom)           # « Saint-Lubin, dans le Loir-et-Cher » : la ville et son département
-    if not nom or len(nom.split()) > 5 or len(indice.split()) > 6:
+    if (not nom and not code) or len(nom.split()) > 5 or len(indice.split()) > 6:
         return None
     try:
-        choix = _chercher_ville(nom, indice)
+        choix = _commune_code_postal(nom, code) if code else None
+        if not choix and nom:
+            choix = _chercher_ville(nom, indice)
     except Exception:
         return "Je n'arrive pas à vérifier cette ville pour le moment. Réessaie quand la connexion sera revenue."
+    if not choix and not nom:
+        return f"Plusieurs communes ont le code postal {code}. Dis-moi aussi le nom de la ville, par exemple : ma ville est Toulouse, 31000."
     if not choix:
         return _VILLE_INCONNUE + f"Je ne trouve pas la ville {nom}. Redis-la-moi, par exemple : ma ville est Toulouse."
     with open(FICHIER_VILLE, "w", encoding="utf-8") as f:
@@ -416,12 +458,12 @@ def _commande_meteo(t, brut):
     if jour == 0:
         c = d["current"]
         ciel = _CIEL.get(c["weather_code"], "temps variable")
-        return (f"À {nom}, il fait {_arrondi(c['temperature_2m'])} degrés, {ciel}, "
+        return (f"À {nom}, il fait {_degres(c['temperature_2m'])}, {ciel}, "
                 f"avec un vent de {_arrondi(c['wind_speed_10m'])} kilomètres heure. "
-                f"Aujourd'hui, les températures vont de {mini} à {maxi} degrés. {pluie}").strip() + conseil
+                f"Aujourd'hui, les températures vont de {mini} à {_degres(maxi)}. {pluie}").strip() + conseil
     quand = "Demain" if jour == 1 else "Après-demain"
     ciel = _CIEL.get(q["weather_code"][jour], "temps variable")
-    return f"{quand} à {nom} : {ciel}, de {mini} à {maxi} degrés. {pluie}".strip()
+    return f"{quand} à {nom} : {ciel}, de {mini} à {_degres(maxi)}. {pluie}".strip()
 
 
 # ---------- Volume et lecture ----------
@@ -545,8 +587,14 @@ def _lire_rappels():
 
 
 def _ecrire_rappels(rappels):
-    with open(FICHIER_RAPPELS, "w", encoding="utf-8") as f:
+    provisoire = FICHIER_RAPPELS + ".tmp"
+    with open(provisoire, "w", encoding="utf-8") as f:
         json.dump(rappels, f, ensure_ascii=False, indent=1)
+    os.replace(provisoire, FICHIER_RAPPELS)
+    try:                                   # les rappels sont aussi confiés à Windows (si Jarvis est fermé)
+        jarvis_rappels_windows.a_change()
+    except Exception:
+        pass
 
 
 def _pour_qui():
@@ -623,9 +671,15 @@ def _repetition_dite(jours):
 
 def demarrer_rappels(annoncer):
     """Surveille les rappels en arrière-plan et les fait dire par « annoncer »."""
+    try:
+        jarvis_rappels_windows.activer()
+    except Exception as erreur:
+        print("Rappels (Windows) :", erreur)
+
     def boucle():
         while True:
             maintenant = time.time()
+            jarvis_rappels_windows.battement()     # Jarvis tourne : Windows n'a pas à afficher les rappels
             try:
                 with _verrou_rappels:
                     rappels = _lire_rappels()
@@ -1279,13 +1333,26 @@ def _executer_alimentation(action):
     return "Je mets l'ordinateur en veille."
 
 
+# Un « oui » franc seulement : « oui », « oui vas-y », « ok éteins »... mais pas « oui mais attends », « oui, non »,
+# ni une question. Les actions confirmées (éteindre, envoyer un mail, tout fermer...) ne se rattrapent pas.
+_OUI_DEBUT = re.compile(r"\W*(?:jarvis\W+)?(oui|ouais|confirme|je confirme|vas-y|d'accord|ok)\b")
+_OUI_DOUTE = re.compile(r"\b(?:non|pas|mais|attends?|attendez|stop|annule|jamais|plut[oô]t|finalement|peut[- ]être|sauf|"
+                        r"euh|je (?:ne )?sais|hésite|minute|seconde|quoi|pourquoi|comment)\b|\?")
+
+
+def _oui_franc(t):
+    return bool(_OUI_DEBUT.match(t)) and not _OUI_DOUTE.search(t)
+
+
 def _commande_alimentation(t):
     global _attente
     if confirmation_en_attente():
         action = _attente[0]
         _attente = None
-        if re.match(r"\W*(oui|ouais|confirme|je confirme|vas-y|d'accord|ok)\b", t):
+        if _oui_franc(t):
             return _executer_alimentation(action)
+        if _OUI_DEBUT.match(t):              # « oui, mais... », « oui... non », une question : dans le doute, rien
+            return "Dans le doute, je ne fais rien. Redemande-le-moi, puis réponds juste oui."
         if re.match(r"\W*(non|annule|laisse|surtout pas|pas maintenant|plus tard)\b", t):
             if action == "maj":
                 return "D'accord. Quand tu voudras, dis-moi : Jarvis, mets-toi à jour."
@@ -1632,8 +1699,35 @@ def _commande_notes(t, brut):
 
 # ---------- Point d'entrée ----------
 
+# Mots de politesse et tournures qui entourent une demande sans rien y changer : « ouvre Chrome s'il te plaît »,
+# « tu peux ouvrir Chrome pour moi », « lance Spotify sur mon PC »... Jarvis les retire avant de chercher la commande.
+_POLI_FIN = re.compile(r"(?:[\s,]+(?:s'il (?:te|vous) pla[iî]t|stp|svp|pour moi|merci(?: beaucoup| d'avance)?|tout de suite|"
+                       r"si tu peux|si possible|rapidement|vite))+$")
+_POLI_DEBUT = re.compile(r"^(\W*(?:jarvis\W+)?)(?:(?:s'il (?:te|vous) pla[iî]t|stp|svp|euh|alors),?\s+)+(?=\S)")
+_INFINITIFS = {"ouvrir": "ouvre", "lancer": "lance", "fermer": "ferme", "quitter": "quitte", "mettre": "mets",
+               "chercher": "cherche", "rechercher": "recherche", "monter": "monte", "baisser": "baisse",
+               "couper": "coupe", "éteindre": "éteins", "redémarrer": "redémarre", "démarrer": "démarre",
+               "afficher": "affiche", "augmenter": "augmente", "diminuer": "diminue", "activer": "active",
+               "désactiver": "désactive", "allumer": "allume", "verrouiller": "verrouille"}
+_DEMANDE_POLIE = re.compile(r"^(\W*(?:jarvis\W+)?)(?:est[- ]ce que )?(?:tu peux|tu pourrais|peux[- ]tu|pourrais[- ]tu|"
+                            r"tu veux bien|veux[- ]tu|vous pouvez|pouvez[- ]vous|vous pourriez|pourriez[- ]vous|"
+                            r"j'aimerais|je voudrais|je veux) (?:m'|me |nous )?(" + "|".join(_INFINITIFS) + r")\b")
+_SUR_LE_PC = re.compile(r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|démarre|ferme|fermes|quitte)\b.+?)\s+(?:sur|dans) "
+                        r"(?:mon |le |l'|cet |ce )(?:pc|ordinateur|ordi)$")
+
+
+def _sans_remplissage(t):
+    """La demande sans ses mots de politesse ; inchangée si, sans eux, il ne resterait rien."""
+    court = _POLI_FIN.sub("", t).strip(" ,.!?")
+    court = _POLI_DEBUT.sub(r"\1", court)
+    court = _DEMANDE_POLIE.sub(lambda m: m.group(1) + _INFINITIFS[m.group(2)], court)
+    court = _SUR_LE_PC.sub(r"\1", court)
+    return court if court.strip(" ,.!?") else t
+
+
 def _propre(brut):
     t = brut.lower().replace("’", "'").strip(" .!?")
+    t = _sans_remplissage(t)
     # « désactive » est souvent entendu « des actives » (« des actives le Bluetooth ») : sans ça, Jarvis
     # ferait l'inverse de la demande
     t = re.sub(r"\b(?:des|dés|d'est) ?actives? (?=(?:le|la|les|l'|mon|ma|mes)\b)", "désactive ", t)
@@ -1823,6 +1917,66 @@ def _commande_premiers_pas(t):
         return None
 
 
+# ----- « Règle ton micro » : Jarvis mesure le bruit de la pièce et choisit lui-même sa sensibilité -----
+
+_MICRO_REGLER = re.compile(r"\b(?:r[èe]gles?|calibres?|ajustes?|[ée]talonnes?)\b.{0,25}\bmicro(?:phone)?s?\b|"
+                           r"\b(?:calibrage|calibration|r[ée]glage|[ée]talonnage) (?:du|de (?:mon|ton)) micro(?:phone)?\b")
+ATTENTE_MESURE_MICRO = 9       # secondes : le temps que Jarvis finisse sa phrase avant de mesurer
+DUREE_MESURE_MICRO = 6         # secondes de mesure
+_mesure_micro = {"en_cours": False}
+
+
+def reglage_selon_bruit(niveaux):
+    """(réglage, phrase à dire) d'après les niveaux du micro mesurés dans le silence (0 à 1).
+    Même calcul que l'écoute : le seuil suit le double du bruit de fond (ici, le cinquième le plus calme des mesures)."""
+    niveaux = sorted(float(n) for n in niveaux)
+    if not niveaux or niveaux[-1] <= 0:
+        return None, ("Je ne reçois aucun son de mon micro. Vérifie qu'il est branché et qu'il n'est pas coupé "
+                      "dans les paramètres de son de Windows, puis redemande-le-moi.")
+    fond = niveaux[int(len(niveaux) * 0.2)]
+    cible = 2 * fond
+    choix = "calme" if cible < 0.0065 else "normale" if cible < 0.0135 else "bruyante"
+    piece = {"calme": "une pièce calme", "normale": "un bruit de fond ordinaire", "bruyante": "une pièce bruyante"}[choix]
+    phrase = f"C'est réglé. J'ai mesuré {piece} : mon micro est maintenant sur le réglage {choix}."
+    if fond > 0.05:
+        phrase += (" Il y a quand même beaucoup de bruit : je risque de mal entendre. Rapproche le micro, "
+                   "ou baisse son niveau dans les paramètres de son de Windows.")
+    return choix, phrase
+
+
+def _commande_reglage_micro(t, annoncer):
+    if not _MICRO_REGLER.search(t):
+        return None
+    import jarvis_claude
+    if getattr(jarvis_claude, "micro_coupe", False):
+        return "Mon micro est coupé. Rallume-le d'abord, puis redemande-moi de le régler."
+    if _mesure_micro["en_cours"]:
+        return "La mesure est en cours, encore quelques secondes de silence."
+    _mesure_micro["en_cours"] = True
+
+    def mesurer():
+        try:
+            time.sleep(ATTENTE_MESURE_MICRO)
+            niveaux, fin = [], time.time() + DUREE_MESURE_MICRO
+            while time.time() < fin:
+                niveaux.append(float(getattr(jarvis_claude, "niveau_micro", 0.0)))
+                time.sleep(0.05)
+            choix, phrase = reglage_selon_bruit(niveaux)
+            if choix:
+                jarvis_reglages_ui.regler("micro", choix)
+                print(f"(Micro réglé sur « {choix} » d'après le bruit de la pièce.)")
+        except Exception as erreur:
+            print("Réglage du micro :", type(erreur).__name__, erreur)
+            phrase = "Je n'ai pas réussi à mesurer mon micro. Tu peux le régler à la main dans les Réglages, page Son."
+        finally:
+            _mesure_micro["en_cours"] = False
+        (annoncer or print)(phrase)
+
+    threading.Thread(target=mesurer, daemon=True, name="reglage-micro").start()
+    return ("Je règle mon micro sur le bruit de la pièce. Ne parle pas pendant une dizaine de secondes, "
+            "je te dis quand c'est fini.")
+
+
 def commande_micro(t):
     """« Coupe le micro » : Jarvis n'écoute plus (un micro barré s'affiche sur le réacteur). Pour le rallumer :
     clic droit sur le réacteur, « Rallumer le micro », ou l'écrire dans la fenêtre de discussion."""
@@ -1906,16 +2060,23 @@ def commande_instantanee(textes, annoncer=None):
                 return ensemble
             if re.search(r"\bquelle heure\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
                 return _heure()
+            reponse = jarvis_eventail.entre_deux_dates(t)   # deux dates dans la phrase : avant le calendrier, qui n'en voit qu'une
+            if reponse:
+                return reponse
             reponse = jarvis_local.calendrier(t)         # « quelle est la date », « dans combien de jours Noël »...
             if reponse:
                 return reponse
             reponse = jarvis_savoir.commande(t, brut)    # mois, saison, calculs de tête, « combien de X dans Y », capitales...
             if reponse:
                 return reponse
+            reponse = jarvis_eventail.commande(t, brut)  # pourcentages, tables, chiffres romains, départements, culture générale...
+            if reponse:
+                return reponse
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: commande_micro(t),
+            for commande in (lambda: _commande_reglage_micro(t, annoncer),
+                             lambda: commande_micro(t),
                              lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
                              lambda: _commande_rapports(t),

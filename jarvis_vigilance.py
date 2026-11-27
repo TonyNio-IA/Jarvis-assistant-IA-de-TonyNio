@@ -223,7 +223,7 @@ def commande(t):
     try:
         alertes = lire()
     except Exception as erreur:
-        print("Vigilance :", erreur)
+        print("Vigilance :", type(erreur).__name__, erreur)
         return _erreur(erreur)
     if not alertes["aujourdhui"] and not alertes["demain"]:
         return "Aucune vigilance météo dans ton département, ni aujourd'hui ni demain."
@@ -261,6 +261,6 @@ def surveiller(annoncer):
                                                           for j in ("aujourdhui", "demain") if j in nouvelles)
                         annoncer(texte)
             except Exception as erreur:
-                print("Vigilance :", erreur)
+                print("Vigilance :", type(erreur).__name__, erreur)
             time.sleep(INTERVALLE)
     threading.Thread(target=boucle, daemon=True).start()

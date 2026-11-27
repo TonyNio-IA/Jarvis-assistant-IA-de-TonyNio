@@ -44,6 +44,10 @@ FOURNISSEURS = [
      "modele": "", "cle_url": "https://aistudio.google.com/apikey",
      "gratuit": "Un niveau gratuit existe avec une clé Google AI Studio (limité).",
      "aide": "Connecte-toi avec ton compte Google, clique sur « Create API key », copie la clé."},
+    {"id": "groq", "nom": "Groq (gratuit, très rapide)", "adresse": "https://api.groq.com/openai/v1", "modele": "",
+     "cle_url": "https://console.groq.com/keys",
+     "gratuit": "Une offre gratuite existe, sans carte bancaire, avec des limites par minute et par jour.",
+     "aide": "Crée un compte sur console.groq.com (mail ou compte Google), ouvre « API Keys », crée une clé (elle commence par gsk_)."},
     {"id": "mistral", "nom": "Mistral (français)",
      "adresse": "https://api.mistral.ai/v1", "modele": "", "cle_url": "https://console.mistral.ai/api-keys",
      "gratuit": "Un forfait gratuit « Experiment » existe (vérification par téléphone demandée).",
@@ -404,6 +408,7 @@ _MOTS_EXCLUS = ("embed", "embedding", "image", "vision", "tts", "whisper", "audi
 # Modèles habituels, simples et rapides, essayés en premier (le premier qui existe chez le fournisseur gagne).
 MODELES_CONSEILLES = {
     "gemini": ("gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.5-flash"),
+    "groq": ("llama-3.3-70b-versatile", "openai/gpt-oss-120b"),
     "mistral": ("mistral-small-latest", "mistral-medium-latest"),
     "deepseek": ("deepseek-chat",),
     "kimi": ("kimi-k2.6", "kimi-k3"),
