@@ -114,7 +114,11 @@ function signal(id, d) {
     var maintenant = new Date();
     var version = String(d.version || '').slice(0, 20);
     var windows = String(d.windows || '').slice(0, 40);
-    var niveau = String(d.niveau || '').slice(0, 20);
+    var niveau = String(d.niveau || '');
+    // Un rapport donne « testeur » à part (d.testeur), le signal horaire l'écrit dans le niveau : même affichage pour les deux,
+    // sinon la mention « + testeur » disparaissait du tableau à chaque rapport reçu.
+    if (d.testeur === true && niveau.indexOf('testeur') < 0) niveau += ' + testeur';
+    niveau = niveau.slice(0, 24);
     var ligne;
     if (trouve) {
       ligne = trouve.getRow();

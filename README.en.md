@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.66**
+**Français : [README.md](README.md)** · **Current version: 1.68**
 
 **To install Jarvis** $\color{limegreen}{\textsf{\textbf{(recommended method, it works on every PC)}}}$: open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
@@ -43,7 +43,15 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
-## New in 1.67 (pre-release, for testers)
+## New in 1.68
+
+- **Claude's limit reached: Jarvis offers a way out.** It first tries to answer by itself; otherwise it offers to plug in a free assistant ("oui" opens Settings > Assistants), at most once an hour, never in child or guest mode.
+- **"Lance" better understood**: "lors", "lorses" or "los" heard at the start of a sentence are read as "lance".
+- **Modest PC: warned at install time.** On a small processor, under 6 GB of memory or 2 threads, the installer's first window says Jarvis will work but will take several seconds per sentence. Installation is never blocked.
+- **Technical report: listening.** The report says whether the microphone picks up sound and how many times "Jarvis" was recognised: counters only, never a word of what is said. At most once a day when there is nothing else to report.
+- **Everything from 1.67** (testers only until now) is now available to everyone.
+
+## New in 1.67
 
 - **Safer updates**: the downloaded installer's SHA-256 is checked against the release notes before it runs. Jarvis keeps a copy of its programs before updating: if the new version stops three times in a row at startup, the previous one is restored and that version is not reinstalled. Personal files are never touched.
 - **Frozen Jarvis**: if its display stops for 5 minutes, it is stopped and restarted (twice an hour at most).

@@ -2468,13 +2468,21 @@ _OUVRIR = re.compile(r"\b(?:ouvre|ouvrir|affiche|montre)(?:-moi)?\s+(?:tes |les 
 
 
 _CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accéde|accede|acceder|accéder|accèder|installe|installer|connecte|connecter|ajoute|ajouter|"
-                             r"configure|configurer|active|activer|relie|relier|relies|branche|brancher)(?:-moi)?[\s,]+(?:à |a |au |aux |le |la |mon |ton |l'|de )?"
+                             r"configure|configurer|active|activer|relie|relier|relies|branche|brancher)(?:-moi|-toi)?[\s,]+(?:(?:à |a |au |aux |le |la |mon |ton |l'|de )){0,2}"
                              r"(?:compte )?(?:de )?claude\b")
 
 
 _CLAUDE_COMPTE = re.compile(r"\b(?:d[ée]conn?ecte|d[ée]conn?ecter|d[ée]branche|d[ée]brancher|d[ée]lie|d[ée]lier)(?:-toi|-moi)?\b"
                             r".{0,25}\bclaude\b|\bchange[rz]?\b.{0,12}\bcompte\b.{0,10}\bclaude\b|"
-                            r"\b(?:un )?autre compte claude\b")
+                            r"\b(?:un )?autre compte claude\b|"
+                            # « Claude » mal entendu (cloth, clothes…) ou « déconnecte » coupé en deux (« des connectes toi de »)
+                            r"\b(?:d[ée]s?[- ]?)?conn?ect\w*(?:[- ]toi)?\s+(?:de|du)\s+(?:mon |ton |le )?"
+                            r"(?:compte(?![- ](?:mail|gmail|google|agenda|outlook|icloud|microsoft|orange|free|yahoo))|claude)\b")
+
+
+_ASSISTANTS = re.compile(r"\b(?:ouvre|ouvrir|affiche|montre)(?:-moi)?\s+(?:les |tes |mes |l'onglet (?:des )?|la page (?:des )?)?assistants\b|"
+                         r"\b(?:branche|brancher|ajoute|ajouter|relie|relier|installe|installer|connecte|connecter)(?:-moi)?\s+"
+                         r"(?:un |une )?(?:autre )?(?:assistant|ia|intelligence artificielle)(?: gratuite?)?\s*$")
 
 
 def commande(t):
@@ -2485,6 +2493,11 @@ def commande(t):
         ouvrir()
         return ("J'ouvre mes réglages, onglet Assistants : Claude est tout en haut. Clique sur Changer de compte "
                 "pour te déconnecter ou relier un autre compte.")
+    if _ASSISTANTS.search(t):
+        _fenetre["page"] = "Assistants"
+        ouvrir()
+        return ("J'ouvre mes réglages, onglet Assistants. Les assistants gratuits sont en haut de la liste : "
+                "Gemini et Groq se branchent sans carte bancaire.")
     if _CLAUDE_REGLAGE.search(t):
         # « installe Claude », « connecte Claude » : mes réglages s'ouvrent directement sur l'onglet Assistants (Claude en haut)
         _fenetre["page"] = "Assistants"

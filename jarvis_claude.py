@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.67"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.68"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -981,6 +981,8 @@ def chercher_reveil(resultat, audio):
             print("(Réveil confirmé par Whisper.)")
             reveil_par_whisper = True          # la demande est déjà la version précise
             return retirer_nom(precise) or ""
+    if presque:
+        rapport("ecoute", "presque_jarvis")    # un mot proche de « Jarvis », non confirmé : compté pour les rapports
     return None
 
 
@@ -1224,12 +1226,95 @@ def message_sans_claude():
 _CLAUDE_INDISPONIBLE = ("Claude a rencontré un problème avec cette demande.", "Je n'arrive pas à joindre Claude.",
                         "Cette demande a besoin de Claude, que je n'ai pas sur ce PC.",
                         "Claude est toujours à sa limite d'utilisation, je ne peux pas répondre à cette demande.")
+LIMITE_PISTE_TU = ("Claude est toujours à sa limite d'utilisation. Pour continuer sans lui, dis : ouvre les assistants, "
+                   "et branche un assistant gratuit.")
+LIMITE_PISTE_VOUS = ("Claude est toujours à sa limite d'utilisation. Pour continuer sans lui, dites : ouvre les assistants, "
+                     "et branchez un assistant gratuit.")
+_CLAUDE_INDISPONIBLE += (LIMITE_PISTE_TU, LIMITE_PISTE_VOUS)
+
+
+def _limite(reponse):
+    r = str(reponse or "")
+    return r.startswith("La limite d'utilisation de Claude est atteinte") or r.startswith("Claude est toujours à sa limite")
+
+
+def _montrer_assistants():
+    """Après « oui » : ouvre les réglages sur l'onglet Assistants, et dit quoi y faire."""
+    try:
+        import jarvis_reglages_ui
+        jarvis_reglages_ui._fenetre["page"] = "Assistants"
+        jarvis_reglages_ui.ouvrir()
+    except Exception as erreur:
+        print("Assistants :", erreur)
+        return "Je n'arrive pas à ouvrir mes réglages. Fais un clic droit sur moi, puis Réglages, onglet Assistants."
+    if jarvis_personnalite.vouvoiement():
+        return ("J'ouvre mes réglages, onglet Assistants. Dans « Gratuits », choisissez Gemini ou Groq et suivez les étapes : "
+                "c'est gratuit, sans carte bancaire. Je m'en servirai quand Claude sera à sa limite.")
+    return ("J'ouvre mes réglages, onglet Assistants. Dans « Gratuits », choisis Gemini ou Groq et suis les étapes : "
+            "c'est gratuit, sans carte bancaire. Je m'en servirai quand Claude sera à sa limite.")
+
+
+def proposer_un_assistant(reponse):
+    """Claude est à sa limite et aucun autre assistant n'est branché : au lieu de répéter « limite atteinte », Jarvis propose
+    une solution. Message complet (avec « dis oui ») une fois par heure, version courte ensuite. Jamais en mode enfant ni
+    invité. Renvoie le message à dire (inchangé si rien à proposer)."""
+    if not _limite(reponse):
+        return reponse
+    try:
+        import jarvis_enfant
+        import jarvis_extras
+        if jarvis_enfant.actif() or jarvis_extras.invite():
+            return reponse
+    except Exception:
+        return reponse
+    vous = bool(jarvis_personnalite.vouvoiement())
+    if str(reponse).startswith("La limite d'utilisation de Claude est atteinte"):
+        jarvis_commandes.demander_confirmation(_montrer_assistants)
+        if vous:
+            return ("La limite d'utilisation de Claude est atteinte pour le moment. Pour continuer tout de suite, je peux vous "
+                    "montrer comment brancher un assistant gratuit, comme Gemini ou Groq : dites oui. En attendant, je "
+                    "réponds toujours à l'heure, la météo, les minuteurs, la musique et l'ouverture des applications.")
+        return ("La limite d'utilisation de Claude est atteinte pour le moment. Pour continuer tout de suite, je peux te "
+                "montrer comment brancher un assistant gratuit, comme Gemini ou Groq : dis oui. En attendant, je "
+                "réponds toujours à l'heure, la météo, les minuteurs, la musique et l'ouverture des applications.")
+    return LIMITE_PISTE_VOUS if vous else LIMITE_PISTE_TU
 
 
 def claude_indisponible(reponse):
     """Vrai si la réponse est l'un des messages « Claude n'est pas là / pas relié / à sa limite »."""
     r = str(reponse or "")
     return r in _CLAUDE_INDISPONIBLE or r == SANS_CLAUDE or r.startswith("La limite d'utilisation de Claude est atteinte")
+
+
+_OUI_SEUL = re.compile(r"^\W*(?:oui|ouais|non|ok|okay|d'accord|si|vas-y|c'est ça)\W*$", re.I)
+
+
+def rattrapage_local(demande):
+    """Claude ne peut pas répondre (absent, pas relié, à sa limite) : ce que Jarvis peut encore faire tout seul.
+    Renvoie la phrase à dire, ou None. Vu dans les rapports : « … réponds-moi à ma question. Quelle heure est-il ? »,
+    « oui » dit tout seul, « lance l'application … »."""
+    texte = str(demande or "").strip()
+    if not texte:
+        return None
+    if _OUI_SEUL.match(texte):
+        return "Je n'ai pas de question en attente. Redis-moi ta demande en entier."
+    phrases = [p for p in re.split(r"(?<=[.?!…])\s+", texte) if p.strip()]
+    if len(phrases) >= 2:                              # plusieurs phrases : la dernière est souvent la vraie demande
+        try:
+            locale = jarvis_commandes.commande_instantanee([phrases[-1]])
+            if locale:
+                print("Rattrapage : dernière phrase traitée sans Claude :", phrases[-1][:80])
+                return locale
+        except Exception as erreur:
+            print("Rattrapage :", erreur)
+    try:
+        import jarvis_assistants
+        locale = jarvis_assistants.reponse_action(texte, os.path.exists(CLAUDE_EXE))
+        if locale:                                     # ouvrir une application introuvable : Jarvis le dit lui-même
+            return locale
+    except Exception as erreur:
+        print("Rattrapage :", erreur)
+    return None
 
 
 def demander_avec_secours(message, demande, longue=False):
@@ -1251,10 +1336,14 @@ def demander_avec_secours(message, demande, longue=False):
     reponse, erreur = claude.demander(message)
     if not erreur or not claude_indisponible(reponse):
         return reponse, erreur
+    if not longue:
+        rattrape = rattrapage_local(demande)           # ce que Jarvis sait encore faire sans Claude
+        if rattrape:
+            return rattrape, False
     try:
         import jarvis_assistants
         if not jarvis_assistants.utilisable_maintenant():
-            return reponse, erreur
+            return proposer_un_assistant(reponse), erreur     # limite de Claude : une solution, pas seulement le constat
         if not longue:                                 # ouvrir une application : l'assistant de secours n'a pas accès au PC
             locale = jarvis_assistants.reponse_action(demande, os.path.exists(CLAUDE_EXE))
             if locale:
@@ -2365,6 +2454,7 @@ def attendre_micro(entre_temps=None):
         echecs += 1
         if echecs == MICRO_ESSAIS:
             print("Aucun micro trouvé : branche un micro, Jarvis démarrera tout seul (vérification toutes les 5 secondes).")
+            rapport("ecoute", "sans_micro")
             etat("erreur")
             sous_titre(MICRO_MESSAGE)
             message_a = time.time()
@@ -2559,6 +2649,7 @@ def main():
                 _battre_ecoute()
                 if data is None:               # le micro n'a encore rien envoyé : on attend encore, sans relancer Jarvis
                     continue
+                rapport("ecoute_bloc", BLOC_AUDIO / SAMPLE_RATE, niveau_micro, micro_coupe)     # le micro capte-t-il ?
                 claude.entretenir()
 
                 # Mise à jour forcée publiée sur GitHub : installée sans question, dès le démarrage de Jarvis,
@@ -2676,6 +2767,7 @@ def main():
                             and re.search(r"\bjarvis(\s+\S+)?$",
                                           json.loads(recognizer.PartialResult()).get("partial", ""))):
                         print("(« Jarvis » entendu pendant que le PC joue du son.)")
+                        rapport("ecoute", "jarvis")
                         etat("ecoute")
                         baisser_son(insister=True)
                         try:
@@ -2705,10 +2797,12 @@ def main():
                 if not phrase:
                     continue
                 print("Entendu :", phrase)
+                rapport("ecoute", "phrase")                    # un compteur, jamais les mots
 
                 demande = chercher_reveil(resultat, audio_phrase)
                 if demande is None:
                     continue
+                rapport("ecoute", "jarvis")
                 etat("ecoute")
                 baisser_son()
                 if demande:

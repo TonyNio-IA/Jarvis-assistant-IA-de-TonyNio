@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.66**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.68**
 
 **Pour installer Jarvis** $\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
@@ -42,7 +42,15 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
-## Nouveau en 1.67 (pré-version, pour les testeurs)
+## Nouveau en 1.68
+
+- **Limite de Claude atteinte : Jarvis propose une solution.** Il essaie d'abord de répondre lui-même (commandes du PC, réponses qu'il connaît). Sinon, au lieu de répéter « limite atteinte », il propose de brancher un assistant gratuit : « oui » ouvre les Réglages sur l'onglet Assistants. La proposition complète revient une fois par heure au plus, jamais en mode enfant ou invité. « Branche un assistant gratuit » ouvre aussi cet onglet.
+- **« Lance » mieux compris** : « lors », « lorses » ou « los » entendus en début de phrase à la place de « lance » sont corrigés (« lors de » et « lorsque » ne changent pas). Un « oui » dit alors qu'aucune question n'attend reçoit une vraie réponse.
+- **PC modeste : prévenu dès l'installation.** Sur un petit processeur (Celeron, Pentium, Atom…), avec moins de 6 Go de mémoire ou 2 fils de calcul, la première fenêtre de l'installateur dit que Jarvis fonctionnera mais mettra plusieurs secondes à comprendre chaque phrase, et qu'il passera tout seul en mode léger. L'installation n'est jamais empêchée.
+- **Rapport technique : l'écoute.** Pour comprendre pourquoi certains PC n'ont jamais rien demandé à Jarvis, le rapport indique si le micro capte du son et combien de fois « Jarvis » a été reconnu. Ce sont des compteurs (durées, nombres, niveau sonore) : jamais un mot de ce qui est dit. Sans rien d'autre à signaler, ce bilan part une fois par jour au plus. La fenêtre des rapports le précise.
+- **Cette version apporte à tout le monde les nouveautés de la 1.67**, jusqu'ici réservée aux testeurs (voir ci-dessous).
+
+## Nouveau en 1.67
 
 - **Mises à jour plus sûres** : avant de lancer l'installateur téléchargé, Jarvis vérifie son empreinte SHA-256 (celle des notes de version). S'il diffère, il est effacé et rien n'est lancé. Juste avant une mise à jour, Jarvis garde une copie de ses programmes : si la nouvelle version s'arrête trois fois de suite au démarrage, l'ancienne est remise, Jarvis le dit et ne réinstalle pas cette version. Les fichiers personnels ne sont jamais touchés.
 - **Jarvis figé** : si son affichage ne bouge plus pendant 5 minutes, il est arrêté puis relancé tout seul (2 fois par heure au plus).
@@ -704,6 +712,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.68 | Limite de Claude : Jarvis propose de brancher un assistant gratuit ; « lors / los » compris comme « lance » ; PC modeste prévenu dès l'installation ; le rapport dit si le micro capte du son et si « Jarvis » est reconnu (compteurs). Apporte à tous les nouveautés de la 1.67. |
 | 1.67 | Pré-version (testeurs) : empreinte SHA-256 vérifiée et retour à la version d'avant si la nouvelle ne démarre pas ; Jarvis figé relancé ; mémoire rangée par catégorie et par sujet ; enchaîner sans redire « Jarvis » (3 à 20 s). |
 | 1.66 | Mise à jour bloquée : Jarvis explique comment la débloquer ; « Tu voulais dire… ? » ; plus d'actions et de réponses sans Claude ; alerte disque presque plein ; IA gratuite sur le PC pas à pas (Ollama) ; un seul onglet « Assistants » ; couper la parole avec « Jarvis ». |
 | 1.65 | Mises à jour forcées plus rapides et retentées ; Wikipédia sans Claude ; demandes polies et « oui » franc ; rappels gardés par Windows ; Ctrl + Alt + J ; « règle ton micro » ; installateur (code postal, voix, tutoiement, rapport technique coché) ; rapports toutes les heures ; Groq. |

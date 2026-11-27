@@ -362,6 +362,31 @@ function Fenetre-Choix-Double($carte, $x, $y, $titre, $largeurTitre, $premier, $
     return $boutons
 }
 
+function Texte-PC-Modeste($nom, $go, $fils) {
+    # Renvoie la phrase qui prévient, ou $null quand le PC est assez rapide. Mesuré dans les rapports des utilisateurs :
+    # 6 à 9 s par phrase sur un Celeron J4115, plus de 30 s sur un Pentium N4200 avec 4 Go, 2 à 4 s sur un PC récent.
+    $petit = "$nom" -match 'Celeron|Pentium|Atom|Sempron|Athlon (Silver|Gold|II|X2)|\bA[469]-\d|\bE[12]-\d'
+    $peuDeMemoire = ($go -gt 0 -and $go -lt 6)
+    $peuDeFils = ($fils -gt 0 -and $fils -le 2)
+    if (-not ($petit -or $peuDeMemoire -or $peuDeFils)) { return $null }
+    $quoi = @()
+    if ("$nom".Trim()) { $quoi += "$nom".Trim() }
+    if ($go -gt 0) { $quoi += "$go Go de mémoire" }
+    $detail = $(if ($quoi.Count) { ' (' + ($quoi -join ', ') + ')' } else { '' })
+    return ("Ton PC est modeste$detail : Jarvis fonctionnera, mais il mettra plusieurs secondes à comprendre " +
+            "chaque phrase. Il passera tout seul en « mode léger » pour répondre plus vite aux commandes courantes.")
+}
+function PC-Modeste {
+    # Regarde le processeur et la mémoire de ce PC. Ne bloque jamais l'installation : au moindre doute, rien n'est affiché.
+    try {
+        $proc = @(Get-CimInstance Win32_Processor -ErrorAction Stop)[0]
+        $nom = ("$($proc.Name)" -replace '\(R\)|\(TM\)|\(tm\)|CPU|Processor|@.*$', '' -replace '\s+', ' ').Trim()
+        $fils = 0
+        foreach ($p in @(Get-CimInstance Win32_Processor -ErrorAction Stop)) { $fils += [int]$p.NumberOfLogicalProcessors }
+        $go = [int][Math]::Round((Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory / 1GB)
+        return Texte-PC-Modeste $nom $go $fils
+    } catch { return $null }
+}
 function Fenetre-Questions($gardes) {
     # Les trois petites questions d'une nouvelle installation, dans une seule fenêtre. Renvoie $true pour installer.
     $f = Nouvelle-Fenetre 'Installer Jarvis' 600 560
@@ -371,7 +396,15 @@ function Fenetre-Questions($gardes) {
     [void](Fenetre-Entete $f 'Bienvenue dans Jarvis' ("Ton assistant vocal en français. Réponds à ces petites questions, puis clique sur`n" +
                                                       "« Installer » : tout le reste se fait tout seul (10 à 20 minutes selon le PC).") 96)
     # 1. Qui es-tu ?
-    $c1 = Fenetre-Carte $f 24 108 552 124
+    $y1 = 108
+    $lent = PC-Modeste
+    if ($lent) {
+        # PC modeste : on le dit tout de suite, en orange, sans empêcher d'installer
+        $c0 = Fenetre-Carte $f 24 $y1 552 74
+        [void](Etiquette $c0 $lent 16 9 520 56 9 $false ([Drawing.Color]::FromArgb(255, 196, 92)))
+        $y1 = $c0.Bottom + 10
+    }
+    $c1 = Fenetre-Carte $f 24 $y1 552 124
     [void](Etiquette $c1 "Ton prénom" 16 10 170 20 9 $false $GRIS)
     $prenom = Saisie $c1 16 36 170
     [void](Etiquette $c1 'Ta ville, pour la météo' 200 10 210 20 9 $false $GRIS)
@@ -1346,6 +1379,8 @@ function Installer($dossierExistant) {
         $gardesVus = Fichiers-Gardes
         if ((Fenetre-Possible) -and -not (Fenetre-Questions $gardesVus)) { Dire "  Installation annulée : rien n'a été installé."; return }
         Dire "  Bienvenue. Trois petites questions (ton prénom, ta ville, et Claude), puis l'installation se fait toute seule."
+        $lent = PC-Modeste
+        if ($lent) { if (Fenetre-Possible) { Journal $lent } else { Attention $lent } }
         Dire ''
         # Fichiers personnels gardés lors d'une désinstallation (dossier ou copie compressée sur le Bureau)
         $gardes = Fichiers-Gardes

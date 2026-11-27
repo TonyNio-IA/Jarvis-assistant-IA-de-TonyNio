@@ -20,7 +20,7 @@ PAGE_INFO = "https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/blob/m
 EXPLICATION = ("Jarvis est fait par une seule personne, sur son temps libre. Pour savoir ce qui marche mal chez vous et "
                "l'améliorer pour tout le monde, Jarvis peut lui envoyer un rapport toutes les heures, quand il y a du nouveau.")
 DETAIL = ("Rapport technique : les phrases mal comprises, les erreurs, les fonctions utilisées, les temps de réponse, "
-          "les faux réveils, les demandes refaites ou annulées, les demandes confiées à Claude, la qualité du micro, "
+          "les faux réveils, les demandes refaites ou annulées, les demandes confiées à Claude, la qualité du micro (son capté ou non, nombre de fois où « Jarvis » a été reconnu : des compteurs, jamais vos paroles), "
           "le matériel du PC, les réglages jamais faits, les appareils associés (sans leur nom), le type des appareils "
           "que Jarvis ne sait pas encore piloter et les ateliers des enfants arrêtés (nom de l'atelier et étape "
           "seulement).\n\n"

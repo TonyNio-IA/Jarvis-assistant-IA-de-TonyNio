@@ -1900,6 +1900,9 @@ def _sans_remplissage(t):
     court = re.sub(r"^(\W*(?:jarvis\W+)?)(?:offrir|offre|offres|offrez)\s+(?=(?:l'application |le logiciel )?[\w'.-]+(?:\s+[\w'.-]+)?\W*$)",
                    r"\1ouvre ", court)
     court = re.sub(r"^(\W*(?:jarvis\W+)?)quel fait[- ]?t[- ]?il\b", r"\1quel temps fait-il", court)
+    # « lors / lorses l'application Instagram » = « lance… » (jamais « lors de… », « lorsque… ») ; « los » seulement devant « l'application »
+    court = re.sub(r"^(\W*(?:jarvis\W+)?)(?:lors|lorses|lorsse|lorce)\s+(?!de\b|du\b|des\b|d'|qu)", r"\1lance ", court)
+    court = re.sub(r"^(\W*(?:jarvis\W+)?)los\s+(?=l'appli|le jeu\b|le logiciel\b|le programme\b)", r"\1lance ", court)
     court = re.sub(r"^(\W*(?:jarvis\W+)?)(?:metteur|mettant|mets-toi|mets toi|met toi|mettre) (?:à|a) jour\W*$", r"\1mets-toi à jour", court)
     court = _VERBE_MOI.sub(r"\1", court)                 # « lance-moi YouTube » -> « lance YouTube »
     court = _POLI_DEBUT.sub(r"\1", court)

@@ -39,6 +39,9 @@ import jarvis_config
 DEPOT = "https://script.google.com/macros/s/AKfycbw3XAghBX-SX7H1ZmP1sLRFM3jvyRkDarC8Wmy-KPx6REKbOzIZ42lkGbHQq_AFvO3X/exec"
 FICHIER = jarvis_config.chemin("rapports.json")              # réglages des rapports (reste sur ce PC)
 JOURNAL = jarvis_config.chemin("rapports_journal.jsonl")     # ce qui attend le prochain rapport (reste sur ce PC)
+if os.environ.get("JARVIS_JOURNAL_ESSAI"):                   # essais automatiques : jamais dans le vrai journal
+    JOURNAL = os.environ["JARVIS_JOURNAL_ESSAI"]             # (sinon de fausses demandes partaient dans le vrai rapport)
+    DEPOT = "http://0.0.0.0:1/essai"                         # ... et rien ne part vers le vrai dépôt pendant un essai
 CONTACT = "https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/issues"
 INTERVALLE_SIGNAL = 3600            # compteur anonyme : toutes les heures
 INTERVALLE_RAPPORT = 3600           # rapport technique : toutes les heures, s'il y a du nouveau
@@ -778,6 +781,93 @@ def _suivre_micro():
             pass
 
 
+# ---------- Écoute : le micro capte-t-il du son, « Jarvis » est-il reconnu ? ----------
+# Des PC installés n'ont jamais rien demandé à Jarvis : micro muet, micro absent, « Jarvis » jamais reconnu, ou
+# personne devant ? Ces compteurs le disent. Ce sont des durées, des nombres et un niveau sonore : jamais un mot.
+
+SEUIL_MICRO_MUET = 0.002            # le niveau ne dépasse jamais cela : le micro n'envoie que du silence
+SEUIL_SON_ECOUTE = 0.02             # niveau à partir duquel il y a vraiment du son dans la pièce (voix, bruit)
+INTERVALLE_ECOUTE = 3600            # les compteurs rejoignent le journal toutes les heures
+RAPPORT_ECOUTE_APRES = 24 * 3600    # rien d'autre à signaler : un bilan d'écoute par jour au plus
+_CLES_ECOUTE = ("ecoute_s", "coupe_s", "son_s", "phrase", "jarvis", "presque_jarvis", "sans_micro")
+_ecoute = {"niveau_max": 0.0, "depuis": time.time()}
+
+
+def ecoute_bloc(secondes, niveau, coupe=False):
+    """Un morceau de son reçu du micro pendant la veille (appelé dix fois par seconde : doit rester très léger)."""
+    with _verrou:
+        if coupe:
+            _ecoute["coupe_s"] = _ecoute.get("coupe_s", 0.0) + secondes
+            return
+        _ecoute["ecoute_s"] = _ecoute.get("ecoute_s", 0.0) + secondes
+        if niveau >= SEUIL_SON_ECOUTE:
+            _ecoute["son_s"] = _ecoute.get("son_s", 0.0) + secondes
+        if niveau > _ecoute["niveau_max"]:
+            _ecoute["niveau_max"] = niveau
+
+
+def ecoute(quoi, nombre=1):
+    """Compte : "phrase" (des paroles reconnues), "jarvis" (réveil), "presque_jarvis" (un mot proche de « Jarvis »
+    que la vérification n'a pas confirmé), "sans_micro" (aucun micro trouvé)."""
+    if quoi in _CLES_ECOUTE:
+        with _verrou:
+            _ecoute[quoi] = _ecoute.get(quoi, 0) + nombre
+
+
+def _vider_ecoute(force=False):
+    """Passe les compteurs dans le journal (un événement « ecoute »), toutes les heures."""
+    with _verrou:
+        if not force and time.time() - _ecoute["depuis"] < INTERVALLE_ECOUTE:
+            return False
+        infos = {k: (round(_ecoute[k]) if k.endswith("_s") else int(_ecoute[k])) for k in _CLES_ECOUTE if _ecoute.get(k)}
+        niveau_max = round(float(_ecoute["niveau_max"]), 4)
+        _ecoute.clear()
+        _ecoute.update(niveau_max=0.0, depuis=time.time())
+    if not infos:
+        return False                # Jarvis n'a pas écouté du tout pendant cette heure : rien à dire
+    noter("ecoute", niveau_max=niveau_max, **infos)
+    return True
+
+
+def _bilan_ecoute(evenements):
+    """Le bloc « ecoute » du rapport : les compteurs additionnés, et un verdict lisible d'un coup d'œil."""
+    if not evenements:
+        return {}
+    c = collections.Counter()
+    niveau_max = 0.0
+    for e in evenements:
+        for k in _CLES_ECOUTE:
+            try:
+                c[k] += float(e.get(k) or 0)
+            except (TypeError, ValueError):
+                pass
+        try:
+            niveau_max = max(niveau_max, float(e.get("niveau_max") or 0))
+        except (TypeError, ValueError):
+            pass
+    if c["jarvis"] > 0:
+        etat = "« Jarvis » détecté"
+    elif c["ecoute_s"] < 60 and c["sans_micro"] > 0:
+        etat = "aucun micro trouvé"
+    elif c["ecoute_s"] < 60 and c["coupe_s"] >= 60:
+        etat = "micro coupé dans Jarvis"
+    elif c["ecoute_s"] < 60:
+        etat = "presque pas d'écoute"
+    elif niveau_max < SEUIL_MICRO_MUET:
+        etat = "micro muet : aucun son reçu"
+    elif c["phrase"] == 0 and c["presque_jarvis"] == 0:
+        etat = "du son, mais aucune parole reconnue" if c["son_s"] >= 5 else "micro en marche, personne n'a parlé"
+    elif c["presque_jarvis"] > 0:
+        etat = "des paroles, « Jarvis » presque entendu mais jamais confirmé"
+    else:
+        etat = "des paroles, mais jamais « Jarvis »"
+    return {"etat": etat, "periodes": len(evenements),
+            "ecoute_h": round(c["ecoute_s"] / 3600, 2), "micro_coupe_h": round(c["coupe_s"] / 3600, 2),
+            "avec_son_min": round(c["son_s"] / 60, 1), "niveau_max": round(niveau_max, 4),
+            "phrases_entendues": int(c["phrase"]), "jarvis_detecte": int(c["jarvis"]),
+            "jarvis_presque": int(c["presque_jarvis"]), "sans_micro": int(c["sans_micro"])}
+
+
 # ---------- Construction et envoi ----------
 
 def _mediane(valeurs):
@@ -830,6 +920,7 @@ def construire_rapport():
         "version": _version_jarvis(), "windows": _windows(),
         "periode": {"debut": min((e["t"] for e in ev), default=None), "fin": max((e["t"] for e in ev), default=None)},
         "materiel": _materiel(), "reglages": _reglages(), "appareils": _appareils(), "micro": _micro(),
+        "ecoute": _bilan_ecoute(par_genre["ecoute"]),
         "statistiques": {"demandes": len(reponses), "locales": len(local), "claude": len(claude),
                          "en_erreur": sum(1 for e in reponses if e.get("erreur")),
                          "par_categorie": dict(collections.Counter(e.get("categorie") for e in reponses)),
@@ -879,7 +970,7 @@ def _envoyer(donnees):
             return False
         except Exception as e:
             if essai < ESSAIS - 1:
-                time.sleep(20 * (essai + 1))
+                time.sleep(0 if os.environ.get("JARVIS_JOURNAL_ESSAI") else 20 * (essai + 1))
             else:
                 print("(Rapports : envoi abandonné après", ESSAIS, "essais :", type(e).__name__, ")")
     return False
@@ -948,12 +1039,16 @@ def envoyer_rapport(force=False):
             return False
         octets = os.path.getsize(JOURNAL) if os.path.exists(JOURNAL) else 0
         rapport, n = construire_rapport()
+    seulement_ecoute = n > 0 and n == (rapport.get("ecoute") or {}).get("periodes", 0)
     if not n and not force:
         return False
+    if seulement_ecoute and not force and time.time() - valeur("dernier_rapport_envoye", 0) < RAPPORT_ECOUTE_APRES:
+        return False                                    # rien d'autre que l'écoute : un bilan par jour suffit
     ok = _envoyer(rapport)
     with _verrou:
         if ok:
             regler("dernier_rapport", time.time())
+            regler("dernier_rapport_envoye", time.time())
             _retirer_envoyes(octets)                    # ce qui a été noté pendant l'envoi reste pour le prochain
             print(f"(Rapports : rapport envoyé, {n} événements.)")
         else:                                           # on réessaiera dans quelques heures, pas en boucle
@@ -1046,6 +1141,7 @@ def _boucle():
     prochain_signal = time.time() + INTERVALLE_SIGNAL
     while True:
         try:
+            _vider_ecoute()
             envoyer_rapport()
         except Exception as e:
             print("(Rapports :", type(e).__name__, ")")
