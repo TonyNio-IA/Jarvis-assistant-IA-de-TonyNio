@@ -52,6 +52,10 @@ FOURNISSEURS = [
      "cle_url": "https://platform.deepseek.com/api_keys",
      "gratuit": "Payant à l'usage (de petites sommes). Pas de gratuit garanti.",
      "aide": "Crée un compte, ajoute un petit crédit, puis « API keys » > créer une clé."},
+    {"id": "kimi", "nom": "Kimi (Moonshot AI)", "adresse": "https://api.moonshot.ai/v1", "modele": "",
+     "cle_url": "https://platform.moonshot.ai/console/api-keys",
+     "gratuit": "Payant à l'usage : il faut recharger au moins 1 $ avant que l'API réponde. Le chat gratuit de kimi.com ne marche pas ici.",
+     "aide": "Crée un compte sur platform.moonshot.ai, recharge au moins 1 $, puis « API Keys » > créer une clé. Une clé de platform.moonshot.cn (Chine) demande l'adresse https://api.moonshot.cn/v1 dans « Adresse avancée »."},
     {"id": "grok", "nom": "Grok (xAI)", "adresse": "https://api.x.ai/v1", "modele": "",
      "cle_url": "https://console.x.ai",
      "gratuit": "Payant à l'usage. Pas de gratuit garanti.",
@@ -111,12 +115,52 @@ def consigne(longue=False):
                   "pas de mise en forme, pas d'émojis. ")
     texte += ("Réponds directement, sans dire bonjour, sans répéter la question, et n'emploie le prénom que très rarement. ")
     texte += ("Tu n'as pas accès à Internet ni à l'ordinateur : si on te demande une information très récente "
-              "(actualités, météo, scores) ou une action (ouvrir, modifier, chercher un fichier), dis-le simplement "
-              "et gentiment.")
+              "(actualités, météo, scores) ou une action sur l'ordinateur (modifier ou chercher un fichier, par exemple), "
+              "dis simplement et gentiment que cette demande-là n'est pas possible pour le moment. Ne dis jamais que tu "
+              "ne sais pas ouvrir ou lancer des applications : Jarvis le fait lui-même.")
     return texte
 
 
 # ------------------------------------------------------------------ stockage
+
+_OUVRIR = re.compile(r"^\W*(?:jarvis\W+)?(?:s'il te pla[iî]t\W+)?(?:est-ce que tu peux |tu peux |peux[- ]tu |"
+                     r"pourrais[- ]tu |tu pourrais )?(?:m'|me )?"
+                     r"(?:(?P<verbe>ouvre|ouvrir|ouvres|ouvrez|lance|lancer|lances|lancez|démarre|démarrer|demarre|demarrer)"
+                     r"(?:[- ]moi)?\b\s*(?P<reste>.*)"
+                     r"|(?:lors|lorse|lorses|lorce|lorces|los|l'os|lanse|lanses)?\s*"
+                     r"(?P<seul>(?:l'application|l'appli|le logiciel|le programme)\s+[\w'.-]+(?:\s+[\w'.-]+){0,2}))\W*$", re.I)
+
+
+def reponse_action(demande, claude_present=True):
+    """Demande d'ouvrir une application que Jarvis n'a pas pu satisfaire lui-même : renvoie la phrase à dire, au lieu
+    d'interroger l'assistant de secours (qui n'a pas accès au PC et répondrait « je ne peux pas lancer d'application »).
+    Renvoie None pour toute autre demande. Ne lève jamais d'erreur."""
+    try:
+        m = _OUVRIR.match(str(demande or "").strip())
+        if not m:
+            return None
+        reste = (m.group("reste") if m.group("verbe") else m.group("seul")) or ""
+        reste = reste.strip(" .!?,;:…")
+        if not reste or "?" in str(demande) or len(reste.split()) > 12:
+            return None
+        if not m.group("verbe") and re.search(
+                r"\b(est|sont|a|ont|ne|n'|qui|que|qu'|se|s'|c'est|marche\w*|fonctionne\w*|bug\w*|plante\w*|rame\w*|"
+                r"ferme\w*|quitte\w*|pas|plus|comment|pourquoi)\b", reste, re.I):
+            return None
+        debut = "Claude n'est pas disponible, et sans lui " if claude_present else ""
+        if re.search(r"\b(et|puis|pour|avec|sur|dans)\b", reste, re.I):
+            phrase = (debut + "je ne peux pas faire cette demande en plusieurs étapes. "
+                      "Demande-moi une seule chose à la fois, par exemple : ouvre Chrome.")
+        else:
+            nom = re.sub(r"^(?:(?:le|la|les|l'|mon|ma|mes|un|une|moi)\s*)+", "", reste, flags=re.I)
+            nom = re.sub(r"^(?:logiciel|application|appli|programme|jeu)\s+", "", nom, flags=re.I).strip() or reste
+            phrase = (debut + f"je n'ai pas trouvé « {nom} » parmi les applications de ce PC. "
+                      "Redis-moi son nom, ou vérifie qu'elle est bien installée.")
+        return phrase[0].upper() + phrase[1:]
+    except Exception as erreur:
+        print("Assistants, action locale :", erreur)
+        return None
+
 
 def _vide():
     return {"consentement": False, "comptes": []}
@@ -362,6 +406,7 @@ MODELES_CONSEILLES = {
     "gemini": ("gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.5-flash"),
     "mistral": ("mistral-small-latest", "mistral-medium-latest"),
     "deepseek": ("deepseek-chat",),
+    "kimi": ("kimi-k2.6", "kimi-k3"),
     "openai": ("gpt-4.1-mini", "gpt-4o-mini"),
 }
 

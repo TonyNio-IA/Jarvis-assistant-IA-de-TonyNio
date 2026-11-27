@@ -924,9 +924,15 @@ def _commande_rappel(t):
 def _commande_ouvrir(t):
     m = re.search(r"\b(ouvre|ouvrir|ouvres|lance|lancer|lances|démarre|démarrer)\b(.*)", t)
     if not m:
-        return None
+        # « lance » mal entendu (« lors / lorses l'application Riot Games ») ou verbe avalé (« l'application Deezer ») :
+        # seulement si toute la demande tient en « l'application + 1 à 3 mots », sans rien qui ressemble à une remarque
+        m = re.match(r"^\W*(?:jarvis\W+)?(lors|lorse|lorses|lorce|lorces|los|l'os|lanse|lanses)?\s*"
+                     r"((?:l'application|l'appli|le logiciel|le programme)\s+[\w'.-]+(?:\s+[\w'.-]+){0,2})\W*$", t)
+        if not m or re.search(r"\b(est|sont|a|ont|ne|n'|qui|que|qu'|se|s'|c'est|marche\w*|fonctionne\w*|bug\w*|plante\w*|"
+                              r"rame\w*|ferme\w*|quitte\w*|pas|plus|comment|pourquoi)\b", m.group(2)):
+            return None
     # Une question (« comment ouvrir les réglages ? ») n'est pas un ordre : on explique au lieu d'ouvrir
-    if re.match(r"^\W*(?:jarvis\W+)?(?:comment|pourquoi|quand|où)\b", t[:m.start()] + m.group(1)):
+    if re.match(r"^\W*(?:jarvis\W+)?(?:comment|pourquoi|quand|où)\b", t[:m.start()] + (m.group(1) or "")):
         return "Pour ouvrir une application, dis par exemple : Jarvis, ouvre Chrome. Ça marche avec toutes les applications installées sur ton PC."
     reste = m.group(2)
     # Une demande plus complexe (« ouvre Chrome et cherche... », « ferme ça et ouvre Chrome »)

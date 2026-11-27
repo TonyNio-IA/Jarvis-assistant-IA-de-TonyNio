@@ -175,7 +175,7 @@ _OPERATIONS = {"moitie": lambda x: x / 2, "double": lambda x: x * 2, "triple": l
 
 
 def _calcul(s):
-    r = re.search(r"\bracine carree d[eu'] ?(.+)$", s)
+    r = re.search(r"\bracine carree? d[eu'] ?(.+)$", s)
     if r:
         x = _nombre(r.group(1).strip(" ?"))
         if x is None or x < 0:
@@ -214,7 +214,7 @@ def _combien_dans(s, t):
     s = re.sub(rf"\bcombien de jours a ({_RE_MOIS})( \d{{4}})?$", r"combien de jours en \1\2", s)
     s = re.sub(rf"^({_RE_MOIS})( \d{{4}})? a combien de jours$", r"combien de jours en \1\2", s)
     # jours dans un mois précis (« combien de jours dans février 2028 »)
-    mm = re.search(rf"\bcombien (?:y a t il |y a-t-il |il y a )?de jours (?:y a t il |y a-t-il |il y a )?(?:dans|en) (?:le mois d[eu'] ?)?({_RE_MOIS})(?: (\d{{4}}))?$", s)
+    mm = re.search(rf"\bcombien (?:y a t il |y a-t-il |il y a )?de jours (?:y a t il |y a-t-il |il y a )?(?:dans|en) (?:le mois d[eu'] ?|un |le )?({_RE_MOIS})(?: (?:de |en )?(\d{{4}}))?$", s)
     if mm:
         mois = _MOIS[mm.group(1)]
         if mois == 2:

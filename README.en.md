@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.63**
+**Français : [README.md](README.md)** · **Current version: 1.64**
 
 **Windows blocked the file?** This is normal on PCs protected by "Smart App Control": Jarvis is a free personal project without a paid code signing certificate, so Windows does not know its publisher. Open Terminal (Windows key + X), paste this line, then press Enter:
 
@@ -40,6 +40,18 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.64
+
+- **A clearer, nicer installer**: the installation windows were redesigned (header with the Jarvis reactor, rounded blocks and buttons, gradient progress bar). On a small screen the window scrolls instead of overflowing.
+- **"Click Yes" instructions in green**: whenever Windows is about to ask for permission during installation (Microsoft components, home tablets), the sentence telling you to click "Yes" is written in green so it cannot be missed.
+- **Adding Claude later: one single explanation**: the end of the installation now gives the same steps as Jarvis itself (settings, "Claude" tab, "Install Claude", then "Connect my account"). Re-running the installer still works.
+- **Opening an app when Claude is unavailable**: if Jarvis cannot find the requested app and Claude is missing or at its limit, Jarvis itself says it did not find it. Previously the request went to the fallback assistant, which wrongly answered that it could not launch apps.
+- **Misheard "launch the app…"** (in French) is now understood, and "Deezer" is recognized when misheard.
+- **Welcome question asked separately**: for a new user, Jarvis answers first, pauses briefly, then asks its question instead of gluing it to the answer.
+- **Fixed local answers**: square root of two, and the number of days in a given February.
+- **Tablets**: the list of linked tablets is displayed correctly again on the PC.
+- **Assistants (beta)**: Kimi (Moonshot AI) added to the list (pay-as-you-go service, stated in the window).
 
 ## New in 1.63
 

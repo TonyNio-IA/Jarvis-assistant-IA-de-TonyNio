@@ -24,6 +24,8 @@ MAX_PERSONNELLES = 100
 
 # (motif, remplacement) : seulement des erreurs sans ambiguïté
 INTEGREES = (
+    # « Deezer » entendu « d'hizeur », « dizeur » : seulement après « application », « ouvre », « lance », « sur »
+    (r"\b((?:application|appli|ouvre|ouvrir|lance|lancer|démarre|sur)\s+)(?:d'hizeur|d'izeur|d'iseur|d'heezer|d'hiseur|dizeur|dizer|dezeur|dizzer|disère)s?\b", r"\1deezer"),
     # « mets-moi » entendu « mes mots », « mes mois » en début de demande
     (r"^(\W*(?:jarvis\W+)?)(?:mes|mais|mai|may|met|m'est)[- ](?:mots?|mois)\b(?! de passe)", r"\1mets-moi"),
     # « YouTube Kids »

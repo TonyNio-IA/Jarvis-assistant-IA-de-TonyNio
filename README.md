@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.63**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.64**
 
 **Windows a bloqué le fichier ?** C'est normal sur les PC protégés par le « Contrôle intelligent des applications » : Jarvis est un projet personnel et gratuit, sans certificat de signature payant, donc Windows ne connaît pas son éditeur. Ouvre le Terminal (touche Windows + X), colle cette ligne, puis Entrée ([ce qu'elle fait et comment vérifier qu'elle est sûre](#bloque-par-windows)) :
 
@@ -39,6 +39,19 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.64
+
+- **Installateur plus clair et plus joli** : les fenêtres d'installation ont été refaites (bandeau avec le réacteur de Jarvis, blocs arrondis, boutons arrondis, barre d'avancement en dégradé). Les questions tiennent sur un seul écran, et sur un petit écran la fenêtre défile au lieu de dépasser.
+- **Consignes « clique sur le bouton Oui » en vert** : chaque fois que Windows va demander une autorisation pendant l'installation (composants de Microsoft, tablettes de la maison), la phrase qui dit de cliquer sur « Oui » est écrite en vert, pour qu'on ne la manque pas.
+- **Ajouter Claude plus tard : une seule explication** : la fin de l'installation donne maintenant la même marche à suivre que Jarvis (« Jarvis, ouvre les réglages », onglet « Claude », « Installer Claude », puis « Connecter mon compte »). Relancer l'installateur reste possible.
+- **Ouvrir une application quand Claude n'est pas disponible** : si Jarvis ne trouve pas l'application demandée et que Claude est absent ou à sa limite, il répond lui-même qu'il ne l'a pas trouvée et propose de redire son nom. Avant, la demande partait vers l'assistant de secours, qui répondait à tort qu'il ne pouvait pas lancer d'application.
+- **« Lance l'application… » mal entendu** : « lors l'application… », « lorses l'application… » sont compris comme « lance l'application… », et « l'application Chrome » tout court ouvre Chrome. Une remarque (« l'application Chrome plante ») n'ouvre rien.
+- **« Deezer » mieux compris** : « ouvre d'hizeur », « l'application dizeur » sont compris comme « Deezer ».
+- **Question d'accueil dite à part** : pour un nouvel utilisateur, Jarvis répond d'abord, marque une courte pause, puis pose sa question (« tu préfères une voix d'homme ou une voix de femme ? ») au lieu de la coller à la réponse. Si on le coupe, la question attend la prochaine fois.
+- **Réponses sans Claude corrigées** : « racine carré de deux » (Jarvis répondait 4) et « combien de jours dans un février de 2018 » donnent maintenant la bonne réponse.
+- **Tablettes** : la liste des tablettes reliées s'affiche de nouveau correctement sur le PC.
+- **Assistants (bêta)** : Kimi (Moonshot AI) est ajouté à la liste des assistants que l'on peut brancher. Ce service est payant à l'usage ; c'est indiqué dans la fenêtre.
 
 ## Nouveau en 1.63
 
@@ -631,6 +644,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.64 | Installateur refait (fenêtres plus claires, consignes « clique sur Oui » en vert) ; ouverture d'applications sans Claude mieux gérée (« lors l'application… », Deezer) ; question d'accueil dite à part ; racine carrée et jours de février corrigés ; Kimi dans les assistants. |
 | 1.63 | « Marque tous mes mails comme lus » (avec confirmation, rien n'est supprimé) ; « Je ne sais pas faire ça. » si la messagerie refuse ; micro perdu : 3 essais puis « Aucun micro détecté », et la fenêtre de discussion reste utilisable sans micro. |
 | 1.62 | « Accède à Claude » mieux reconnu (ouvre l'onglet Claude des Réglages) ; une question de météo ou une phrase mal entendue ne déclenche plus de réponse sur le volume. |
 | 1.61 | Remerciements après mise à jour dits même si des versions sont sautées, une seule fois par version. |

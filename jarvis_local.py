@@ -375,6 +375,10 @@ def _calendrier(s):
                         d = _ajouter_mois(aujourdhui, 12 * n)
                     return (f"Dans {abs(n)} {u.group('u')}, nous serons le {_date_longue(d)}." if n > 0
                             else f"Il y a {abs(n)} {u.group('u')}, nous étions le {_date_longue(d)}.")
+    # « combien de jours dans un février de 2018 » : la durée d'un mois, pas un compte à rebours (voir jarvis_savoir)
+    if re.search(r"\bcombien (?:de )?jours (?:y a[- ]t[- ]il |il y a )?(?:dans|en) (?:le mois d[eu'] ?|un |le )?"
+                 r"(?:janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)\b", s):
+        return None
     # « dans combien de jours c'est Noël », « combien de jours avant le 14 juillet »
     m = _COMBIEN.match(s)
     if m:

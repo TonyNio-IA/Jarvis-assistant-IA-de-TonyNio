@@ -70,7 +70,7 @@ function Noter($nom) {
 function Journal($texte) {
     try { Add-Content -LiteralPath $JOURNAL -Value ("[{0}] {1}" -f (Get-Date -Format 'dd/MM HH:mm:ss'), $texte) -Encoding UTF8 } catch {}
 }
-function Dire($texte, $couleur = 'Gray') { Write-Host $texte -ForegroundColor $couleur; Journal $texte; if ($FEN) { Fenetre-Ligne $texte } }
+function Dire($texte, $couleur = 'Gray', $important = $false) { Write-Host $texte -ForegroundColor $couleur; Journal $texte; if ($FEN) { Fenetre-Ligne $texte $important } }
 function Titre($texte) { Write-Host ''; Write-Host ("  " + $texte) -ForegroundColor Cyan; Journal ("== " + $texte); if ($FEN) { Fenetre-Etape $texte } }
 function Bon($texte) { Dire ("  [OK] " + $texte) 'Green' }
 function Attention($texte) { Dire ("  [!]  " + $texte) 'Yellow' }
@@ -133,6 +133,106 @@ function Nouvelle-Fenetre($titre, $largeur, $hauteur) {
     } catch {}
     return $f
 }
+# --- Habillage des fenêtres : bandeau avec le réacteur, cartes arrondies, boutons arrondis, barre d'avancement.
+# Chaque dessin est fait dans un « try » : si Windows refuse un effet, la fenêtre reste lisible, seulement plus simple.
+function Fenetre-Tampon($controle) {
+    # dessin sans scintillement (propriété protégée de Windows Forms)
+    try {
+        [Windows.Forms.Control].GetProperty('DoubleBuffered', [Reflection.BindingFlags]'NonPublic,Instance').SetValue($controle, $true, $null)
+    } catch {}
+}
+function Fenetre-Ajuster($f) {
+    # petit écran (ou grande échelle d'affichage) : la fenêtre ne dépasse jamais de l'écran, elle défile
+    try {
+        $haut = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Height
+        if ($env:JARVIS_ESSAI_ECRAN) { $haut = [int]$env:JARVIS_ESSAI_ECRAN }       # essais : hauteur d'écran simulée
+        if ($f.Height -gt $haut) {
+            $f.AutoScroll = $true
+            $f.ClientSize = New-Object Drawing.Size(($f.ClientSize.Width + 20), [Math]::Max(240, $haut - 60))
+        }
+    } catch {}
+}
+function Fenetre-Entete($f, $titre, $sousTitre, $hauteur = 88) {
+    $p = New-Object Windows.Forms.Panel
+    $p.Location = New-Object Drawing.Point(0, 0)
+    $p.Size = New-Object Drawing.Size($f.ClientSize.Width, $hauteur)
+    $p.BackColor = [Drawing.Color]::FromArgb(16, 34, 54)
+    $p.Tag = @{ T = "$titre"; S = "$sousTitre" }
+    $p.Anchor = 'Top,Left,Right'                  # petit écran : le bandeau suit la largeur de la fenêtre qui défile
+    Fenetre-Tampon $p
+    $p.Add_Paint({
+        try {
+            $g = $_.Graphics
+            $g.SmoothingMode = 'AntiAlias'
+            $g.TextRenderingHint = 'ClearTypeGridFit'
+            $l = $this.Width; $h = $this.Height
+            $zone = New-Object Drawing.Rectangle 0, 0, $l, $h
+            $fondu = New-Object Drawing.Drawing2D.LinearGradientBrush($zone, [Drawing.Color]::FromArgb(24, 52, 84), [Drawing.Color]::FromArgb(11, 23, 37), [single]0)
+            $g.FillRectangle($fondu, $zone); $fondu.Dispose()
+            # le réacteur de Jarvis : un halo, un anneau, un cœur
+            $cx = 52; $cy = [int]($h / 2)
+            $halo = New-Object Drawing.Drawing2D.GraphicsPath
+            $halo.AddEllipse(($cx - 34), ($cy - 34), 68, 68)
+            $lueur = New-Object Drawing.Drawing2D.PathGradientBrush($halo)
+            $lueur.CenterColor = [Drawing.Color]::FromArgb(150, 79, 195, 247)
+            $lueur.SurroundColors = [Drawing.Color[]]@([Drawing.Color]::FromArgb(0, 79, 195, 247))
+            $g.FillPath($lueur, $halo); $lueur.Dispose(); $halo.Dispose()
+            $anneau = New-Object Drawing.Pen([Drawing.Color]::FromArgb(79, 195, 247), 3)
+            $g.DrawEllipse($anneau, ($cx - 21), ($cy - 21), 42, 42)
+            $anneau.Width = 2; $anneau.Color = [Drawing.Color]::FromArgb(170, 225, 250)
+            $g.DrawEllipse($anneau, ($cx - 13), ($cy - 13), 26, 26)
+            for ($a = 0; $a -lt 360; $a += 45) {
+                $rad = $a * [Math]::PI / 180
+                $g.DrawLine($anneau, [single]($cx + 15 * [Math]::Cos($rad)), [single]($cy + 15 * [Math]::Sin($rad)), [single]($cx + 19 * [Math]::Cos($rad)), [single]($cy + 19 * [Math]::Sin($rad)))
+            }
+            $anneau.Dispose()
+            $coeur = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(235, 250, 255))
+            $g.FillEllipse($coeur, ($cx - 7), ($cy - 7), 14, 14); $coeur.Dispose()
+            # titre et sous-titre
+            $d = $this.Tag
+            $grand = New-Object Drawing.Font('Segoe UI', 16, [Drawing.FontStyle]::Bold)
+            $petit = New-Object Drawing.Font('Segoe UI', 9.5)
+            $blanc = New-Object Drawing.SolidBrush([Drawing.Color]::White)
+            $doux = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(170, 195, 220))
+            $lignes = @("$($d.S)" -split "`n").Count
+            $haut = [int](($h - 34 - 18 * $lignes) / 2)
+            $g.DrawString($d.T, $grand, $blanc, [single]96, [single]$haut)
+            $g.DrawString($d.S, $petit, $doux, (New-Object Drawing.RectangleF 98, ($haut + 34), ($l - 116), (18 * $lignes + 4)))
+            $grand.Dispose(); $petit.Dispose(); $blanc.Dispose(); $doux.Dispose()
+            # filet lumineux sous le bandeau
+            $bas = New-Object Drawing.Rectangle 0, ($h - 2), $l, 2
+            $filet = New-Object Drawing.Drawing2D.LinearGradientBrush($bas, [Drawing.Color]::FromArgb(79, 195, 247), [Drawing.Color]::FromArgb(0, 79, 195, 247), [single]0)
+            $g.FillRectangle($filet, $bas); $filet.Dispose()
+        } catch {}
+    })
+    $f.Controls.Add($p)
+    return $p
+}
+function Fenetre-Carte($f, $x, $y, $l, $h) {
+    # un bloc aux coins arrondis, un peu plus clair que le fond : les éléments posés dedans prennent sa couleur
+    $p = New-Object Windows.Forms.Panel
+    $p.Location = New-Object Drawing.Point($x, $y)
+    $p.Size = New-Object Drawing.Size($l, $h)
+    $p.BackColor = [Drawing.Color]::FromArgb(22, 40, 60)
+    Fenetre-Tampon $p
+    $p.Add_Paint({
+        try {
+            $g = $_.Graphics
+            $g.SmoothingMode = 'AntiAlias'
+            $g.Clear($this.Parent.BackColor)
+            $k = 20; $d = $this.Width - 1; $b = $this.Height - 1
+            $c = New-Object Drawing.Drawing2D.GraphicsPath
+            $c.AddArc(0, 0, $k, $k, 180, 90); $c.AddArc(($d - $k), 0, $k, $k, 270, 90)
+            $c.AddArc(($d - $k), ($b - $k), $k, $k, 0, 90); $c.AddArc(0, ($b - $k), $k, $k, 90, 90); $c.CloseFigure()
+            $fond = New-Object Drawing.SolidBrush($this.BackColor)
+            $bord = New-Object Drawing.Pen([Drawing.Color]::FromArgb(40, 66, 94), 1)
+            $g.FillPath($fond, $c); $g.DrawPath($bord, $c)
+            $fond.Dispose(); $bord.Dispose(); $c.Dispose()
+        } catch {}
+    })
+    $f.Controls.Add($p)
+    return $p
+}
 function Etiquette($f, $texte, $x, $y, $l, $h, $taille = 10, $gras = $false, $couleur = $null) {
     $e = New-Object Windows.Forms.Label
     $e.Text = $texte
@@ -153,11 +253,40 @@ function Case($f, $texte, $x, $y, $l, $coche) {
     return $c
 }
 function Saisie($f, $x, $y, $l) {
+    # champ de saisie sombre aux coins arrondis ; son contour s'allume quand on écrit dedans
+    $cadre = New-Object Windows.Forms.Panel
+    $cadre.Location = New-Object Drawing.Point($x, $y)
+    $cadre.Size = New-Object Drawing.Size($l, 34)
+    $cadre.BackColor = [Drawing.Color]::FromArgb(10, 21, 34)
+    $cadre.Tag = $false
+    Fenetre-Tampon $cadre
+    $cadre.Add_Paint({
+        try {
+            $g = $_.Graphics
+            $g.SmoothingMode = 'AntiAlias'
+            $g.Clear($this.Parent.BackColor)
+            $k = 12; $d = $this.Width - 1; $b = $this.Height - 1
+            $c = New-Object Drawing.Drawing2D.GraphicsPath
+            $c.AddArc(0, 0, $k, $k, 180, 90); $c.AddArc(($d - $k), 0, $k, $k, 270, 90)
+            $c.AddArc(($d - $k), ($b - $k), $k, $k, 0, 90); $c.AddArc(0, ($b - $k), $k, $k, 90, 90); $c.CloseFigure()
+            $fond = New-Object Drawing.SolidBrush($this.BackColor)
+            $bord = New-Object Drawing.Pen($(if ($this.Tag) { [Drawing.Color]::FromArgb(79, 195, 247) } else { [Drawing.Color]::FromArgb(58, 88, 120) }), $(if ($this.Tag) { 2 } else { 1 }))
+            $g.FillPath($fond, $c); $g.DrawPath($bord, $c)
+            $fond.Dispose(); $bord.Dispose(); $c.Dispose()
+        } catch {}
+    })
+    $cadre.Add_Click({ try { $this.Controls[0].Focus() } catch {} })
     $s = New-Object Windows.Forms.TextBox
-    $s.Location = New-Object Drawing.Point($x, $y)
-    $s.Size = New-Object Drawing.Size($l, 28)
+    $s.BorderStyle = 'None'
+    $s.BackColor = $cadre.BackColor
+    $s.ForeColor = [Drawing.Color]::White
     $s.Font = New-Object Drawing.Font('Segoe UI', 11)
-    $f.Controls.Add($s)
+    $s.Location = New-Object Drawing.Point(10, 7)
+    $s.Size = New-Object Drawing.Size(($l - 20), 22)
+    $s.Add_Enter({ try { $this.Parent.Tag = $true; $this.Parent.Invalidate() } catch {} })
+    $s.Add_Leave({ try { $this.Parent.Tag = $false; $this.Parent.Invalidate() } catch {} })
+    $cadre.Controls.Add($s)
+    $f.Controls.Add($cadre)
     return $s
 }
 function Bouton($f, $texte, $x, $y, $l, $principal) {
@@ -166,8 +295,46 @@ function Bouton($f, $texte, $x, $y, $l, $principal) {
     $b.Location = New-Object Drawing.Point($x, $y)
     $b.Size = New-Object Drawing.Size($l, 38)
     $b.FlatStyle = 'Flat'
+    $b.FlatAppearance.BorderSize = 0
     $b.FlatAppearance.BorderColor = $ACCENT
+    $b.Cursor = [Windows.Forms.Cursors]::Hand
+    $b.Tag = @{ P = [bool]$principal; H = $false }
     if ($principal) { $b.BackColor = $ACCENT; $b.ForeColor = $FOND; $b.Font = New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold) }
+    $b.Add_MouseEnter({ try { $this.Tag.H = $true; $this.Invalidate() } catch {} })
+    $b.Add_MouseLeave({ try { $this.Tag.H = $false; $this.Invalidate() } catch {} })
+    $b.Add_Paint({
+        # bouton aux coins arrondis : dégradé bleu pour le bouton principal, simple contour pour l'autre
+        try {
+            $g = $_.Graphics
+            $g.SmoothingMode = 'AntiAlias'
+            $g.TextRenderingHint = 'ClearTypeGridFit'
+            $g.Clear($this.Parent.BackColor)
+            $k = 16; $d = $this.Width - 1; $bas = $this.Height - 1
+            $c = New-Object Drawing.Drawing2D.GraphicsPath
+            $c.AddArc(0, 0, $k, $k, 180, 90); $c.AddArc(($d - $k), 0, $k, $k, 270, 90)
+            $c.AddArc(($d - $k), ($bas - $k), $k, $k, 0, 90); $c.AddArc(0, ($bas - $k), $k, $k, 90, 90); $c.CloseFigure()
+            $zone = New-Object Drawing.Rectangle 0, 0, $this.Width, $this.Height
+            if ($this.Tag.P) {
+                $haut = $(if ($this.Tag.H) { [Drawing.Color]::FromArgb(150, 222, 252) } else { [Drawing.Color]::FromArgb(96, 204, 250) })
+                $fond = New-Object Drawing.Drawing2D.LinearGradientBrush($zone, $haut, [Drawing.Color]::FromArgb(38, 150, 240), [single]90)
+                $g.FillPath($fond, $c); $fond.Dispose()
+                $encre = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(6, 18, 32))
+            } else {
+                $fond = New-Object Drawing.SolidBrush($(if ($this.Tag.H) { [Drawing.Color]::FromArgb(34, 60, 88) } else { [Drawing.Color]::FromArgb(18, 34, 52) }))
+                $bord = New-Object Drawing.Pen([Drawing.Color]::FromArgb(79, 195, 247), 1)
+                $g.FillPath($fond, $c); $g.DrawPath($bord, $c); $fond.Dispose(); $bord.Dispose()
+                $encre = New-Object Drawing.SolidBrush([Drawing.Color]::White)
+            }
+            if ($this.Focused) {
+                $tour = New-Object Drawing.Pen([Drawing.Color]::FromArgb(200, 255, 255, 255), 1)
+                $g.DrawPath($tour, $c); $tour.Dispose()
+            }
+            $milieu = New-Object Drawing.StringFormat
+            $milieu.Alignment = 'Center'; $milieu.LineAlignment = 'Center'
+            $g.DrawString($this.Text, $this.Font, $encre, (New-Object Drawing.RectangleF 0, 0, $this.Width, $this.Height), $milieu)
+            $encre.Dispose(); $milieu.Dispose(); $c.Dispose()
+        } catch {}
+    })
     $f.Controls.Add($b)
     return $b
 }
@@ -177,35 +344,49 @@ function Fenetre-Questions($gardes) {
     $f = Nouvelle-Fenetre 'Installer Jarvis' 600 560
     Console-Visible $false
     $script:FERMER = $true                      # console cachée : elle se fermera toute seule à la fin
-    [void](Etiquette $f 'Bienvenue dans Jarvis' 24 18 550 34 17 $true $ACCENT)
-    [void](Etiquette $f ("Jarvis est un assistant vocal en français pour ton PC. Réponds à ces petites questions, puis clique " +
-                         "sur « Installer » : tout le reste se fait tout seul (10 à 20 minutes selon le PC).") 24 58 550 44)
-    [void](Etiquette $f "Ton prénom (Jarvis t'appellera ainsi)" 24 112 550 22)
-    $prenom = Saisie $f 24 136 300
-    [void](Etiquette $f 'Ta ville, pour la météo (tu peux la laisser vide)' 24 176 550 22)
-    $ville = Saisie $f 24 200 300
-    $claude = Case $f "J'ai un abonnement Claude (Pro ou supérieur) : Jarvis pourra répondre à toutes mes questions" 24 244 550 $false
-    [void](Etiquette $f ("Sans abonnement, Jarvis répond déjà à l'heure, la météo, les minuteurs, les rappels, la musique " +
-                         "et aux commandes du PC. Tu pourras ajouter Claude plus tard.") 44 288 530 40 9 $false $GRIS)
-    $demarrage = Case $f 'Lancer Jarvis au démarrage de Windows' 24 330 550 $true
+    $carteFond = [Drawing.Color]::FromArgb(22, 40, 60)
+    [void](Fenetre-Entete $f 'Bienvenue dans Jarvis' ("Ton assistant vocal en français. Réponds à ces petites questions, puis clique sur`n" +
+                                                      "« Installer » : tout le reste se fait tout seul (10 à 20 minutes selon le PC).") 96)
+    # 1. Qui es-tu ?
+    $c1 = Fenetre-Carte $f 24 108 552 86
+    [void](Etiquette $c1 "Ton prénom (Jarvis t'appellera ainsi)" 16 10 256 20 9 $false $GRIS)
+    $prenom = Saisie $c1 16 36 250
+    [void](Etiquette $c1 'Ta ville, pour la météo (facultatif)' 286 10 250 20 9 $false $GRIS)
+    $ville = Saisie $c1 286 36 250
+    # 2. Les options
+    $c2 = Fenetre-Carte $f 24 204 552 $(if ($gardes) { 182 } else { 138 })
+    $claude = Case $c2 "J'ai un abonnement Claude (Pro ou supérieur) : Jarvis pourra répondre à toutes mes questions" 16 6 520 $false
+    [void](Etiquette $c2 ("Sans abonnement, Jarvis répond déjà à l'heure, la météo, les minuteurs, les rappels, la musique " +
+                          "et aux commandes du PC. Tu pourras ajouter Claude plus tard.") 35 50 500 36 9 $false $GRIS)
+    $demarrage = Case $c2 'Lancer Jarvis au démarrage de Windows' 16 88 520 $true
     $reprendre = $null
-    $y = 374
     if ($gardes) {
-        $reprendre = Case $f "Reprendre mes fichiers personnels d'une ancienne installation (réglages, profils, mémoire)" 24 370 550 $true
-        $y = 418
+        $reprendre = Case $c2 "Reprendre mes fichiers personnels d'une ancienne installation (réglages, profils, mémoire)" 16 132 520 $true
     }
+    # 3. Ce qui sera installé
     $liste = @('Jarvis et son modèle de voix (environ 800 Mo en tout)')
     if (-not (Python-314)) { $liste += 'Python, le langage de Jarvis (dans ton dossier personnel)' }
-    if (-not (VC-Present)) { $liste += 'Des composants de Microsoft (Windows demandera ton accord)' }
     $liste += 'Un raccourci « Jarvis » sur le Bureau'
-    [void](Etiquette $f ("Ce qui sera installé :`n- " + ($liste -join "`n- ")) 24 $y 550 (24 + 20 * $liste.Count) 9 $false $GRIS)
-    $installer = Bouton $f 'Installer' 330 505 120 $true
-    $annuler = Bouton $f 'Annuler' 460 505 110 $false
+    $avecAccord = -not (VC-Present)
+    $y = $c2.Bottom + 10
+    $h3 = 20 + 17 * ($liste.Count + 1) + $(if ($avecAccord) { 38 } else { 0 })
+    $c3 = Fenetre-Carte $f 24 $y 552 $h3
+    [void](Etiquette $c3 'Ce qui sera installé' 16 9 520 18 9 $true $ACCENT)
+    [void](Etiquette $c3 ('•  ' + ($liste -join "`n•  ")) 16 28 520 (17 * $liste.Count) 9 $false $GRIS)
+    if ($avecAccord) {
+        # la demande de Windows, en vert et à part, pour qu'on ne la manque pas
+        [void](Etiquette $c3 '•  Des composants de Microsoft : Windows demandera ton accord, clique sur le bouton « Oui »' 16 (30 + 17 * $liste.Count) 520 36 9 $true ([Drawing.Color]::FromArgb(90, 235, 125)))
+    }
+    $yb = $c3.Bottom + 14
+    $installer = Bouton $f 'Installer' 326 $yb 130 $true
+    $annuler = Bouton $f 'Annuler' 466 $yb 110 $false
+    $f.ClientSize = New-Object Drawing.Size(600, ($yb + 38 + 16))
     $installer.DialogResult = 'OK'
     $annuler.DialogResult = 'Cancel'
     $f.AcceptButton = $installer
     $f.CancelButton = $annuler
     $f.Add_Shown({ $prenom.Focus() })
+    Fenetre-Ajuster $f
     if ($f.ShowDialog() -ne 'OK') { return $false }
     $script:REPONSES['JARVIS_PRENOM'] = $prenom.Text.Trim()
     $script:REPONSES['JARVIS_VILLE'] = $ville.Text.Trim()
@@ -218,31 +399,34 @@ function Fenetre-Questions($gardes) {
 
 function Fenetre-Choix($version, $dossier, $sansClaude, $claudeInstalle) {
     # Jarvis est déjà installé : mettre à jour, désinstaller, ajouter Claude, ou rien. Renvoie '1', '2', '3' ou '0'.
-    $f = Nouvelle-Fenetre 'Installer Jarvis' 520 330
+    $f = Nouvelle-Fenetre 'Installer Jarvis' 540 330
     Console-Visible $false
     $script:FERMER = $true
-    [void](Etiquette $f "Jarvis $version est déjà installé" 24 18 470 34 16 $true $ACCENT)
-    [void](Etiquette $f "Dossier : $dossier" 24 56 470 22 9 $false $GRIS)
+    [void](Fenetre-Entete $f "Jarvis $version est déjà installé" "Dossier : $dossier`nQue veux-tu faire ?" 92)
     $choix = @()
     $textes = @('Mettre à jour (ou réparer) — tes réglages et ta mémoire sont gardés', 'Désinstaller Jarvis')
     if ($sansClaude) { $textes += $(if ($claudeInstalle) { 'Connecter Claude à mon compte' } else { 'Ajouter Claude (demande un abonnement Claude)' }) }
-    $y = 92
+    $carte = Fenetre-Carte $f 24 106 492 (20 + 36 * $textes.Count)
+    $y = 10
     foreach ($t in $textes) {
         $r = New-Object Windows.Forms.RadioButton
         $r.Text = $t
-        $r.Location = New-Object Drawing.Point(28, $y)
-        $r.Size = New-Object Drawing.Size(470, 30)
-        $f.Controls.Add($r)
+        $r.Location = New-Object Drawing.Point(16, $y)
+        $r.Size = New-Object Drawing.Size(460, 30)
+        $carte.Controls.Add($r)
         $choix += $r
         $y += 36
     }
     $choix[0].Checked = $true
-    $ok = Bouton $f 'Continuer' 260 275 120 $true
-    $non = Bouton $f 'Fermer' 390 275 110 $false
+    $yb = $carte.Bottom + 16
+    $ok = Bouton $f 'Continuer' 266 $yb 130 $true
+    $non = Bouton $f 'Fermer' 406 $yb 110 $false
+    $f.ClientSize = New-Object Drawing.Size(540, ($yb + 38 + 16))
     $ok.DialogResult = 'OK'
     $non.DialogResult = 'Cancel'
     $f.AcceptButton = $ok
     $f.CancelButton = $non
+    Fenetre-Ajuster $f
     if ($f.ShowDialog() -ne 'OK') { return '0' }
     for ($i = 0; $i -lt $choix.Count; $i++) { if ($choix[$i].Checked) { $script:REPONSES['JARVIS_OK'] = 'o'; return [string]($i + 1) } }
     return '0'
@@ -250,49 +434,83 @@ function Fenetre-Choix($version, $dossier, $sansClaude, $claudeInstalle) {
 
 function Fenetre-Progression($titre) {
     if ($FEN -or -not (Fenetre-Possible ($AUTO -and $env:JARVIS_FENETRE_MAJ -eq '1'))) { return }   # mise à jour lancée par Jarvis : la fenêtre montre l'avancée
-    $f = Nouvelle-Fenetre 'Installer Jarvis' 600 430
+    $f = Nouvelle-Fenetre 'Installer Jarvis' 600 478
     $f.ControlBox = $false                      # pas de croix pendant l'installation : elle s'arrêterait au milieu
     $f.TopMost = $false                         # le navigateur (connexion à Claude) doit pouvoir passer devant
-    [void](Etiquette $f $titre 24 18 550 34 16 $true $ACCENT)
-    $etape = Etiquette $f 'Préparation...' 24 62 550 26 12 $true
-    $barre = New-Object Windows.Forms.ProgressBar
-    $barre.Location = New-Object Drawing.Point(24, 96)
-    $barre.Size = New-Object Drawing.Size(550, 22)
-    $barre.Maximum = $NB_ETAPES
+    [void](Fenetre-Entete $f $titre "Tout se fait tout seul : laisse cette fenêtre ouverte jusqu'à la fin." 84)
+    $etape = Etiquette $f 'Préparation...' 24 98 552 26 12 $true
+    # barre d'avancement arrondie, en dégradé bleu
+    $barre = New-Object Windows.Forms.Panel
+    $barre.Location = New-Object Drawing.Point(24, 130)
+    $barre.Size = New-Object Drawing.Size(552, 14)
+    $barre.Tag = @{ V = 0; M = [Math]::Max(1, $NB_ETAPES) }
+    Fenetre-Tampon $barre
+    $barre.Add_Paint({
+        try {
+            $g = $_.Graphics
+            $g.SmoothingMode = 'AntiAlias'
+            $g.Clear($this.Parent.BackColor)
+            $h = $this.Height - 1
+            foreach ($passe in 0, 1) {
+                $l = $(if ($passe) { [int](($this.Width - 1) * [Math]::Min(1.0, $this.Tag.V / $this.Tag.M)) } else { $this.Width - 1 })
+                if ($l -lt $h) { if ($passe) { continue }; $l = $h }
+                $c = New-Object Drawing.Drawing2D.GraphicsPath
+                $c.AddArc(0, 0, $h, $h, 90, 180); $c.AddArc(($l - $h), 0, $h, $h, 270, 180); $c.CloseFigure()
+                if ($passe) {
+                    $zone = New-Object Drawing.Rectangle 0, 0, ($l + 1), ($h + 1)
+                    $fond = New-Object Drawing.Drawing2D.LinearGradientBrush($zone, [Drawing.Color]::FromArgb(38, 150, 240), [Drawing.Color]::FromArgb(120, 220, 252), [single]0)
+                } else { $fond = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(24, 44, 66)) }
+                $g.FillPath($fond, $c); $fond.Dispose(); $c.Dispose()
+            }
+        } catch {}
+    })
     $f.Controls.Add($barre)
-    $detail = Etiquette $f '' 24 126 550 44 10 $false $GRIS
-    $texte = New-Object Windows.Forms.TextBox
+    $detail = Etiquette $f '' 24 152 552 42 10 $false $GRIS
+    $carte = Fenetre-Carte $f 24 200 552 212
+    $texte = New-Object Windows.Forms.RichTextBox
+    $texte.DetectUrls = $false
     $texte.Multiline = $true
     $texte.ReadOnly = $true
     $texte.ScrollBars = 'Vertical'
-    $texte.Location = New-Object Drawing.Point(24, 176)
-    $texte.Size = New-Object Drawing.Size(550, 186)
-    $texte.BackColor = [Drawing.Color]::FromArgb(22, 40, 60)
+    $texte.Location = New-Object Drawing.Point(12, 10)
+    $texte.Size = New-Object Drawing.Size(530, 192)
+    $texte.BackColor = $carte.BackColor
     $texte.ForeColor = [Drawing.Color]::White
     $texte.BorderStyle = 'None'
     $texte.Font = New-Object Drawing.Font('Segoe UI', 9)
-    $f.Controls.Add($texte)
-    $bouton = Bouton $f 'Terminer' 454 378 120 $true
+    $carte.Controls.Add($texte)
+    $bouton = Bouton $f 'Terminer' 446 424 130 $true
     $bouton.Visible = $false
     $bouton.Add_Click({ $this.FindForm().Close() })
+    Fenetre-Ajuster $f
     $f.Show()
     Console-Visible $false
     $script:FEN = @{ Form = $f; Etape = $etape; Barre = $barre; Detail = $detail; Texte = $texte; Bouton = $bouton }
     Pomper
 }
-function Fenetre-Ligne($texte) {
+function Fenetre-Barre($valeur) {
+    try { $FEN.Barre.Tag.V = $valeur; $FEN.Barre.Invalidate() } catch {}
+}
+function Fenetre-Ligne($texte, $important = $false) {
+    # $important : consigne à ne pas manquer (« clique sur Oui »), écrite en vert
     $t = "$texte".Trim()
     if (-not $t -or $t -match '^-{5,}$') { return }
     try {
+        $VERT = [Drawing.Color]::FromArgb(90, 235, 125); $GRIS_ = [Drawing.Color]::FromArgb(160, 180, 200)
+        $FEN.Detail.ForeColor = $(if ($important) { $VERT } else { $GRIS_ })
         $FEN.Detail.Text = $t
+        $FEN.Texte.SelectionStart = $FEN.Texte.TextLength
+        $FEN.Texte.SelectionLength = 0
+        $FEN.Texte.SelectionColor = $(if ($important) { $VERT } else { [Drawing.Color]::White })
         $FEN.Texte.AppendText($t + "`r`n")
+        $FEN.Texte.ScrollToCaret()
     } catch {}
     Pomper
 }
 function Fenetre-Etape($texte) {
     $script:ETAPE++
     try {
-        $FEN.Barre.Value = [Math]::Min($ETAPE, $NB_ETAPES)
+        Fenetre-Barre ([Math]::Min($ETAPE, $NB_ETAPES))
         $FEN.Etape.Text = $texte
     } catch {}
     Pomper
@@ -300,8 +518,10 @@ function Fenetre-Etape($texte) {
 function Fenetre-Fin($titre) {
     # La fenêtre reste ouverte : on lit « À retenir », puis on clique sur Terminer
     try {
-        $FEN.Barre.Value = $NB_ETAPES
+        Fenetre-Barre $NB_ETAPES
         $FEN.Etape.Text = $titre
+        $FEN.Etape.ForeColor = [Drawing.Color]::FromArgb(79, 195, 247)       # le vert reste réservé aux consignes « clique sur Oui »
+        $FEN.Detail.ForeColor = [Drawing.Color]::White
         $FEN.Detail.Text = $(if ($AUTO) { 'Jarvis redémarre tout seul : cette fenêtre se ferme.' } else { 'Lis « À RETENIR » ci-dessous, puis clique sur Terminer.' })
         $FEN.Bouton.Visible = $true
         $FEN.Form.ControlBox = $true
@@ -470,7 +690,7 @@ function Installer-VC {
         Attention "Pour corriger plus tard : relance ce fichier et choisis 1 (mettre à jour ou réparer)."
         return
     }
-    Dire "  Windows va te demander l'autorisation de les installer : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'White'
+    Dire "  Windows va te demander l'autorisation de les installer : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'Green' $true
     try {
         $p = Start-Process -FilePath $programme -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
         if ($p.ExitCode -in 0, 3010) { Noter 'VCInstalle' }       # 1638 : une version plus récente était déjà là
@@ -887,7 +1107,7 @@ function Autoriser-Tablettes {
     if ($LASTEXITCODE -eq 0) { return }
     if ($AUTO) { return }                          # mise à jour automatique : personne pour répondre à Windows
     Titre "Tablettes"
-    Dire "  Pour que les tablettes de la maison puissent joindre Jarvis, Windows va demander une autorisation : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'White'
+    Dire "  Pour que les tablettes de la maison puissent joindre Jarvis, Windows va demander une autorisation : clique sur le bouton « Oui » (Entrée seule répondrait « Non »)." 'Green' $true
     $regle = 'advfirewall firewall add rule name="' + $nom + '" dir=in action=allow protocol=TCP localport=47826 ' +
              'remoteip=LocalSubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 profile=any'
     try {
@@ -966,7 +1186,7 @@ function Installer($dossierExistant) {
         Titre "Ce qui va être installé"
         Dire "  - Jarvis, dans $dossier"
         if (-not $python) { Dire "  - Python $PYTHON_VER (depuis python.org), dans ton dossier personnel" }
-        if (-not (VC-Present)) { Dire "  - Les composants Microsoft Visual C++ (depuis microsoft.com) : Windows demandera ton autorisation" }
+        if (-not (VC-Present)) { Dire "  - Les composants Microsoft Visual C++ (depuis microsoft.com) : Windows demandera ton autorisation, clique sur le bouton « Oui »" 'Green' $true }
         Dire "  - Les modules Python de Jarvis, dans son propre dossier (environ 600 Mo), y compris ceux de la PlayStation 5"
         Dire "  - Le modèle de reconnaissance vocale Vosk (environ 40 Mo) et celui qui reconnaît qui parle (environ 13 Mo)"
         if ($avecClaude -and -not (Test-Path -LiteralPath $CLAUDE_EXE)) { Dire "  - Claude Code (depuis claude.ai, environ 370 Mo)" }
@@ -1036,14 +1256,16 @@ function Installer($dossierExistant) {
         Dire "  Claude n'est pas installé : Jarvis répond aux commandes immédiates (heure, météo, minuteurs, fenêtres, musique)." 'White'
         Dire "  Pour ajouter Claude plus tard, et lui poser toutes tes questions :"
         Dire "    1. Prends un abonnement Claude (Pro ou supérieur) sur https://claude.ai"
-        Dire "    2. Double-clique sur le fichier $nomInstallateur que tu as téléchargé. Si tu l'as effacé, une copie est"
-        Dire "       rangée dans $dossier (pour ouvrir ce dossier : touche Windows + R, tape $dossier, puis Entrée)."
-        Dire "    3. Tape 3 (« Ajouter Claude »), puis Entrée, et suis les indications"
+        Dire "    2. Dis « Jarvis, ouvre les réglages », va dans l'onglet « Claude », clique sur « Installer Claude »,"
+        Dire "       puis sur « Connecter mon compte »."
+        Dire "    Autre façon : double-clique sur le fichier $nomInstallateur (une copie est rangée dans $dossier)"
+        Dire "    et choisis « Ajouter Claude »."
         Dire ''
     } elseif (-not $AUTO -and -not (Claude-Connecte)) {
         Dire ''
-        Dire "  Claude est installé mais pas connecté à ton compte : double-clique sur $nomInstallateur" 'White'
-        Dire "  (une copie est rangée dans $dossier), puis tape 3 (« Connecter Claude »)." 'White'
+        Dire "  Claude est installé mais pas connecté à ton compte : dis « Jarvis, ouvre les réglages », va dans l'onglet" 'White'
+        Dire "  « Claude » et clique sur « Connecter mon compte ». Autre façon : double-clique sur $nomInstallateur" 'White'
+        Dire "  (une copie est rangée dans $dossier) et choisis « Connecter Claude à mon compte »." 'White'
         Dire ''
     }
     Dire ''

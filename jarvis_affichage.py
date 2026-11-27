@@ -1370,6 +1370,7 @@ class Affichage:
         if maintenant - getattr(self, "_tablettes_t", 0) > 2.0:
             self._tablettes_t = maintenant
             try:
+                import jarvis_tablette
                 self._tablettes_liste = jarvis_tablette.tablettes_en_ligne()
             except Exception:
                 self._tablettes_liste = getattr(self, "_tablettes_liste", [])

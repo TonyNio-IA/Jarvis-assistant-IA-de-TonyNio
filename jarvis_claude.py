@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.63"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.64"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1224,6 +1224,9 @@ def demander_avec_secours(message, demande, longue=False):
     try:                                   # essai oral : on fait comme si Claude était à sa limite (voir jarvis_assistants)
         import jarvis_assistants as _essai
         if _essai.essai_actif() and not longue:
+            locale = _essai.reponse_action(demande, os.path.exists(CLAUDE_EXE))
+            if locale:                                 # ouvrir une application : jamais pour l'assistant de secours
+                return locale, False
             dit = _essai.tour_de_essai(demande)
             if dit:
                 return dit, False
@@ -1236,6 +1239,11 @@ def demander_avec_secours(message, demande, longue=False):
         import jarvis_assistants
         if not jarvis_assistants.utilisable_maintenant():
             return reponse, erreur
+        if not longue:                                 # ouvrir une application : l'assistant de secours n'a pas accès au PC
+            locale = jarvis_assistants.reponse_action(demande, os.path.exists(CLAUDE_EXE))
+            if locale:
+                print("Secours : réponse locale (ouverture d'application non trouvée)")
+                return locale, False
         texte, nom, _ = (jarvis_assistants.demander(demande, True) if longue
                          else jarvis_assistants.demander(demande))
         if texte:
@@ -1701,7 +1709,8 @@ def traiter(demande, recognizer):
                 etape=f"whisper {whisper_ici:.1f} s" if whisper_ici else "")
         jarvis_memoire.noter_echange(derniers_textes[0] if derniers_textes else demande, reponse, "local", demande)
         etat("reponse")
-        interrompu = parler(avec_salutation(bonjour_profil + reponse) + _question_accueil(reponse))
+        interrompu = parler(avec_salutation(bonjour_profil + reponse))
+        interrompu = _poser_question_accueil(reponse, interrompu)
         if not interrompu and jarvis_locuteur.guide_demande():     # « apprends ma voix » : phrase par phrase
             interrompu = apprendre_voix_guidee(recognizer)
         preparer_ecoute(recognizer)
@@ -1812,8 +1821,11 @@ def traiter(demande, recognizer):
     if not erreur:
         if time.time() - debut_traitement > DUREE_TACHE_LONGUE:
             jarvis_voix.son_fini()                 # une longue tâche est finie : petit son avant la réponse
-        reponse = avec_salutation(bonjour_profil + reponse) + _question_accueil(reponse)
+        reponse_seule = reponse
+        reponse = avec_salutation(bonjour_profil + reponse)
     interrompu = parler(reponse)
+    if not erreur:
+        interrompu = _poser_question_accueil(reponse_seule, interrompu)
     preparer_ecoute(recognizer)
     return interrompu
 
@@ -1904,6 +1916,22 @@ def _question_accueil(reponse=""):
     except Exception as erreur:
         print("Accueil :", erreur)
         return ""
+
+
+PAUSE_AVANT_QUESTION = 0.7     # secondes entre la réponse et la question de premiers pas
+
+
+def _poser_question_accueil(reponse, interrompu):
+    """La question de premiers pas (ou le mot du profil enfant) est dite À PART, après une courte pause : collée à la
+    réponse (« Il est 13 heures 27. Au fait, tu préfères… »), on ne comprenait pas qu'une question était posée.
+    Rien n'est demandé si la réponse vient d'être interrompue. Renvoie True si Jarvis a été interrompu."""
+    if interrompu:
+        return True
+    question = (_question_accueil(reponse) or "").strip()
+    if not question:
+        return False
+    time.sleep(PAUSE_AVANT_QUESTION)
+    return parler(question)
 
 
 _FIN_DE_PHRASE = re.compile(r"[.!?…][»\")]?\s")
