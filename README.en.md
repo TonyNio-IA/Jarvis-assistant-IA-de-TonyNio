@@ -55,6 +55,8 @@ Everything can be set without editing a file: right-click the reactor then Â« RÃ
 - **Reports** sent hourly when there is something new. With this version the technical report is turned on once for everyone who did not have it (full reports stay full); it can be turned off in the settings, and that choice is then kept.
 - **Many more local answers**, **Groq** added to the assistants, small fixes, and a text to paste into a free AI to be guided through installation ([docs/installation_guidee_ia.md](docs/installation_guidee_ia.md)).
 
+- **First installation**: a new user now installs 1.65 directly (the stable version for new installations).
+
 ## New in 1.64
 
 - **A clearer, nicer installer**: the installation windows were redesigned (header with the Jarvis reactor, rounded blocks and buttons, gradient progress bar). On a small screen the window scrolls instead of overflowing.

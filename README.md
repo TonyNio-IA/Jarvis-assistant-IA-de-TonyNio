@@ -59,6 +59,8 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Petites corrections** : « 1 degré » au lieu de « 1 degrés » ; message d'erreur de la vigilance météo plus clair dans le journal.
 - **Se faire guider à l'installation** : un texte à coller dans une IA gratuite (ChatGPT, Gemini, Le Chat…) pour être accompagné pas à pas : [docs/installation_guidee_ia.md](docs/installation_guidee_ia.md).
 
+- **Première installation** : un nouvel utilisateur installe maintenant directement la 1.65 (version stable des nouvelles installations).
+
 ## Nouveau en 1.64
 
 - **Installateur plus clair et plus joli** : les fenêtres d'installation ont été refaites (bandeau avec le réacteur de Jarvis, blocs arrondis, boutons arrondis, barre d'avancement en dégradé). Les questions tiennent sur un seul écran, et sur un petit écran la fenêtre défile au lieu de dépasser.
@@ -641,7 +643,7 @@ Facultatif : avec une clé de l'API officielle de Météo-France (portail-api.me
 | `jarvis_tts.py` | La voix Windows de secours |
 | `jarvis_config.py` | La lecture des réglages personnels (`config.json`) |
 | `config.exemple.json` | Le modèle de réglages personnels à copier |
-| `installation-stable.txt` | Une ligne : la version sur laquelle démarre une nouvelle installation, actuellement la 1.64 (les mises à jour vont toujours vers la dernière version) |
+| `installation-stable.txt` | Une ligne : la version sur laquelle démarre une nouvelle installation, actuellement la 1.65 (les mises à jour vont toujours vers la dernière version) |
 | `installateur/` | L'installateur : `Installer-Jarvis.bat` fait tout le travail ; `lanceur.cs` est le petit programme `.exe` qui porte l'icône du réacteur et lance ce `.bat` ; `Lisez-moi-si-Windows-bloque.txt` est l'aide en cas de blocage par Windows |
 | `requirements.txt` | Les modules Python nécessaires |
 | `LICENSE.md` | La licence (PolyForm Strict 1.0.0) |
