@@ -2,7 +2,7 @@
 
 **English: [README.en.md](README.en.md)** · **Version actuelle : 1.64**
 
-**Pour installer Jarvis** $\color{green}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
+**Pour installer Jarvis** $\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
 ```
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
@@ -344,7 +344,7 @@ Voir [Jarvis sur la tablette](#jarvis-sur-la-tablette).
 
 ### Méthode recommandée : une ligne à coller dans le Terminal (marche sur tous les PC)
 
-$\color{green}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ Windows bloque souvent un petit programme gratuit téléchargé par le navigateur. Cette méthode évite ce blocage, sans rien désactiver : c'est celle qui réussit sur tous les PC.
+$\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ Windows bloque souvent un petit programme gratuit téléchargé par le navigateur. Cette méthode évite ce blocage, sans rien désactiver : c'est celle qui réussit sur tous les PC.
 
 1. Appuie sur la touche Windows + X, puis choisis **Terminal** (ou **Windows PowerShell**).
 2. Copie cette ligne, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :
