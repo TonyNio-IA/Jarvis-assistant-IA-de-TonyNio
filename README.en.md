@@ -8,6 +8,8 @@
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
 ```
 
+**Is your Jarvis stuck on an old version (for example 1.47) and no longer updating by itself?** Paste the same line into Terminal, then choose "Mettre à jour" (update): your settings, profiles and memories are kept, and Jarvis goes straight to the latest version. After that, updates are automatic again.
+
 This line downloads the installer of the latest release published on this page (the same file as [`installateur/Installer-Jarvis.bat`](installateur/Installer-Jarvis.bat), which you can read) and opens it; nothing is installed before you click "Installer". Only paste it if you copied it from this official page and it contains a single address starting with `https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/`. Never paste into the Terminal a command received by message or email or found on another site: it is a common trick to install malware.
 
 <p align="center"><img src="docs/jarvis.gif" alt="The Jarvis reactor: idle, listening, answering, reminder, compact mode" width="320"></p>

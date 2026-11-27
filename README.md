@@ -8,6 +8,8 @@
 $f="$env:TEMP\Installer-Jarvis.bat"; iwr https://github.com/TonyNio-IA/Jarvis-assistant-IA-de-TonyNio/releases/latest/download/Installer-Jarvis.bat -OutFile $f; Start-Process $f
 ```
 
+**Ton Jarvis est resté sur une ancienne version (par exemple 1.47) et ne se met plus à jour tout seul ?** Colle la même ligne dans le Terminal, puis choisis « Mettre à jour » : tes réglages, profils et souvenirs sont gardés, et Jarvis passe directement à la dernière version. Ensuite, les mises à jour se font de nouveau toutes seules.
+
 <p align="center"><img src="docs/jarvis.gif" alt="Le réacteur de Jarvis : veille, écoute, réponse, rappel, mode discret" width="320"></p>
 
 **▶ Installer Jarvis pas à pas, en vidéo (8 min) : [le tutoriel complet](https://youtu.be/ZbBA3TN2o9E)**
