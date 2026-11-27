@@ -53,6 +53,11 @@ if sys.stdout is None or sys.stderr is None:
     journal = open(os.path.join(DOSSIER, "jarvis.log"), "a", encoding="utf-8", buffering=1)
     sys.stdout = sys.stderr = journal
     print("\n=====", time.strftime("%d/%m/%Y %H:%M:%S"), "démarrage de Jarvis =====")
+    try:                                   # un vrai plantage (même dans une bibliothèque) laisse sa trace dans le journal
+        import faulthandler
+        faulthandler.enable(journal)
+    except Exception:
+        pass
 
 # Un seul Jarvis à la fois : si un autre tourne déjà, on s'arrête
 _verrou = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -695,8 +700,11 @@ class Reacteur:
 def boucle_jarvis():
     try:
         jarvis_claude.main()
+        print("(Jarvis s'arrête de lui-même, sans erreur : le gardien va le relancer.)")
     except Exception as erreur:
+        import traceback
         print("Erreur Jarvis :", erreur)
+        traceback.print_exc()                    # l'endroit exact, pour comprendre un arrêt inattendu
         try:
             import jarvis_sante
             jarvis_sante.noter_cause(erreur)       # au redémarrage, Jarvis dira ce qui s'est passé

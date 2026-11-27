@@ -1461,7 +1461,7 @@ function Installer($dossierExistant) {
         Dire "  Claude n'est pas installé : Jarvis répond aux commandes immédiates (heure, météo, minuteurs, fenêtres, musique)." 'White'
         Dire "  Pour ajouter Claude plus tard, et lui poser toutes tes questions :"
         Dire "    1. Prends un abonnement Claude (Pro ou supérieur) sur https://claude.ai"
-        Dire "    2. Dis « Jarvis, ouvre les réglages », va dans l'onglet « Claude », clique sur « Installer Claude »,"
+        Dire "    2. Dis « Jarvis, ouvre les réglages », va dans l'onglet « Assistants », clique sur « Installer Claude »,"
         Dire "       puis sur « Connecter mon compte »."
         Dire "    Autre façon : double-clique sur le fichier $nomInstallateur (une copie est rangée dans $dossier)"
         Dire "    et choisis « Ajouter Claude »."
@@ -1469,7 +1469,7 @@ function Installer($dossierExistant) {
     } elseif (-not $AUTO -and -not (Claude-Connecte)) {
         Dire ''
         Dire "  Claude est installé mais pas connecté à ton compte : dis « Jarvis, ouvre les réglages », va dans l'onglet" 'White'
-        Dire "  « Claude » et clique sur « Connecter mon compte ». Autre façon : double-clique sur $nomInstallateur" 'White'
+        Dire "  « Assistants » et clique sur « Connecter mon compte ». Autre façon : double-clique sur $nomInstallateur" 'White'
         Dire "  (une copie est rangée dans $dossier) et choisis « Connecter Claude à mon compte »." 'White'
         Dire ''
     }

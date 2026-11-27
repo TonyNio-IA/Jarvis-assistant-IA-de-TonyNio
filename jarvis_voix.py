@@ -140,6 +140,11 @@ def bandes_spectre(blocs, freq, nb=NB_BANDES):
                      for i in range(nb)], axis=1)
 
 _cache = {}         # phrase -> son déjà prêt
+# Le morceau en train d'être dit : l'écoute de « Jarvis » pendant la parole ignore le mot seulement quand Jarvis
+# le prononce lui-même (écho du haut-parleur), pas pendant toute une longue réponse.
+morceau_en_cours = ""
+numero_morceau = 0
+debut_morceau = 0.0
 
 
 VARIATION_VOIX = True    # chaque phrase prend un ton et un rythme très légèrement différents : plus naturel
@@ -365,6 +370,12 @@ def _decouper(texte):
     return morceaux
 
 
+def _morceau(texte):
+    global morceau_en_cours, numero_morceau, debut_morceau
+    morceau_en_cours, debut_morceau = sans_balises_voix(texte or ""), time.time()
+    numero_morceau += 1
+
+
 def speak(texte, interruption=None, toujours=False):
     """Fait parler Jarvis avec la voix naturelle (ou la voix Windows en secours).
     Si « interruption » est donnée, la lecture peut être coupée : renvoie alors True.
@@ -390,6 +401,7 @@ def speak(texte, interruption=None, toujours=False):
         return False
     if texte in _cache and not voix_enfant_active():   # les phrases préparées sont dans la voix habituelle
         try:
+            _morceau(texte)
             return _jouer_echantillons(_cache[texte], interruption=interruption)
         except Exception as erreur:
             print("Lecture directe impossible :", erreur)
@@ -421,6 +433,7 @@ def speak(texte, interruption=None, toujours=False):
                 print("Voix naturelle indisponible (", son, ") : voix Windows utilisée.")
                 voix_windows(" ".join(morceaux[deja_dit:]))
                 return False
+            _morceau(morceaux[deja_dit] if deja_dit < len(morceaux) else "")
             if _jouer_echantillons(son, interruption=interruption):
                 return True
             deja_dit += 1

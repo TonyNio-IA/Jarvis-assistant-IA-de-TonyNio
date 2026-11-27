@@ -20,6 +20,7 @@ de doute, ce module se tait. Rien ici n'agit sur le PC.
 
 import datetime
 import math
+import random
 import re
 from fractions import Fraction
 
@@ -706,6 +707,118 @@ def _politesses(s):
     return None
 
 
+# ---------------------------------------------------------------- pluriel des noms
+
+_PLURIELS_SPECIAUX = {"oeil": "yeux", "œil": "yeux", "ciel": "cieux", "aieul": "aïeux", "aïeul": "aïeux",
+                      "madame": "mesdames", "monsieur": "messieurs", "mademoiselle": "mesdemoiselles",
+                      "bonhomme": "bonshommes", "gentilhomme": "gentilshommes"}
+_AL_EN_ALS = {"bal", "carnaval", "chacal", "festival", "recital", "regal", "cal", "narval", "choral", "nopal", "ceremonial",
+              "serval", "aval", "cantal", "chacal", "gavial", "rorqual"}
+_AIL_EN_AUX = {"bail", "corail", "email", "soupirail", "travail", "vantail", "vitrail"}
+_OU_EN_OUX = {"bijou", "caillou", "chou", "genou", "hibou", "joujou", "pou"}
+_EU_EN_EUS = {"bleu", "pneu", "emeu", "landau", "sarrau", "enfeu"}
+
+
+def pluriel_nom(mot):
+    """Le pluriel d'un nom commun d'un seul mot, selon les règles et leurs exceptions ; None si le mot n'est pas simple."""
+    m = mot.lower().strip()
+    if not re.fullmatch(r"[a-zàâäçéèêëîïôöùûüÿœæ]{2,30}", m):
+        return None
+    simple = _simple(m)
+    if m in _PLURIELS_SPECIAUX:
+        return _PLURIELS_SPECIAUX[m]
+    if m[-1] in "sxz":
+        return m
+    if simple.endswith("al"):
+        return m + "s" if simple in _AL_EN_ALS else m[:-2] + "aux"
+    if simple.endswith("ail"):
+        return m[:-3] + "aux" if simple in _AIL_EN_AUX else m + "s"
+    if simple.endswith("ou"):
+        return m + "x" if simple in _OU_EN_OUX else m + "s"
+    if simple.endswith(("au", "eu")):
+        return m + "s" if simple in _EU_EN_EUS else m + "x"
+    return m + "s"
+
+
+def _pluriel_demande(s, brut):
+    m = (re.search(r"^(?:quel est |c'est quoi |donne[- ]moi )?le pluriel (?:de |du mot |d')(?:un |une |le |la |l')?([a-z'\-]{2,30})$", s)
+         or re.search(r"^(?:comment (?:on ecrit|s'ecrit|ecrire|dit[- ]on) )?(?:un |une |le |la |l')?([a-z\-]{2,30}) au pluriel$", s))
+    if not m:
+        return None
+    mot = _mot_d_origine(brut, m.group(1).split("'")[-1])
+    pl = pluriel_nom(mot)
+    if not pl:
+        return None
+    if pl == mot.lower():
+        return f"{mot.capitalize()} ne change pas au pluriel : des {pl}."
+    return f"Au pluriel, {mot.lower()} devient {pl} : des {pl}."
+
+
+# ---------------------------------------------------------------- cuisine et pas
+
+# Une tasse américaine (environ 240 ml) : poids habituels des ingrédients courants
+_TASSE = {"farine": 125, "sucre": 200, "beurre": 225, "lait": 240, "eau": 240, "huile": 215}
+
+
+def _cuisine_et_pas(s):
+    m = re.search(r"^(?:combien (?:font|fait|de tasses? (?:font|fait|pour)) )?" + _N + r" (?:grammes?|g) de (farine|sucre|beurre|lait|eau|huile)"
+                  r" (?:en|ca fait combien de|c'est combien de) tasses?$", s)
+    if m:
+        g = _n(m.group(1))
+        if g:
+            t = g / _TASSE[m.group(2)]
+            return (f"{_dire(round(g))} grammes de {m.group(2)}, c'est environ {_dire(round(t, 1))} tasse{'s' if t >= 2 else ''} "
+                    f"(une tasse américaine de 240 millilitres, soit à peu près {_TASSE[m.group(2)]} grammes de {m.group(2)}).")
+    m = re.search(r"^(?:combien (?:de grammes (?:dans|pour|font|fait) |font |fait ))?(une|un|" + _N[1:-1] + r") tasses? de (farine|sucre|beurre|lait|eau|huile)"
+                  r"(?: en grammes| ca fait combien de grammes| c'est combien de grammes)?$", s)
+    if m and ("gramme" in s or s.startswith("combien")):
+        n = 1 if m.group(1) in ("une", "un") else _n(m.group(1))
+        if n:
+            g = n * _TASSE[m.group(2)]
+            return (f"{_dire(n)} tasse{'s' if n >= 2 else ''} de {m.group(2)}, c'est environ {_dire(round(g))} grammes "
+                    "(tasse américaine de 240 millilitres).")
+    m = re.search(r"^(?:combien (?:font|fait) )?" + _N + r" pas (?:en|ca fait combien de|c'est combien de) (?:kilometres?|km)$", s)
+    if m:
+        p = _n(m.group(1))
+        if p:
+            km = p * 0.7 / 1000
+            return (f"{_dire(round(p))} pas, c'est environ {_dire(round(km, 1))} kilomètre{'s' if km >= 2 else ''}, "
+                    "en comptant un pas d'adulte de 70 centimètres ; selon la taille, le pas va de 60 à 80 centimètres.")
+    m = re.search(r"^combien (?:de pas|faut[- ]il de pas) (?:pour|dans|font|fait|y a[- ]t[- ]il dans) " + _N + r" (?:kilometres?|km)$", s) \
+        or re.search(r"^combien (?:de pas|faut[- ]il de pas) (?:pour|dans|fait) (un) (?:kilometre|km)$", s)
+    if m:
+        k = 1 if m.group(1) == "un" else _n(m.group(1))
+        if k:
+            return (f"Pour {_dire(k)} kilomètre{'s' if k >= 2 else ''}, il faut environ {_dire(round(k * 1000 / 0.7, -1))} pas, "
+                    "avec un pas d'adulte de 70 centimètres.")
+    return None
+
+
+# ---------------------------------------------------------------- un mot gentil
+
+_GENTIL = ("Tu es quelqu'un de bien, et ça se voit dans la façon dont tu prends soin des autres.",
+           "Tu as plus de courage que tu ne le crois.", "Ta curiosité est une vraie qualité : ne la perds jamais.",
+           "Merci d'être là. Les journées sont plus agréables avec toi.", "Tu progresses, même les jours où tu ne le vois pas.",
+           "Tu as le droit d'être fier de tout ce que tu as déjà accompli.")
+_GENTIL_VOUS = ("Vous êtes quelqu'un de bien, et ça se voit dans la façon dont vous prenez soin des autres.",
+                "Vous avez plus de courage que vous ne le croyez.", "Votre curiosité est une vraie qualité : ne la perdez jamais.",
+                "Merci d'être là. Les journées sont plus agréables avec vous.",
+                "Vous progressez, même les jours où vous ne le voyez pas.",
+                "Vous avez le droit d'être fier de tout ce que vous avez déjà accompli.")
+
+
+def _gentil(s):
+    if not re.fullmatch(r"(?:dis[- ]moi |dites[- ]moi )?(?:quelque chose|un mot|une phrase) (?:de )?gentil(?:le)?|"
+                        r"(?:fais|faites)[- ]moi un compliment|un compliment|remonte[- ]moi le moral|dis[- ]moi un compliment", s):
+        return None
+    try:
+        import jarvis_local
+        vous = jarvis_local._vous()
+    except Exception:
+        vous = False
+    return random.choice(_GENTIL_VOUS if vous else _GENTIL)
+
+
 # ---------------------------------------------------------------- entrée
 
 def commande(t, brut="", aujourdhui=None):
@@ -719,7 +832,8 @@ def commande(t, brut="", aujourdhui=None):
     aujourdhui = aujourdhui or datetime.date.today()
     for fonction in (lambda: _pourcentages(s), lambda: _maths(s), lambda: _nombres(s), lambda: _dates(s, aujourdhui),
                      lambda: _departements_fr(s), lambda: _culture(s), lambda: _conversions(s),
-                     lambda: _mots(s, brut or t), lambda: _politesses(s)):
+                     lambda: _mots(s, brut or t), lambda: _pluriel_demande(s, brut or t), lambda: _cuisine_et_pas(s),
+                     lambda: _gentil(s), lambda: _politesses(s)):
         try:
             reponse = fonction()
         except Exception:

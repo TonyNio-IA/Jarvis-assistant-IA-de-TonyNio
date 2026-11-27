@@ -306,6 +306,43 @@ def commande_bluetooth(t):
     return f"Bluetooth {voulu}."
 
 
+_RADIO_WIFI = _RADIO.replace("$_.Kind -eq 'Bluetooth'", "$_.Kind -eq 'WiFi'")
+
+
+def wifi(etat=None):
+    """Lit (etat=None) ou règle (« On » / « Off ») le Wi-Fi du PC. Renvoie « On », « Off », « AUCUN » ou ""."""
+    return _powershell(_RADIO_WIFI.replace("ETAT", etat or "LIRE"), delai=20)
+
+
+def commande_wifi(t):
+    """« active le wifi », « coupe le wifi », « le wifi est activé ? » (le Wi-Fi du PC, pas le Wi-Fi invité de la Freebox)."""
+    t = _sans_jarvis(t)
+    if not re.search(r"\b(?:wi-?fi|wi fi|ouifi|wifi)\b", t) or re.search(r"\b(?:invit[ée]s?|mot de passe|code|qr|freebox|box|r[ée]seau)\b", t):
+        return None
+    if re.search(r"\b(?:éteins|eteins|coupe|désactive|desactive|arrête|arrete|stoppe|enlève|enleve)\b", t):
+        etat, voulu = "Off", "coupé"
+    elif re.search(r"\b(?:allume|active|mets|lance|démarre|demarre|rallume|réactive|reactive|remets)\b", t):
+        etat, voulu = "On", "activé"
+    elif re.search(r"\b(?:est|il est|activé|active|allumé|marche)\b.*\?|^(?:le )?wi-?fi\W*$|\b(?:est-ce que|est ce que)\b", t):
+        etat, voulu = None, None
+    else:
+        return None
+    try:
+        resultat = wifi(etat)
+    except Exception as erreur:
+        print("Wi-Fi :", erreur)
+        return "Je n'arrive pas à régler le Wi-Fi."
+    if resultat == "AUCUN":
+        return "Je ne trouve pas de Wi-Fi sur ce PC : il est sans doute branché par câble."
+    if etat is None:
+        return "Le Wi-Fi est activé." if resultat == "On" else "Le Wi-Fi est coupé."
+    if resultat != etat:
+        return "Windows n'a pas accepté de changer le Wi-Fi."
+    if etat == "Off":
+        return "Wi-Fi coupé. Je n'ai plus Internet : dis « Jarvis, active le Wi-Fi » pour le remettre."
+    return f"Wi-Fi {voulu}."
+
+
 def rapide(t):
     t = _sans_jarvis(t)
     return bool(re.search(r"\bmode nuit\b|\bbluetooth\b|\bluminosit", t))

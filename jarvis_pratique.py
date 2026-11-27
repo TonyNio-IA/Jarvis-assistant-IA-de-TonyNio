@@ -655,6 +655,11 @@ def _plus_tard(*codes, repetitions=1):
 
 
 _RACCOURCIS = [
+    # zoom avec le pavé numérique (+, -, 0) : marche quelle que soit la disposition du clavier (AZERTY, QWERTY...)
+    (r"(?:fais un |fait un )?zoom(?:e)? (?:avant|plus)|zoome|agrandis (?:le texte|la page|l'écran)|zoom in", (CTRL, 0x6B), "Zoom avant."),
+    (r"(?:fais un |fait un )?zoom(?:e)? (?:arrière|arriere|moins)|dézoome?|dezoome?|rapetisse (?:le texte|la page)|zoom out",
+     (CTRL, 0x6D), "Zoom arrière."),
+    (r"zoom normal|(?:remets le |remet le )?zoom (?:à|a) cent|taille normale|réinitialise le zoom", (CTRL, 0x60), "Zoom normal."),
     (r"(?:copie|copier|copies)(?: ça| ca| ceci| le texte| la sélection| la selection| tout)?", (CTRL, 0x43), "Copié."),
     (r"(?:colle|coller|colles)(?: ça| ca| ici| le texte)?", (CTRL, 0x56), "Collé."),
     (r"(?:coupe|couper)(?: ça| ca| le texte| la sélection| la selection)", (CTRL, 0x58), "Coupé."),

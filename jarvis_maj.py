@@ -193,6 +193,12 @@ def _rearmer_forcee():
         return
     attente = NOUVEL_ESSAI_TELECHARGEMENT if _telechargement_rate else NOUVEL_ESSAI_INSTALLATION
     if time.time() - _forcee_lancee_le >= attente:
+        if not _telechargement_rate:          # (un téléchargement raté est déjà compté par installer())
+            noter_echec("installation")        # lancé, mais Jarvis tourne toujours un quart d'heure plus tard
+            try:
+                os.remove(FICHIER_SUIVI)       # déjà compté : le bilan du prochain démarrage ne le recompte pas
+            except OSError:
+                pass
         _forcee_lancee = False
         lancee = False
         _noter("Mise à jour forcée : le dernier essai n'a pas abouti, nouvel essai (", _forcee_essais + 1, "sur",
@@ -263,12 +269,104 @@ def texte_aide(mise_a_jour=False):
             "ou trouvée sur un autre site : c'est une ruse courante pour installer des programmes malveillants.\n")
 
 
-def _ouvrir_aide():
+def _ouvrir_aide(texte=None):
     """Écrit l'aide dans le dossier temporaire et l'ouvre dans le Bloc-notes (programme signé par Microsoft)."""
     chemin = os.path.join(tempfile.gettempdir(), "Jarvis-aide-Windows.txt")
     with open(chemin, "w", encoding="utf-8-sig", newline="") as f:
-        f.write(texte_aide(True).replace("\n", "\r\n"))
+        f.write((texte or texte_aide(True)).replace("\n", "\r\n"))
     subprocess.Popen(["notepad.exe", chemin])
+
+
+# ---------- Mise à jour qui n'aboutit pas (Windows, antivirus) : au bout de 2 essais ratés, on explique ----------
+
+FICHIER_ECHECS = jarvis_config.chemin("mise_a_jour_echecs.json")    # reste sur ce PC
+ECHECS_AVANT_AIDE = 2
+
+
+def texte_aide_blocage(genre="installation"):
+    """La marche à suivre quand la mise à jour échoue plusieurs fois (Windows, antivirus, connexion)."""
+    cause = ("Le téléchargement de la mise à jour a échoué deux fois. Souvent, c'est la connexion Internet, ou un "
+             "antivirus qui supprime le fichier dès qu'il arrive." if genre == "telechargement" else
+             "La mise à jour s'est lancée deux fois sans aller au bout. Souvent, c'est Windows ou un antivirus qui "
+             "bloque le fichier d'installation de Jarvis.")
+    return ("Jarvis n'arrive pas à se mettre à jour.\n\n" + cause + " Rien n'est cassé : Jarvis continue de marcher "
+            "dans sa version actuelle. Voici comment débloquer, de la solution la plus simple à la plus complète.\n\n"
+            "SOLUTION 1 (recommandée, elle marche sur tous les PC) : la ligne à coller dans le Terminal\n"
+            "1. Appuie sur la touche Windows + X, puis choisis Terminal (ou Windows PowerShell).\n"
+            "2. Copie la ligne ci-dessous, colle-la dans la fenêtre (clic droit), puis appuie sur Entrée :\n\n"
+            + LIGNE_INSTALLATION + "\n\n"
+            "3. La fenêtre d'installation de Jarvis s'ouvre : choisis « Mettre à jour ». Tes réglages, tes profils et "
+            "tes rappels sont gardés.\n\n"
+            "SOLUTION 2 : si Windows affiche « Windows a protégé votre ordinateur »\n"
+            "Clique sur « Informations complémentaires », puis sur « Exécuter quand même ».\n\n"
+            "SOLUTION 3 : si ton antivirus a mis Jarvis de côté\n"
+            "- Avec la protection de Windows : ouvre « Sécurité Windows », puis « Protection contre les virus et menaces », "
+            "puis « Historique de protection ». Si « Installer-Jarvis » y apparaît comme bloqué ou mis en quarantaine, "
+            "choisis de l'autoriser ou de le restaurer.\n"
+            "- Avec un autre antivirus (Avast, AVG, Norton, Bitdefender, Kaspersky, McAfee...) : ouvre-le et cherche "
+            "la « quarantaine » ou l'« historique des menaces ». Si Installer-Jarvis ou un fichier de C:\\Jarvis y est, "
+            "restaure-le et autorise-le.\n"
+            "Puis refais la solution 1.\n\n"
+            "Ce blocage ne veut pas dire que le fichier est dangereux : Jarvis est un projet personnel et gratuit, sans le "
+            "certificat payant que Windows et les antivirus connaissent. Ne désactive pas ton antivirus, et ne colle "
+            "jamais dans le Terminal une commande reçue par message, par mail ou trouvée sur un autre site : la ligne "
+            "officielle ne contient qu'une adresse, qui commence par https://github.com/" + DEPOT + "/ .\n\n"
+            "Si rien ne marche, signale-le : dans les réglages de Jarvis, onglet Rapports, « Signaler un problème ».\n")
+
+
+def _lire_echecs():
+    try:
+        with open(FICHIER_ECHECS, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def noter_echec(genre, cible=None, ouvrir=True):
+    """Un essai de mise à jour n'a pas abouti. Au 2e essai raté vers la même version, Jarvis explique comment
+    débloquer (une seule fois par version) : phrase dite + Bloc-notes avec la marche à suivre + ligne copiée.
+    Renvoie True si l'aide vient d'être montrée."""
+    global _echec
+    cible = cible or (disponible[0] if disponible else "?")
+    d = _lire_echecs()
+    if d.get("vers") != cible:
+        d = {"vers": cible, "echecs": 0, "aide": False}
+    d["echecs"] = int(d.get("echecs", 0)) + 1
+    d["dernier"] = genre
+    montrer = d["echecs"] >= ECHECS_AVANT_AIDE and not d.get("aide")
+    if montrer:
+        d["aide"] = True
+    try:
+        with open(FICHIER_ECHECS, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+    except OSError:
+        pass
+    _noter(f"Mise à jour vers {cible} : essai raté n° {d['echecs']} ({genre}).")
+    if not montrer:
+        return False
+    _echec = ("Ma mise à jour n'arrive pas à s'installer : Windows ou ton antivirus la bloque sans doute. "
+              "J'ai ouvert le Bloc-notes avec la marche à suivre pour la débloquer, et la ligne à coller est déjà "
+              "copiée : Contrôle V.")
+    if ouvrir:
+        try:
+            copie = subprocess.Popen(["clip"], stdin=subprocess.PIPE,
+                                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+            copie.communicate(LIGNE_INSTALLATION.encode("ascii"), timeout=10)
+        except Exception:
+            pass
+        try:
+            _ouvrir_aide(texte_aide_blocage(genre))
+        except Exception as erreur:
+            _noter("Bloc-notes impossible :", erreur)
+    return True
+
+
+def oublier_echecs():
+    try:
+        os.remove(FICHIER_ECHECS)
+    except OSError:
+        pass
 
 
 def installer():
@@ -292,6 +390,8 @@ def installer():
     except Exception as erreur:
         _telechargement_rate = True
         _noter("Téléchargement de la mise à jour impossible :", erreur)
+        if noter_echec("telechargement", cible):
+            return echec_a_dire()
         return "Je n'arrive pas à télécharger la mise à jour. Vérifie la connexion Internet, puis redemande-le-moi."
     try:
         with open(FICHIER_SUIVI, "w", encoding="utf-8") as f:
@@ -486,6 +586,7 @@ def bilan_au_demarrage():
         return None
     actuelle = version_actuelle()
     if _nombres(actuelle) > _nombres(suivi.get("depuis")):
+        oublier_echecs()                       # réussie : les essais ratés d'avant ne comptent plus
         notes = notes_de(actuelle)
         nouveautes = nouveautes_de(actuelle, notes) if notes else ""
         deja = []
@@ -504,6 +605,8 @@ def bilan_au_demarrage():
         return (f"Mise à jour terminée : je suis maintenant en version {actuelle}."
                 + (f" Les nouveautés : {nouveautes}." if nouveautes else "")
                 + (f" {merci}" if merci else ""))
+    if noter_echec("installation", suivi.get("vers")):
+        return echec_a_dire()                  # 2e essai raté : la marche à suivre pour débloquer
     return (f"La mise à jour n'a pas abouti : je suis toujours en version {actuelle}. "
             "Le détail est dans le fichier installation.log, dans mon dossier.")
 

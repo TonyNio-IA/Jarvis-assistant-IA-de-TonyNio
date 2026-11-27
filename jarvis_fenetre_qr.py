@@ -167,7 +167,8 @@ def _capturer(fen, chemin):
                   "[void][W.D]::SetProcessDPIAware(); $e = [Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $k = $e.DpiX / 96; "
                   f"$b = New-Object Drawing.Bitmap ([int]({l}*$k)),([int]({h}*$k)); $g = [Drawing.Graphics]::FromImage($b); "
                   f"$g.CopyFromScreen([int]({x}*$k),[int]({y}*$k),0,0,$b.Size); $b.Save('{chemin}')")
-        subprocess.run(["powershell", "-NoProfile", "-Command", script], timeout=30)
+        subprocess.run(["powershell", "-NoProfile", "-Command", script], timeout=30,
+                       creationflags=0x08000000)          # sans fenêtre noire qui clignote
     finally:
         fen.destroy()
 

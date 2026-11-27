@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.65"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.66"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -151,7 +151,7 @@ WHISPER_DOSSIER = jarvis_config.chemin("whisper")
 # Tous les cœurs du processeur (8 au plus) : mesuré 0,4 s plus rapide par demande qu'avec 4, même texte compris
 WHISPER_FILS = max(1, min(8, os.cpu_count() or 4))
 WHISPER_TEMPERATURES = (0.0, 0.4)   # deux essais au plus quand la voix est peu claire
-# Mode léger : sur un PC lent, une seule hypothèse et un seul essai. Mesuré le 21/11/2026 sur un petit portable :
+# Mode léger : sur un PC lent, les commandes connues partent sans attendre Whisper. Mesuré le 21/11/2026 sur un petit portable :
 # 14 à 17 s par phrase avec les réglages normaux (2 à 4 s sur un PC de bureau récent). Jarvis le décide tout seul
 # d'après ses trois dernières retranscriptions, et s'en souvient (mode_leger.json, à effacer pour revenir au normal).
 MODE_LEGER_FICHIER = jarvis_config.chemin("mode_leger.json")
@@ -160,9 +160,16 @@ WHISPER_TRES_LENT = 10.0            # deux phrases de suite au-delà : mode lég
 _durees_whisper = collections.deque(maxlen=3)
 
 
+MODE_LEGER_ACTIF = False
+
+
 def _appliquer_mode_leger():
-    global WHISPER_FAISCEAU, WHISPER_TEMPERATURES
-    WHISPER_FAISCEAU, WHISPER_TEMPERATURES = 1, (0.0,)
+    # Mesuré le 27/11/2026 sur 25 vrais enregistrements : comparer 1 hypothèse au lieu de 5 ne fait gagner AUCUN
+    # temps (2,94 s contre 3,00 s ; avec 2 fils de calcul 3,83 s contre 3,81 s) et change 15 retranscriptions sur 25,
+    # souvent en moins bien. Whisper garde donc ses 5 hypothèses ; le vrai gain du mode léger reste : les commandes
+    # connues partent telles que Vosk les a entendues, sans attendre Whisper, et le micro a une plus grande réserve.
+    global MODE_LEGER_ACTIF
+    MODE_LEGER_ACTIF = True
     jarvis_commandes.MODE_LEGER = True    # les commandes connues sont prises telles que Vosk les a entendues
 
 
@@ -190,7 +197,7 @@ def _ecrire_mode_leger(**changements):
 def noter_duree_whisper(calcul):
     """Après chaque retranscription sur le PC : si ce PC est nettement lent, Jarvis passe en mode léger
     (sauf si l'utilisateur a choisi « jamais » dans les réglages)."""
-    if WHISPER_FAISCEAU == 1 or etat_mode_leger().get("choix") == "jamais":
+    if MODE_LEGER_ACTIF or etat_mode_leger().get("choix") == "jamais":
         return
     _durees_whisper.append(calcul)
     if not pc_lent(list(_durees_whisper)):
@@ -201,8 +208,7 @@ def noter_duree_whisper(calcul):
     _ecrire_mode_leger(actif=True, depuis=time.strftime("%d/%m/%Y %H:%M"),
                        secondes=[round(d, 1) for d in _durees_whisper])
     print(f"Mode léger activé : ce PC met environ {sorted(_durees_whisper)[len(_durees_whisper) // 2]:.0f} s à "
-          "comprendre une phrase. Jarvis compare désormais une seule hypothèse : les réponses seront nettement "
-          "plus rapides.")
+          "comprendre une phrase. Les commandes simples partent désormais sans attendre la reconnaissance précise.")
 
 
 def pc_lent(mesures):
@@ -219,7 +225,7 @@ try:                                    # décidé lors d'un lancement précéde
     _choix_leger = _etat_leger.get("choix", "auto")
     if _choix_leger == "toujours" or (_choix_leger != "jamais" and _etat_leger.get("actif")):
         _appliquer_mode_leger()
-        print("Mode léger (PC lent) : Whisper compare une seule hypothèse."
+        print("Mode léger (PC lent) : les commandes simples partent sans attendre Whisper."
               + (" (choisi dans les réglages)" if _choix_leger == "toujours" else ""))
     elif _choix_leger == "jamais":
         print("Mode léger : désactivé dans les réglages.")
@@ -452,7 +458,7 @@ def _ouvrir_micro():
     """Ouvre le micro. Sur un PC lent (mode léger), la réserve de son demandée à Windows est plus grande (une
     demi-seconde) : le micro perd moins de son (« input overflow ») quand le processeur est occupé. Si Windows
     refuse cette réserve, on revient au réglage habituel."""
-    essais = ((0.5,) if WHISPER_FAISCEAU == 1 else ()) + ("high",)
+    essais = ((0.5,) if MODE_LEGER_ACTIF else ()) + ("high",)
     derniere = None
     for latence in essais:
         try:
@@ -726,7 +732,7 @@ def charger_whisper():
         whisper = WhisperModel(WHISPER_MODELE, device="cpu", compute_type="int8",
                                download_root=WHISPER_DOSSIER, cpu_threads=WHISPER_FILS)
         print(f"Reconnaissance précise (Whisper) prête. Jarvis est prêt en {time.time() - LANCE_A:.0f} s "
-              f"(processeur : {os.cpu_count()} fils de calcul{', mode léger' if WHISPER_FAISCEAU == 1 else ''}).")
+              f"(processeur : {os.cpu_count()} fils de calcul{', mode léger' if MODE_LEGER_ACTIF else ''}).")
     except Exception as erreur:
         whisper = None
         print("Whisper indisponible, Vosk seul sera utilisé :", erreur)
@@ -910,7 +916,8 @@ _HALLUCINATION = re.compile(
     r"amara|sous-?titr|soustitreur|merci d'avoir (?:regard|suivi|visionn|[ée]cout)|merci (?:à tous )?pour (?:votre|ton) (?:attention|[ée]coute|visionnage)|"
     r"abonnez[- ]vous|abonne[- ]toi|n'oublie(?:z)? pas de (?:vous |t')abonner|(?:à|a) bient[ôo]t (?:pour|dans) une (?:prochaine|nouvelle|autre) vid[ée]o|"
     r"(?:c'est|c'était) la fin de (?:cette|la) vid[ée]o|laissez (?:un|vos) (?:commentaires?|pouce)|pouce bleu|"
-    r"activez la cloche|radio-canada|merci d'avoir regard[ée] cette vid[ée]o", re.I)
+    r"activez la cloche|radio-canada|merci d'avoir regard[ée] cette vid[ée]o|"
+    r"thanks? (?:you )?for watching|^\W*thanks?(?:[,.!\s]+thank you)?\W*$|^\W*thank you(?: (?:so|very) much)?\W*$", re.I)
 
 
 def combiner(texte_whisper, texte_vosk):
@@ -1183,7 +1190,7 @@ class ClaudeContinu:
 
 SANS_CLAUDE = ("Pour cette demande, j'ai besoin de Claude, qui n'est pas installé sur ce PC. "
                "Je réponds quand même aux commandes immédiates : l'heure, la météo, les minuteurs, les fenêtres, l'ouverture des applications. "
-               "Pour ajouter Claude, ouvre mes Réglages, onglet Claude, et clique sur Installer Claude, puis sur Connecter mon compte. "
+               "Pour ajouter Claude, ouvre mes Réglages, onglet Assistants, et clique sur Installer Claude, puis sur Connecter mon compte. "
                "Tu peux aussi utiliser un autre assistant, comme Gemini, Mistral ou ChatGPT : onglet Assistants, c'est expliqué pas à pas.")
 _derniers_messages = {}
 
@@ -1581,6 +1588,22 @@ coupe_par_jarvis = False      # vrai si Jarvis vient d'être coupé par « Jarvi
 _jarvis_dans_texte = False    # Jarvis prononce lui-même son nom : on ignore alors « jarvis » (écho du haut-parleur)
 _MOT_STOP_LIBRE = re.compile(r"\b(?:stop|stoppe|arr[êe]te|tais[- ]toi|tait toi|tais toi|chut)\b")
 _stop_libre = [0.0]           # dernier moment où la reconnaissance complète a entendu un mot d'arrêt
+ECHO_NOM_S = 1.5              # après un morceau où Jarvis dit son nom, l'écho peut encore traîner un peu
+_suivi_morceau = {"numero": 0, "nom": False, "fin_nom": 0.0}
+
+
+def _nom_dit_par_jarvis():
+    """Vrai si Jarvis prononce lui-même « Jarvis » en ce moment (ou vient de le faire) : un « jarvis » entendu
+    est alors sans doute l'écho de son haut-parleur. Avant, le mot était ignoré pendant toute la réponse."""
+    numero = getattr(jarvis_voix, "numero_morceau", 0)
+    if numero != _suivi_morceau["numero"]:                 # un nouveau morceau commence
+        if _suivi_morceau["nom"]:
+            _suivi_morceau["fin_nom"] = time.time()
+            if rec_coupure is not None:
+                rec_coupure.Reset()                      # oublie l'écho du morceau précédent
+        _suivi_morceau["numero"] = numero
+        _suivi_morceau["nom"] = "jarvis" in (getattr(jarvis_voix, "morceau_en_cours", "") or "").lower()
+    return _suivi_morceau["nom"] or time.time() - _suivi_morceau["fin_nom"] < ECHO_NOM_S
 
 
 def interruption():
@@ -1604,7 +1627,7 @@ def interruption():
                 entendu = json.loads(rec_coupure.PartialResult()).get("partial", "")
             if _MOT_STOP_LIBRE.search(entendu):
                 _stop_libre[0] = time.time()
-            if not _jarvis_dans_texte and re.search(r"\bjarvis\b", entendu):
+            if re.search(r"\bjarvis\b", entendu) and not (_jarvis_dans_texte and _nom_dit_par_jarvis()):
                 print("Interruption : « Jarvis » (nouvelle demande)")
                 coupe_par_jarvis = True
                 return True
@@ -1802,12 +1825,20 @@ def traiter(demande, recognizer):
     fil.start()
     fil.join(DELAI_AVANT_PATIENCE)
     if fil.is_alive() and not histoire:
-        speak(phrase_patience(minuscules))
+        # les phrases d'attente peuvent maintenant être coupées : « Jarvis » (nouvelle demande) ou « stop »
+        coupe = parler(phrase_patience(minuscules))
         for suite in PATIENCE_SUITE:
+            if coupe:
+                break
             fil.join(DELAI_ENTRE_PATIENCES)
             if not fil.is_alive():
                 break
-            speak(suite)
+            coupe = parler(suite)
+        if coupe:
+            # la réponse en préparation est abandonnée (Claude finit de son côté, rien ne sera dit)
+            print("(Attente coupée : la réponse en préparation est abandonnée.)")
+            preparer_ecoute(recognizer)
+            return True
     fil.join()
     reponse, erreur = resultat.get("r", ("Claude ne m'a pas répondu.", True))
     print("Claude :", reponse)
@@ -2044,6 +2075,11 @@ def redemarrer():
     os._exit(0)
 
 
+def nombre_de_mots(texte):
+    """Les vrais mots de la phrase (« Ouh ! » -> 1, « l'heure » -> 2) : la ponctuation ne compte pas."""
+    return len(re.findall(r"\w+", texte or ""))
+
+
 def conversation(demande, recognizer):
     """Traite la demande, puis accepte des suites sans redire « Jarvis »."""
     essais_courts = 0
@@ -2067,7 +2103,8 @@ def conversation(demande, recognizer):
             speak(phrase_variee(REMERCIEMENTS))
             preparer_ecoute(recognizer)
             break
-        if (len(demande.split()) < MOTS_MINIMUM and not jarvis_commandes.confirmation_en_attente()
+        # les mots seulement : « Ouh ! » est un mot (et un point d'exclamation), pas une demande de deux mots
+        if (nombre_de_mots(demande) < MOTS_MINIMUM and not jarvis_commandes.confirmation_en_attente()
                 and not re.match(r"\W*(bonjour|bonsoir|salut)\W*$", demande, re.I)
                 and not jarvis_commandes.mot_court(demande)
                 and not DEMANDE_REDEMARRAGE.search(demande.lower())):
@@ -2350,6 +2387,11 @@ def main():
         print("Raccourci clavier :", erreur_raccourci)
     jarvis_commandes.precharger_applications()
     jarvis_vigilance.surveiller(lambda texte: point_pret.put((texte, "alerte")))   # vigilance Météo-France
+    try:
+        import jarvis_disque                          # disque presque plein : prévenu rarement (voir jarvis_disque)
+        jarvis_disque.surveiller(lambda texte: point_pret.put((texte, "rappel")))
+    except Exception as erreur:
+        print("Disque :", type(erreur).__name__, erreur)
     jarvis_extras.appliquer_couleur()            # couleurs du réacteur choisies par l'utilisateur
     jarvis_extras.surveiller_anniversaires(lambda texte: point_pret.put((texte, "rappel")))
     jarvis_foyer.surveiller_calendrier(lambda texte: point_pret.put((texte, "rappel")))   # calendrier familial

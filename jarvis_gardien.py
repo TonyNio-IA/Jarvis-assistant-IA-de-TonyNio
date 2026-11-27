@@ -47,8 +47,20 @@ def main():
             time.sleep(1)
             continue
         exterieur = code == CODE_ARRET_EXTERIEUR
-        noter((f"Jarvis a été arrêté de l'extérieur (code {code}, sans doute le Gestionnaire des tâches)" if exterieur
-               else f"Jarvis s'est arrêté tout seul (code {code})") + f" après {time.time() - debut:.0f} s : relance.")
+        # code 1 sans « Erreur Jarvis » ni « s'arrête de lui-même » juste avant dans le journal : fermé de l'extérieur
+        if code == 1 and not exterieur:
+            try:
+                with open(JOURNAL, encoding="utf-8", errors="replace") as f:
+                    f.seek(max(0, os.path.getsize(JOURNAL) - 4000))
+                    fin = f.read()
+                fin = fin[fin.rfind("===== "):] if "===== " in fin else fin
+                if "Erreur Jarvis" not in fin and "s'arrête de lui-même" not in fin and "Traceback" not in fin \
+                        and "Fatal Python error" not in fin:
+                    exterieur = True
+            except OSError:
+                pass
+        noter((f"Jarvis a été arrêté de l'extérieur (code {code}, sans message d'erreur : sans doute un autre programme)"
+               if exterieur else f"Jarvis s'est arrêté tout seul (code {code})") + f" après {time.time() - debut:.0f} s : relance.")
         reprise = os.path.join(DOSSIER, "reprise.json")      # Jarvis dira au redémarrage qu'il s'est relancé
         if not os.path.exists(reprise):                        # (sauf s'il a déjà noté la cause lui-même)
             try:

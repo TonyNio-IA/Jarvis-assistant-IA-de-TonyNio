@@ -109,6 +109,19 @@ def _jour_mois_annee(s):
     """« 1er janvier 2000 », « 14 juillet 2030 » -> datetime.date, ou None."""
     m = re.search(rf"\b(1er|premier|\d{{1,2}}) ({_RE_MOIS}) (\d{{4}})\b", s)
     if not m:
+        # le jour dit en lettres : « le vingt-cinq novembre 2026 »
+        m = re.search(rf"\b((?:[a-z]+ ){{0,2}}[a-z]+) ({_RE_MOIS}) (\d{{4}})\b", s)
+        if not m:
+            return None
+        mots = m.group(1).split()
+        for n in (3, 2, 1):
+            if len(mots) >= n:
+                v = _nombre(" ".join(mots[-n:]))
+                if v is not None and v.is_integer() and 1 <= v <= 31:
+                    try:
+                        return datetime.date(int(m.group(3)), _MOIS[m.group(2)], int(v))
+                    except ValueError:
+                        return None
         return None
     jour = 1 if m.group(1) in ("1er", "premier") else int(m.group(1))
     try:
@@ -211,6 +224,17 @@ def _combien_dans(s, t):
     t = re.sub(r"(?i)\bgalons?\b", "gallon", t)
     s = re.sub(r"\b(combien (?:de|d') ?[a-z/ ]+?) font (un|une|[0-9]+(?:[.,][0-9]+)?) ", r"\1 dans \2 ", s)
     t = re.sub(r"(?i)\b(combien (?:de|d') ?[^ ]+(?: [^ ]+)?) font (un|une|[0-9]+(?:[.,][0-9]+)?) ", r"\1 dans \2 ", t)
+    # Whisper : « comment/commune de secondes dans une heure », « combien de mètres d'un kilomètre »,
+    # « combien de minutes dans la journée », « combien y a-t-il de jour en février »
+    s = re.sub(r"^(?:comment|commune) (de |d'|y a t il )", r"combien \1", s)
+    t = re.sub(r"(?i)^\W*(?:comment|commune) (de |d'|y a-t-il )", r"combien \1", t)
+    for motif, rempl in ((r"^(combien (?:de |d')\s?[a-z/ ]+?) d'(un|une) ", r"\1 dans \2 "),
+                         (r"^(combien (?:de |d')\s?[a-z/ ]+?) dans (?:la|le) (journee|jour|semaine|heure|minute|annee|an)$",
+                          r"\1 dans une \2"),
+                         (r"\bde jour (en|dans) ", r"de jours \1 ")):
+        s = re.sub(motif, rempl, s)
+    t = re.sub(r"(?i)^(\W*combien (?:de |d')\s?\S+(?: \S+)?) d'(un|une) ", r"\1 dans \2 ", t)
+    s = re.sub(r"\bdans une (jour|an|minute)$", r"dans un \1", s)
     s = re.sub(rf"\bcombien de jours a ({_RE_MOIS})( \d{{4}})?$", r"combien de jours en \1\2", s)
     s = re.sub(rf"^({_RE_MOIS})( \d{{4}})? a combien de jours$", r"combien de jours en \1\2", s)
     # jours dans un mois précis (« combien de jours dans février 2028 »)
@@ -290,9 +314,9 @@ def _signe(s):
 
 
 def _age(s, aujourdhui):
-    if not re.search(r"\bquel age\b|\bcombien d'?ans\b", s):
+    if not re.search(r"\bquel age\b|\bcombien d'?ans\b|\bl'age d(?:e |')(?:quelqu'un|une personne|un homme|une femme|un enfant)", s):
         return None
-    m = re.search(rf"\bne(?:e)? (?:le )?(1er|premier|\d{{1,2}}) ({_RE_MOIS}) (\d{{4}})\b", s)
+    m = re.search(rf"\bne(?:e)? (?:a )?(?:le )?(1er|premier|\d{{1,2}}) ({_RE_MOIS}) (\d{{4}})\b", s)
     if m:
         jour = 1 if m.group(1) in ("1er", "premier") else int(m.group(1))
         try:

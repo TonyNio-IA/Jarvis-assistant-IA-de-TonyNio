@@ -92,12 +92,23 @@ FOURNISSEURS = [
     {"id": "ollama", "nom": "Ollama (sur ton PC, gratuit)", "adresse": "http://localhost:11434/v1", "modele": "",
      "cle_url": "https://ollama.com/download", "sans_cle": True,
      "gratuit": "Gratuit et sans limite : l'IA tourne sur ton PC, rien ne sort. Demande un PC assez puissant.",
-     "aide": "Installe Ollama, télécharge un modèle (« ollama pull » suivi du nom), laisse Ollama ouvert."},
+     "aide": "Le plus simple : dis « Jarvis, installe une IA gratuite sur mon PC », je vérifie ton PC et je fais tout "
+             "pas à pas. Sinon : installe Ollama, télécharge un modèle (« ollama pull » suivi du nom), laisse Ollama ouvert."},
     {"id": "autre", "nom": "Autre (compatible OpenAI)", "adresse": "", "modele": "", "cle_url": "",
      "gratuit": "Selon le service.",
      "aide": "Pour un service qui accepte le format OpenAI : indique son adresse, sa clé et son modèle."},
 ]
 PAR_ID = {f["id"]: f for f in FOURNISSEURS}
+# Rangement des réglages : d'abord ceux qu'on peut utiliser gratuitement, puis (repliés) les payants, puis « Autre ».
+# Vérifié le 27/11/2026 : Gemini, Groq, Mistral (forfait Experiment, vérification par téléphone), OpenRouter (modèles
+# « :free »), Amazon Nova (niveau gratuit) et Ollama (sur le PC) ont une offre gratuite ; les autres demandent un crédit
+# ou un abonnement. Aucun n'est supprimé : un utilisateur peut avoir un compte payant.
+GRATUITS = ("gemini", "groq", "mistral", "openrouter", "nova", "ollama")
+PAYANTS = ("deepseek", "kimi", "grok", "qwen", "muse", "mammouth", "openai")
+for _f in FOURNISSEURS:
+    _f["groupe"] = "gratuit" if _f["id"] in GRATUITS else ("payant" if _f["id"] in PAYANTS else "autre")
+FOURNISSEURS.sort(key=lambda f: ({"gratuit": 0, "payant": 1}.get(f["groupe"], 2),
+                                 (GRATUITS + PAYANTS + (f["id"],)).index(f["id"])))
 
 _JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 _MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre",
@@ -340,18 +351,23 @@ def nom_affiche(c):
     return base + (f" ({c['etiquette']})" if c.get("etiquette") else "")
 
 
+def sur_ce_pc(c):
+    """Un assistant qui tourne sur ce PC (Ollama) : rien ne sort, pas besoin de l'accord pour l'envoi chez un tiers."""
+    return bool(re.match(r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?(?:/|$)", str(c.get("adresse") or ""), re.I))
+
+
 def _utilisables(d=None):
     d = d or charger()
     maintenant = time.time()
     return [c for c in d["comptes"] if c.get("actif", True) and c.get("pause_jusqua", 0) <= maintenant
-            and (c.get("cle") or PAR_ID.get(c.get("fournisseur"), {}).get("sans_cle"))]
+            and (c.get("cle") or PAR_ID.get(c.get("fournisseur"), {}).get("sans_cle"))
+            and (d.get("consentement") or sur_ce_pc(c))]
 
 
 def disponible():
-    """Vrai s'il y a au moins un compte prêt ET que l'utilisateur a accepté l'envoi chez un tiers."""
+    """Vrai s'il y a au moins un compte prêt : sur ce PC, ou en ligne si l'utilisateur a accepté l'envoi chez un tiers."""
     try:
-        d = charger()
-        return bool(d.get("consentement")) and bool(_utilisables(d))
+        return bool(_utilisables(charger()))
     except Exception:
         return False
 
@@ -524,7 +540,7 @@ def demander(texte, longue=False):
     longue=True : un texte long (histoire). Renvoie (réponse, nom de l'assistant, erreur)."""
     try:
         d = charger()
-        if not d.get("consentement"):
+        if not _utilisables(d) and not d.get("consentement"):
             return "", "", "Les autres assistants ne sont pas activés."
         propre = re.sub(r"\W+", " ", (texte or "").lower()).strip()
         if len(propre) < 4 or len(propre.split()) < 2 and len(propre) < 8:      # un bruit mal compris ne consomme rien

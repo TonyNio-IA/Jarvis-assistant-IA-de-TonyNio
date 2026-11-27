@@ -27,9 +27,9 @@ AVEC_CLAUDE = ("Claude est relié : tu peux aussi poser n'importe quelle questio
                "un texte.")
 SANS_CLAUDE = ("Sans Claude, Jarvis fait les commandes immédiates (heure, météo, minuteurs, applications, fenêtres, "
                "musique, mails…). Avec Claude (il faut un abonnement Claude Pro), il répond aussi à n'importe quelle "
-               "question, résume une page ou écrit un texte. Pour l'ajouter plus tard : ouvre mes Réglages, onglet « Claude », "
+               "question, résume une page ou écrit un texte. Pour l'ajouter plus tard : ouvre mes Réglages, onglet « Assistants », "
                "et clique sur « Installer Claude », puis sur « Connecter mon compte ». Tu peux aussi brancher un autre assistant "
-"(Gemini, Mistral, ChatGPT…) dans l'onglet « Assistants » (bêta).")
+"(Gemini, Groq, Mistral…) dans le même onglet.")
 
 _COMMANDE = re.compile(r"\bpremiers pas\b|^\W*(?:jarvis\W+)?comment (?:[çc]a|tu) marches?\W*$"
                        r"|^\W*(?:jarvis\W+)?comment (?:je )?(?:t'utilise|te parler?|on te parle|on t'utilise)\W*$"
@@ -153,9 +153,9 @@ def _fenetre_premiers_pas(fermer_apres=None, avec_claude=None):
              font=("Segoe UI", 10), wraplength=large, justify="left").pack(anchor="w", padx=24, pady=(4, 0))
     bas = tk.Frame(r, bg=ui.FOND)
     bas.pack(side="bottom", fill="x", padx=24, pady=16)
+    ui._bouton(bas, "C'est parti", r.destroy, fort=True, accent=accent).pack(side="right")   # d'abord : jamais coupé
     tk.Label(bas, text="Pour revoir cette fenêtre : « Jarvis, premiers pas ».", bg=ui.FOND, fg=ui.DISCRET,
-             font=("Segoe UI", 9)).pack(side="left")
-    ui._bouton(bas, "C'est parti", r.destroy, fort=True, accent=accent).pack(side="right")
+             font=("Segoe UI", 9), wraplength=max(200, large - 160), justify="left").pack(side="left")
     if fermer_apres:                                      # pour les essais automatiques
         r.after(int(fermer_apres * 1000), r.destroy)
     r.mainloop()

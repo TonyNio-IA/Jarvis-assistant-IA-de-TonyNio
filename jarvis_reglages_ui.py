@@ -479,13 +479,39 @@ AIDE = [
 
 # ---------- Historique ----------
 
+_ATTENTES = set()
+
+
+def _phrases_d_attente():
+    """Les phrases d'attente de Jarvis (« Une petite seconde. », « Ça prend un peu plus de temps que d'habitude. »...),
+    lues dans jarvis_claude.py sans le charger : elles ne sont pas la réponse et ne vont pas dans l'historique."""
+    if not _ATTENTES:
+        try:
+            import ast
+            with open(jarvis_config.chemin("jarvis_claude.py"), encoding="utf-8") as f:
+                arbre = ast.parse(f.read())
+            for n in arbre.body:
+                if isinstance(n, ast.Assign) and any(getattr(c, "id", "") in ("PATIENCE", "PATIENCE_SUITE",
+                                                                                "PATIENCE_PAR_SUJET") for c in n.targets):
+                    for s in ast.walk(n.value):
+                        if isinstance(s, ast.Constant) and isinstance(s.value, str) and not s.value.startswith("\\b"):
+                            _ATTENTES.add(s.value)
+        except Exception:
+            pass
+        _ATTENTES.update(("Je m'en occupe.", "C'est parti.", "Je regarde ça.", "Une petite seconde.", "Laisse-moi voir.",
+                          "Ça prend un peu plus de temps que d'habitude.", "Je suis toujours dessus, merci de patienter.",
+                          "Encore un petit instant, j'y suis presque."))
+    return _ATTENTES
+
+
 def historique(nombre=60):
-    """[(heure, demande, réponse)] : les dernières demandes, d'après le journal de Jarvis."""
+    """[(demande, réponse)] : les dernières demandes, d'après le journal de Jarvis (les phrases d'attente sont sautées)."""
     try:
         with open(jarvis_config.chemin("jarvis.log"), encoding="utf-8", errors="replace") as f:
             lignes = f.readlines()[-4000:]
     except OSError:
         return []
+    attentes = _phrases_d_attente()
     resultat, demande = [], None
     for ligne in lignes:
         ligne = ligne.rstrip("\n")
@@ -495,7 +521,7 @@ def historique(nombre=60):
             demande = m.group(1) if m else texte
         elif ligne.startswith("JARVIS :") and demande:
             reponse = ligne[len("JARVIS :"):].strip()
-            if reponse in ("Je m'en occupe.", "C'est parti.", "Je regarde ça.", "Une petite seconde.", "Laisse-moi voir."):
+            if reponse in attentes:
                 continue
             resultat.append((demande, reponse))
             demande = None
@@ -506,6 +532,14 @@ def historique(nombre=60):
 
 _fenetre = {"ouverte": False, "devant": False}
 
+
+
+def _texte_souple(etiquette):
+    """Texte d'une ligne de réglage : il prend la place laissée par l'élément de droite et passe à la ligne selon
+    la largeur réelle (petits écrans, échelles Windows), au lieu d'être coupé."""
+    etiquette.pack(side="left", fill="x", expand=True, padx=12, pady=9)
+    etiquette.bind("<Configure>", lambda e: etiquette.config(wraplength=max(60, e.width - 4)), add="+")
+    return etiquette
 
 def ouvrir():
     """Ouvre la fenêtre de réglages (ou la ramène devant si elle est déjà ouverte)."""
@@ -1262,7 +1296,8 @@ def _construire():
         tk.Label(gauche, text="Mode léger (pour les PC peu puissants)", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(anchor="w")
         actif = etat.get("choix") == "toujours" or (etat.get("choix") != "jamais" and etat.get("actif"))
         detail = ("En ce moment : activé" + (f" depuis le {etat['depuis']}" if etat.get("depuis") else "") if actif
-                  else "En ce moment : désactivé") + ". Jarvis répond plus vite, en comprenant un peu moins bien."
+                  else "En ce moment : désactivé") + (". Les commandes simples (son, fenêtres, musique…) partent tout "
+                                                       "de suite, sans attendre la reconnaissance précise.")
         note = tk.Label(gauche, text=detail, bg=PANNEAU2, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(330),
                         justify="left")
         note.pack(anchor="w")
@@ -1444,23 +1479,26 @@ def _construire():
         titre("Rapports", "Aider à améliorer Jarvis : ce que Jarvis envoie à son créateur, et quand. "
                           "Rien ne part sans votre accord, sauf un compteur anonyme que vous pouvez couper.")
         section("Ce que j'accepte d'envoyer")
+        # (l'élément de droite est placé AVANT le texte : il garde toujours sa place, et le texte passe à la ligne)
         cadre = ligne()
-        tk.Label(cadre, text="Rapport une fois par jour (technique : sans les conversations ; complet : avec)",
-                 wraplength=px(330), justify="left", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
         noms = list(jarvis_rapports.NIVEAUX.values())
         cles = list(jarvis_rapports.NIVEAUX)
         choix(cadre, jarvis_rapports.NIVEAUX[jarvis_rapports.niveau()], noms,
               lambda n: jarvis_rapports.choisir_niveau(cles[noms.index(n)])).pack(side="right", padx=12, pady=4)
+        _texte_souple(tk.Label(cadre, text="Rapport toutes les heures, s'il y a du nouveau (technique : sans les "
+                                           "conversations ; complet : avec)",
+                               wraplength=px(330), justify="left", anchor="w", bg=PANNEAU2, fg=TEXTE, font=POLICE))
         cadre = ligne()
-        tk.Label(cadre, text="Compteur anonyme (combien de personnes utilisent Jarvis, et sur quel type de PC)", bg=PANNEAU2, fg=TEXTE,
-                 font=POLICE).pack(side="left", padx=12, pady=9)
         interrupteur(cadre, jarvis_rapports.valeur("compteur", True),
                      lambda v: jarvis_rapports.regler("compteur", bool(v))).pack(side="right", padx=12)
+        _texte_souple(tk.Label(cadre, text="Compteur anonyme (combien de personnes utilisent Jarvis, et sur quel "
+                                           "type de PC)",
+                               wraplength=px(400), justify="left", anchor="w", bg=PANNEAU2, fg=TEXTE, font=POLICE))
         cadre = ligne()
-        tk.Label(cadre, text="Je veux tester les nouvelles versions en avance", bg=PANNEAU2, fg=TEXTE,
-                 font=POLICE).pack(side="left", padx=12, pady=9)
         interrupteur(cadre, jarvis_rapports.valeur("testeur", False),
                      lambda v: jarvis_rapports.regler("testeur", bool(v))).pack(side="right", padx=12)
+        _texte_souple(tk.Label(cadre, text="Je veux tester les nouvelles versions en avance", wraplength=px(400),
+                               justify="left", anchor="w", bg=PANNEAU2, fg=TEXTE, font=POLICE))
         section("Écrire au créateur de Jarvis")
         cadre = ligne()
         bouton(cadre, "Signaler un problème", lambda: jarvis_rapports_ui.ouvrir_message("probleme"),
@@ -1525,9 +1563,9 @@ def _construire():
                                 parent=racine)
         maj_sons()
         cadre = ligne()
-        tk.Label(cadre, textvariable=texte_sons, wraplength=px(330), justify="left", bg=PANNEAU2, fg=TEXTE,
-                 font=POLICE).pack(side="left", padx=12, pady=9)
         bouton(cadre, "Effacer mes enregistrements", effacer_sons).pack(side="right", padx=12, pady=8)
+        tk.Label(cadre, textvariable=texte_sons, wraplength=px(300), justify="left", bg=PANNEAU2, fg=TEXTE,
+                 font=POLICE).pack(side="left", padx=12, pady=9)
 
     def page_comptes():
         vider()
@@ -1606,21 +1644,18 @@ def _construire():
     claude_en_cours = {"v": False}
 
     def page_claude():
+        """(Ancien onglet « Claude » : désormais en haut de l'onglet Assistants. Gardé pour les anciens appels.)"""
+        ouvrir_assistants()
+
+    def bloc_claude():
+        """Claude, l'assistant principal : état, installation, connexion du compte. En haut de l'onglet Assistants."""
         import webbrowser
         import jarvis_claude_reglages as cr
-        vider()
-        titre("Claude", "Avec un abonnement Claude, Jarvis répond à n'importe quelle question. Ici, tu peux "
-                        "l'installer et relier ton compte, sans refaire l'installation.")
-        try:
-            import jarvis_enfant
-            if jarvis_enfant.actif() or jarvis_extras.invite():
-                tk.Label(page, text="Ces réglages sont réservés aux parents : ils ne s'ouvrent pas en mode enfant ni "
-                                    "en mode invité.", bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520),
-                         justify="left").pack(anchor="w", padx=22, pady=12)
-                return
-        except Exception:
-            pass
-        section("État")
+        section("Claude, l'assistant principal")
+        tk.Label(page, text="Avec un abonnement Claude, Jarvis répond à n'importe quelle question et agit sur ton PC. "
+                            "Ici, tu peux l'installer et relier ton compte, sans refaire l'installation.",
+                 bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22,
+                                                                                               pady=(0, 4))
         carte_etat = ligne()
         corps = tk.Frame(carte_etat, bg=PANNEAU2)
         corps.pack(fill="x", padx=12, pady=9)
@@ -1761,10 +1796,10 @@ def _construire():
         import time as _t
         import jarvis_assistants as ja
         vider()
-        titre("Autres assistants IA (bêta)",
-              "Tu n'utilises pas Claude ? Pas de problème : branche un autre assistant (Gemini, Mistral, ChatGPT…) et "
-              "il répondra à tes questions. Si tu as aussi Claude, il reste le premier ; les autres prennent le relais "
-              "quand il n'est pas disponible. Tout est expliqué pas à pas ci-dessous.")
+        titre("Assistants IA",
+              "Claude est l'assistant principal de Jarvis. Tu ne l'as pas ? Pas de problème : branche un autre "
+              "assistant (Gemini, Groq, Mistral…), il répondra à tes questions. Si tu as Claude, il reste le premier ; "
+              "les autres prennent le relais quand il n'est pas disponible. Tout est expliqué pas à pas ci-dessous.")
         if assistants_etat["message"]:               # résultat de la dernière action, bien visible tout en haut
             tk.Label(page, text=assistants_etat["message"], bg=PANNEAU2, fg=accent["c"],
                      font=("Segoe UI Semibold", 10), wraplength=px(500), justify="left", padx=12, pady=8
@@ -1778,6 +1813,10 @@ def _construire():
                 return
         except Exception:
             pass
+        try:                                         # Claude d'abord (ancien onglet « Claude », rangé ici)
+            bloc_claude()
+        except Exception as erreur:
+            print("Réglages (Claude) :", erreur)
 
         def texte(parent, contenu, fort=False, couleur=None, haut=0):
             tk.Label(parent, text=contenu, bg=PANNEAU2, fg=couleur or (TEXTE if fort else DISCRET),
@@ -1801,10 +1840,11 @@ def _construire():
         d = ja.charger()
 
         # --- l'avertissement bêta
+        section("Les autres assistants (bêta)")
         cb = tk.Frame(ligne(), bg=PANNEAU2)
         cb.pack(fill="x", padx=12, pady=9)
         texte(cb, "VERSION DE TEST (BÊTA)", fort=True, couleur="#E8A33D")
-        texte(cb, "Cet onglet est nouveau : il peut y avoir des problèmes. Si quelque chose ne marche pas, rien "
+        texte(cb, "Cette partie est nouvelle : il peut y avoir des problèmes. Si quelque chose ne marche pas, rien "
                   "n'est cassé : Claude continue de fonctionner comme avant, et tu peux retirer un assistant à tout "
                   "moment. Dis-le-moi si tu rencontres un souci.", haut=2)
 
@@ -1858,9 +1898,26 @@ def _construire():
             c2.pack(fill="x", padx=12, pady=9)
             texte(c2, "A. Choisis l'assistant que tu veux ajouter.", fort=True)
             texte(c2, "Tu peux en ajouter plusieurs, et même plusieurs comptes du même assistant. Si tu n'en as "
-                      "aucun, les plus simples pour commencer sont Gemini (niveau gratuit) et Mistral (français, "
-                      "forfait gratuit). Les « gratuit » peuvent changer : vérifie sur leur site.", haut=2)
+                      "aucun, les plus simples pour commencer sont Gemini et Groq (gratuits, sans carte bancaire). "
+                      "Les « gratuit » peuvent changer : vérifie sur leur site.", haut=2)
+            payants = [f for f in ja.FOURNISSEURS if f.get("groupe") == "payant"]
+            ouverts = assistants_etat.get("payants_ouverts", False)
             for f in ja.FOURNISSEURS:
+                if f.get("groupe") == "gratuit" and f is ja.FOURNISSEURS[0]:
+                    section("Gratuits")
+                if f.get("groupe") == "payant" and f is payants[0]:
+                    connectes = sum(1 for p in payants for c in d.get("comptes", []) if c.get("fournisseur") == p["id"])
+                    section("Payants (crédit ou abonnement nécessaire)")
+                    cp = tk.Frame(ligne(), bg=PANNEAU2)
+                    cp.pack(fill="x", padx=12, pady=9)
+                    texte(cp, f"{len(payants)} assistants qui demandent de payer pour marcher"
+                              + (f", dont {connectes} déjà ajouté(s) chez toi" if connectes else "") + ".")
+                    bouton(cp, "Masquer" if ouverts else "Voir les assistants payants",
+                           lambda: (assistants_etat.update(payants_ouverts=not ouverts), maj())).pack(anchor="w", pady=(6, 0))
+                if f.get("groupe") == "autre" and (not payants or f is ja.FOURNISSEURS[-1]):
+                    section("Autre service")
+                if f.get("groupe") == "payant" and not ouverts:
+                    continue
                 cadre = ligne()
                 g = tk.Frame(cadre, bg=PANNEAU2)
                 g.pack(side="left", padx=12, pady=8)
@@ -2083,7 +2140,7 @@ def _construire():
     # Rangées par famille (un trait fin les sépare dans la liste) :
     #   réacteur et voix | personnes et services | confidentialité | entretien | informations
     pages = [("Apparence", page_apparence), ("Réacteur", page_reacteur), ("Son", page_son),
-             ("Profils", page_profils), ("Comptes", page_comptes), ("Claude", page_claude), ("Assistants", ouvrir_assistants),
+             ("Profils", page_profils), ("Comptes", page_comptes), ("Assistants", ouvrir_assistants),
              ("Alertes", page_alertes),
              ("Rapports", page_rapports), ("Historique", page_historique),
              ("Système", page_systeme), ("Santé", page_sante),
@@ -2303,6 +2360,8 @@ def _construire():
         racine.after(66, animer)
 
     depart = _fenetre.pop("page", None)                    # (pour ouvrir directement sur un onglet)
+    if depart == "Claude":                                 # l'ancien onglet Claude est en haut de l'onglet Assistants
+        depart = "Assistants"
     montrer(depart if depart in dict(pages) else "Apparence", dict(pages).get(depart, page_apparence))
     if _fenetre.get("fermer_apres"):                       # (essais automatiques)
         racine.after(int(_fenetre.pop("fermer_apres") * 1000), racine.destroy)
@@ -2337,17 +2396,18 @@ _OUVRIR = re.compile(r"\b(?:ouvre|ouvrir|affiche|montre)(?:-moi)?\s+(?:tes |les 
 
 
 _CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accéde|accede|acceder|accéder|accèder|installe|installer|connecte|connecter|ajoute|ajouter|"
-                             r"configure|configurer|active|activer)(?:-moi)?\s+(?:à |a |au |aux |le |la |mon |ton |l'|de )?"
+                             r"configure|configurer|active|activer|relie|relier|relies|branche|brancher)(?:-moi)?[\s,]+(?:à |a |au |aux |le |la |mon |ton |l'|de )?"
                              r"(?:compte )?(?:de )?claude\b")
 
 
 def commande(t):
     t = t.replace("’", "'")
     if _CLAUDE_REGLAGE.search(t):
-        # « installe Claude », « connecte Claude » : mes réglages s'ouvrent directement sur l'onglet Claude
-        _fenetre["page"] = "Claude"
+        # « installe Claude », « connecte Claude » : mes réglages s'ouvrent directement sur l'onglet Assistants (Claude en haut)
+        _fenetre["page"] = "Assistants"
         ouvrir()
-        return "J'ouvre mes réglages, onglet Claude. Clique sur Installer Claude, puis sur Connecter mon compte."
+        return ("J'ouvre mes réglages, onglet Assistants : Claude est tout en haut. Clique sur Installer Claude, "
+                "puis sur Connecter mon compte.")
     if not _OUVRIR.search(t):
         return None
     # « ouvre les paramètres » tout court peut viser Windows : seulement « réglages », ou « tes paramètres »

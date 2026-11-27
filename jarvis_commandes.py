@@ -155,6 +155,7 @@ APPLICATIONS = [
     (r"calculatrice|calculette", "calc", "la calculatrice"),
     (r"bloc[- ]?notes?", "notepad", "le bloc-notes"),
     (r"gestionnaire des t[aâ]ches", "taskmgr", "le gestionnaire des tâches"),
+    (r"panneau de configuration", "control", "le panneau de configuration"),
     (r"param[eè]tres|r[eé]glages", "ms-settings:", "les paramètres"),
     (r"t[eé]l[eé]chargements?", os.path.join(DOSSIER_PERSO, "Downloads"), "tes téléchargements"),
     (r"documents?", os.path.join(DOSSIER_PERSO, "Documents"), "tes documents"),
@@ -336,7 +337,7 @@ def _degres(x):
 
 
 # Vosk et Whisper entendent souvent « ma ville et Toulouse » ou « mavile et Toulouse » : on les accepte aussi.
-_VILLE = (r"\W*(?:ma ?vill?e(?: pour la météo)?,? (?:est|et|es|c'est|sera)|j'habite (?:à|a|au|aux|en)|"
+_VILLE = (r"\W*(?:jarvis\W+)?(?:ma ?vill?e(?: pour la météo)?,? (?:est|et|es|c'est|sera)|j'habite (?:à|a|au|aux|en)|"
           r"(?:règle|regle|change|mets|met|définis|choisis) (?:ma ville|la ville|la météo)(?: de la météo)? (?:sur|à|a|pour|par))"
           r"\s+(.+)")
 _conseil_ville_donne = False
@@ -473,7 +474,18 @@ def _volume():
     return AudioUtilities.GetSpeakers().EndpointVolume
 
 
+_PLUS_MOINS_FORT = re.compile(r"^\W*(?:jarvis\W+)?(?:(?:mets|met|parle|parles|mets le son|mets le volume)\s+)?"
+                              r"(?:un (?:peu|petit peu) |encore |beaucoup )?(plus|moins) fort\W*$")
+
+
 def _commande_volume(t):
+    m = _PLUS_MOINS_FORT.match(t)              # « plus fort », « mets moins fort », « parle plus fort »
+    if m:
+        t = ("monte" if m.group(1) == "plus" else "baisse") + " le son"
+    elif re.search(r"\b(?:le )?(?:son|volume) est trop fort\b", t):
+        t = "baisse le son"
+    elif re.search(r"\b(?:son|volume)\b.*\b(?:trop (?:faible|bas)|pas assez fort)\b", t):
+        t = "monte le son"
     if not re.search(r"\b(son|volume|sourdine|muet)\b", t):
         return None
     if len(t.split()) > 16:          # une longue phrase mal entendue ne doit pas toucher au volume
@@ -487,7 +499,11 @@ def _commande_volume(t):
         v.SetMute(1, None)
         return "Le son est coupé."
     nombre = _nombre(t)
-    if nombre is not None and re.search(r"\b(à|a|sur)\b", t):
+    if re.search(r"\b(?:à fond|au maximum|au max|au plus fort)\b", t):
+        nombre = 100
+    elif re.search(r"\b(?:au minimum|au plus bas|tout bas)\b", t):
+        nombre = 10
+    if nombre is not None and re.search(r"\b(à|a|sur|au|tout)\b", t):
         cible = max(0, min(100, nombre))
     elif re.search(r"\b(monte|monter|augmente|augmenter|plus fort)\b", t):
         cible = min(100, actuel + PAS_VOLUME)
@@ -975,6 +991,82 @@ def _commande_rappel(t):
 
 # ---------- Applications ----------
 
+# Sites connus, ouverts quand aucune application de ce PC ne porte ce nom (« ouvre Amazon », « va sur le site de la CAF »)
+SITES_CONNUS = [
+    (r"amazon", "Amazon", "https://www.amazon.fr"), (r"g ?mail|gmail", "Gmail", "https://mail.google.com"),
+    (r"google maps|maps", "Google Maps", "https://www.google.com/maps"), (r"facebook", "Facebook", "https://www.facebook.com"),
+    (r"instagram", "Instagram", "https://www.instagram.com"), (r"le ?bon ?coin|leboncoin", "Leboncoin", "https://www.leboncoin.fr"),
+    (r"netflix", "Netflix", "https://www.netflix.com"), (r"wikip[ée]dia", "Wikipédia", "https://fr.wikipedia.org"),
+    (r"outlook|hotmail", "Outlook", "https://outlook.live.com"), (r"(?:la )?caf", "la CAF", "https://www.caf.fr"),
+    (r"ameli|(?:la )?s[ée]cu(?:rit[ée] sociale)?", "Ameli", "https://www.ameli.fr"),
+    (r"(?:les )?imp[oô]ts", "les impôts", "https://www.impots.gouv.fr"), (r"(?:la )?poste", "La Poste", "https://www.laposte.fr"),
+    (r"doctolib", "Doctolib", "https://www.doctolib.fr"), (r"m[ée]t[ée]o[- ]france", "Météo-France", "https://meteofrance.com"),
+    (r"twitter", "X", "https://x.com"), (r"tik ?tok", "TikTok", "https://www.tiktok.com"),
+    (r"whatsapp", "WhatsApp Web", "https://web.whatsapp.com"), (r"france travail|p[oô]le emploi", "France Travail", "https://www.francetravail.fr"),
+    (r"service[- ]public", "Service public", "https://www.service-public.fr"), (r"chat ?gpt", "ChatGPT", "https://chatgpt.com"),
+    (r"gemini", "Gemini", "https://gemini.google.com"), (r"vinted", "Vinted", "https://www.vinted.fr"),
+    (r"cdiscount", "Cdiscount", "https://www.cdiscount.com"), (r"deezer", "Deezer", "https://www.deezer.com"),
+    (r"spotify", "Spotify", "https://open.spotify.com"), (r"twitch", "Twitch", "https://www.twitch.tv"),
+]
+
+
+def _de(nom):
+    """« de la CAF », « des impôts », « du Bon Coin », « d'Amazon », « de Facebook »."""
+    if nom.startswith("les "):
+        return "des " + nom[4:]
+    if nom.startswith("le "):
+        return "du " + nom[3:]
+    if nom.startswith(("la ", "l'")):
+        return "de " + nom
+    return ("d'" if re.match(r"[aeiouyéèêàâîôûAEIOUYÉ]", nom) else "de ") + nom
+
+
+def _site_connu(nom):
+    nom = re.sub(r"^(?:le site (?:de |d'|du |des )?|le |la |les |l')", "", nom.strip(" .!?")).strip()
+    for motif, affiche, adresse in SITES_CONNUS:
+        if re.fullmatch(r"(?:" + motif + r")(?: \.fr| point fr| \.com| point com)?", nom):
+            return affiche, adresse
+    return None
+
+
+def _commande_site(t):
+    """« va sur le site de la CAF », « ouvre le site Amazon » : le site, dans le navigateur."""
+    m = re.match(r"^\W*(?:jarvis\W+)?(?:va|vas|aller|allez) sur (?:le site (?:de |d'|du |des )?|la page (?:de |d')?)?(.+)$|"
+                 r"^\W*(?:jarvis\W+)?(?:ouvre|ouvres|ouvrir|affiche) (?:le site|la page)(?: internet| web)? (?:de |d'|du |des )?(.+)$", t)
+    if not m:
+        return None
+    nom = (m.group(1) or m.group(2) or "").strip(" .!?")
+    if not nom or len(nom.split()) > 5:
+        return None
+    connu = _site_connu(nom)
+    if connu:
+        jarvis_web.ouvrir_devant(connu[1])
+        return f"J'ouvre le site {_de(connu[0])}."
+    jarvis_web.ouvrir_devant("https://www.google.com/search?q=" + urllib.parse.quote(nom + " site officiel"))
+    return f"Je cherche le site {_de(nom)} sur Google."
+
+
+def _commande_fermer_absent(t):
+    """« quitte Spotify » alors que Spotify n'est pas ouvert : on le dit (au lieu de laisser la demande sans réponse)."""
+    m = re.match(r"^\W*(?:jarvis\W+)?(?:ferme|fermer|fermes|quitte|quitter|quittes)\s+(?:l'application |l'appli |le logiciel |le programme )?"
+                 r"(?:le |la |les |l'|mon |ma |mes )?([\w'.\- ]{2,30})\W*$", t)
+    if not m or re.search(r"\b(fen[êe]tre|onglet|volets?|porte|portail|garage|lumi[èe]re|stores?|rideaux?|robinet|session|micro|"
+                          r"yeux|bouche|ordinateur|pc|ordi|tout|toutes?|ça|ca|cela|page)\b", m.group(1)):
+        return None
+    demande = _sans_accents(m.group(1).strip())
+    if len(demande) < 3:
+        return None
+    raccourcis = _menu_demarrer()
+    choix = raccourcis.get(demande) or _apparier(demande, raccourcis)
+    if choix is None:
+        connues = applications_connues()
+        nom_connu = next((n for n in connues if _sans_accents(n.lower()) == demande), None)
+        choix = (nom_connu, None) if nom_connu else None
+    if choix:
+        return f"{choix[0]} n'est pas ouvert, il n'y a rien à fermer."
+    return None
+
+
 def _commande_ouvrir(t):
     m = re.search(r"\b(ouvre|ouvrir|ouvres|lance|lancer|lances|démarre|démarrer)\b(.*)", t)
     if not m:
@@ -1037,6 +1129,12 @@ def _commande_ouvrir(t):
             os.startfile(chemin)
             _apprendre(nom, chemin)
             return f"J'ouvre {nom}."
+        connu = _site_connu(demande)                         # pas d'application de ce nom : un site connu ?
+        if connu:
+            jarvis_web.ouvrir_devant(connu[1])
+            if connu[0] in ("Spotify", "Deezer"):
+                return f"{connu[0]} n'est pas installé sur ce PC : j'ouvre son site."
+            return f"J'ouvre le site {_de(connu[0])}."
     return None
 
 
@@ -1113,10 +1211,20 @@ def _applications_store():
     return _store
 
 
+def _prechauffer():
+    """Le premier « ouvre … » après le démarrage était lent sur un petit PC (5 s sur un Celeron) : le navigateur de
+    Windows, les raccourcis du menu Démarrer et la liste du Store sont lus d'avance, en arrière-plan."""
+    for etape in (jarvis_web.navigateur_par_defaut, _menu_demarrer, applications_connues, _applications_store):
+        try:
+            etape()
+        except Exception as erreur:
+            print("Préparation des applications :", type(erreur).__name__, erreur)
+
+
 def precharger_applications(delai=25):
     """Lit la liste des applications du Store en arrière-plan, un peu après le démarrage (pour ne pas gêner le
     chargement de la reconnaissance vocale) : la première demande « ouvre … » n'attend alors pas cette lecture."""
-    minuteur = threading.Timer(delai, _applications_store)
+    minuteur = threading.Timer(delai, _prechauffer)
     minuteur.daemon = True
     minuteur.start()
     return minuteur
@@ -1342,6 +1450,50 @@ _OUI_DOUTE = re.compile(r"\b(?:non|pas|mais|attends?|attendez|stop|annule|jamais
 
 def _oui_franc(t):
     return bool(_OUI_DEBUT.match(t)) and not _OUI_DOUTE.search(t)
+
+
+# ----- Corbeille : vidée seulement après un « oui » (on ne peut pas revenir en arrière) -----
+
+class _INFO_CORBEILLE(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_uint32), ("i64Size", ctypes.c_int64), ("i64NumItems", ctypes.c_int64)]
+
+
+def _corbeille():
+    """(nombre d'éléments, taille en octets) de la corbeille de tous les disques, ou None si Windows ne répond pas."""
+    info = _INFO_CORBEILLE()
+    info.cbSize = ctypes.sizeof(info)
+    if ctypes.windll.shell32.SHQueryRecycleBinW(None, ctypes.byref(info)) != 0:
+        return None
+    return int(info.i64NumItems), int(info.i64Size)
+
+
+def _vider_corbeille():
+    # SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND : la question a déjà été posée par Jarvis
+    resultat = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 0x7)
+    return "La corbeille est vidée." if resultat in (0, -2147418113) else "Windows n'a pas réussi à vider la corbeille."
+
+
+def _commande_corbeille(t):
+    if not re.search(r"\b(?:vide|vider|vides|nettoie|nettoyer|efface|vidange)\b.*\bcorbeille\b", t):
+        return None
+    etat = _corbeille()
+    if etat is None:
+        return "Je n'arrive pas à lire la corbeille."
+    nombre, taille = etat
+    if nombre == 0:
+        return "La corbeille est déjà vide."
+    demander_confirmation(_vider_corbeille)
+    poids = f"{taille / 1e9:.1f} gigaoctet".replace(".", ",") if taille >= 1e9 else f"{max(1, round(taille / 1e6))} mégaoctets"
+    return (f"La corbeille contient {nombre} élément{'s' if nombre > 1 else ''} ({poids}). Tu veux vraiment la vider ? "
+            "On ne pourra plus les récupérer. Dis oui pour confirmer.")
+
+
+def _commande_mode_avion(t):
+    if not re.search(r"\b(?:active|activer|désactive|desactive|mets|mettre|enlève|enleve|retire|coupe|allume|passe|ouvre|ouvrir)\b.*\bmode avion\b", t):
+        return None
+    os.startfile("ms-settings:network-airplanemode")
+    return ("Windows ne laisse pas une application changer le mode avion : je t'ouvre son réglage, "
+            "il suffit de cliquer sur l'interrupteur.")
 
 
 def _commande_alimentation(t):
@@ -1613,6 +1765,8 @@ def _commande_musique(t):
 
 
 def _commande_musique_adulte(t):
+    if re.fullmatch(r"\W*(?:jarvis\W+)?(?:lance|lancer|mets|ouvre|démarre)\s+(?:le site\s+)?youtube\W*", t):
+        return None                              # « lance YouTube » : on ouvre YouTube (plus bas), sans musique
     # « mets » est souvent entendu « mais », « mes » ou « les » : on le rétablit quand la
     # phrase parle clairement de musique (« mais de la musique », « mais 50 Cent sur YouTube »).
     if re.match(r"\W*(mais|mes|mai|m'est|les)\b", t) and re.search(_MOTS_MUSIQUE, t) \
@@ -1631,9 +1785,10 @@ def _commande_musique_adulte(t):
         return None
     recherche = re.sub(r"^\W*(mets-moi|mets|met|mettre|joue-moi|joue|jouer|lance|passe-moi|passe)\b", " ", t)
     recherche = re.sub(r"\b(sur youtube|youtube|s'il te plaît|stp)\b", " ", recherche)
-    recherche = re.sub(r"^\s*(moi\s+)?(de la musique|la musique|une musique|la chanson|une chanson|le morceau|"
-                       r"un morceau|le titre|le clip|la vidéo|une vidéo|la video|l'album|la playlist|du|de la|des|de l'|de|un peu de)\b",
-                       " ", recherche)
+    for _ in range(2):                           # « une vidéo de recettes » -> « recettes »
+        recherche = re.sub(r"^\s*(moi\s+)?(de la musique|la musique|une musique|la chanson|une chanson|le morceau|"
+                           r"un morceau|le titre|le clip|la vidéo|une vidéo|la video|une video|l'album|la playlist|du|de la|des|de l'|de|un peu de)\b",
+                           " ", recherche)
     recherche = " ".join(recherche.split()).strip(" .,!?")
     if recherche in ("musique", "musiques", "de musique", "les musiques"):
         recherche = ""
@@ -1701,8 +1856,8 @@ def _commande_notes(t, brut):
 
 # Mots de politesse et tournures qui entourent une demande sans rien y changer : « ouvre Chrome s'il te plaît »,
 # « tu peux ouvrir Chrome pour moi », « lance Spotify sur mon PC »... Jarvis les retire avant de chercher la commande.
-_POLI_FIN = re.compile(r"(?:[\s,]+(?:s'il (?:te|vous) pla[iî]t|stp|svp|pour moi|merci(?: beaucoup| d'avance)?|tout de suite|"
-                       r"si tu peux|si possible|rapidement|vite))+$")
+_POLI_FIN = re.compile(r"(?:[\s,]+(?:s'il (?:te|vous) pla[iî]t|stp|svp|pour moi|merci(?: beaucoup| d'avance)?|"
+                       r"si tu peux|si possible))+$")       # (pas « vite » ni « rapidement » : « parle plus vite »)
 _POLI_DEBUT = re.compile(r"^(\W*(?:jarvis\W+)?)(?:(?:s'il (?:te|vous) pla[iî]t|stp|svp|euh|alors),?\s+)+(?=\S)")
 _INFINITIFS = {"ouvrir": "ouvre", "lancer": "lance", "fermer": "ferme", "quitter": "quitte", "mettre": "mets",
                "chercher": "cherche", "rechercher": "recherche", "monter": "monte", "baisser": "baisse",
@@ -1716,9 +1871,37 @@ _SUR_LE_PC = re.compile(r"^(\W*(?:jarvis\W+)?(?:ouvre|ouvres|lance|démarre|ferm
                         r"(?:mon |le |l'|cet |ce )(?:pc|ordinateur|ordi)$")
 
 
+_SUBJONCTIFS = {"mettes": "mets", "ouvres": "ouvre", "lances": "lance", "fermes": "ferme", "baisses": "baisse",
+                "montes": "monte", "coupes": "coupe", "éteignes": "éteins", "allumes": "allume", "cherches": "cherche",
+                "joues": "joue", "actives": "active", "désactives": "désactive", "augmentes": "augmente",
+                "diminues": "diminue", "remettes": "remets", "redémarres": "redémarre", "affiches": "affiche"}
+_QUE_TU = re.compile(r"^(\W*(?:jarvis\W+)?)(?:j'aimerais|je voudrais|je veux|tu veux bien|est-ce que tu veux bien|peux-tu faire en sorte) "
+                     r"que tu (" + "|".join(_SUBJONCTIFS) + r")\b")
+# Les ordres au « vous » (« ouvrez Firefox », « baissez le son ») : ramenés au « tu », que les commandes connaissent
+_VOUS = {"ouvrez": "ouvre", "lancez": "lance", "fermez": "ferme", "quittez": "quitte", "mettez": "mets",
+         "montez": "monte", "baissez": "baisse", "coupez": "coupe", "éteignez": "éteins", "allumez": "allume",
+         "cherchez": "cherche", "recherchez": "recherche", "démarrez": "démarre", "affichez": "affiche",
+         "jouez": "joue", "activez": "active", "désactivez": "désactive", "augmentez": "augmente",
+         "diminuez": "diminue", "remettez": "remets", "redémarrez": "redémarre", "réduisez": "réduis",
+         "agrandissez": "agrandis", "passez": "passe", "lisez": "lis", "notez": "note", "ajoutez": "ajoute",
+         "supprimez": "supprime", "annulez": "annule", "verrouillez": "verrouille", "videz": "vide",
+         "rappelez-moi": "rappelle-moi", "dites-moi": "dis-moi", "donnez-moi": "donne-moi", "réveillez-moi": "réveille-moi",
+         "parlez": "parle", "arrêtez": "arrête", "taisez-vous": "tais-toi", "mettez-vous": "mets-toi"}
+_VOUS_RE = re.compile(r"^(\W*(?:jarvis\W+)?)(" + "|".join(sorted(map(re.escape, _VOUS), key=len, reverse=True)) + r")(?![\w-])")
+_VERBE_MOI = re.compile(r"\b(ouvre|lance|mets|joue|passe|affiche|monte|baisse|cherche|trouve|ferme)-moi\b")
+
+
 def _sans_remplissage(t):
     """La demande sans ses mots de politesse ; inchangée si, sans eux, il ne resterait rien."""
     court = _POLI_FIN.sub("", t).strip(" ,.!?")
+    court = _QUE_TU.sub(lambda m: m.group(1) + _SUBJONCTIFS[m.group(2)], court)
+    court = _VOUS_RE.sub(lambda m: m.group(1) + _VOUS[m.group(2)], court)    # « ouvrez Firefox » -> « ouvre Firefox »
+    # mal entendus : « offrir Spotify » (ouvrir), « quel fait-il » (quel temps fait-il), « metteur à jour » (mets-toi à jour)
+    court = re.sub(r"^(\W*(?:jarvis\W+)?)(?:offrir|offre|offres|offrez)\s+(?=(?:l'application |le logiciel )?[\w'.-]+(?:\s+[\w'.-]+)?\W*$)",
+                   r"\1ouvre ", court)
+    court = re.sub(r"^(\W*(?:jarvis\W+)?)quel fait[- ]?t[- ]?il\b", r"\1quel temps fait-il", court)
+    court = re.sub(r"^(\W*(?:jarvis\W+)?)(?:metteur|mettant|mets-toi|mets toi|met toi|mettre) (?:à|a) jour\W*$", r"\1mets-toi à jour", court)
+    court = _VERBE_MOI.sub(r"\1", court)                 # « lance-moi YouTube » -> « lance YouTube »
     court = _POLI_DEBUT.sub(r"\1", court)
     court = _DEMANDE_POLIE.sub(lambda m: m.group(1) + _INFINITIFS[m.group(2)], court)
     court = _SUR_LE_PC.sub(r"\1", court)
@@ -2058,11 +2241,16 @@ def commande_instantanee(textes, annoncer=None):
             ensemble = _informations_ensemble(t, brut)
             if ensemble:
                 return ensemble
-            if re.search(r"\bquelle heure\b", t) and not re.search(r"\b(à|au|aux|en)\s+\w", t):
+            if re.search(r"\bquelle heure\b|^\W*(?:jarvis\W+)?(?:dis|donne|rappelle)[- ]moi l'heure\b|\bl'heure qu'il est\b", t) \
+                    and not re.search(r"\b(à|au|aux|en)\s+\w", t):
                 return _heure()
             reponse = jarvis_eventail.entre_deux_dates(t)   # deux dates dans la phrase : avant le calendrier, qui n'en voit qu'une
             if reponse:
                 return reponse
+            if re.search(r"\bvacances\b", t):          # « les vacances de Noël » : les vacances, pas le jour de Noël
+                reponse = jarvis_infos.commande_vacances(t)
+                if reponse:
+                    return reponse
             reponse = jarvis_local.calendrier(t)         # « quelle est la date », « dans combien de jours Noël »...
             if reponse:
                 return reponse
@@ -2075,7 +2263,9 @@ def commande_instantanee(textes, annoncer=None):
             if re.search(r"\b(quel jour|quelle date|on est le combien|nous sommes le combien)\b", t) \
                     and not re.search(r"\b(sera|était|demain|hier)\b", t):
                 return _date()
-            for commande in (lambda: _commande_reglage_micro(t, annoncer),
+            for commande in (lambda: __import__("jarvis_disque").commande(t),   # avant les rappels (« préviens-moi »)
+                             lambda: __import__("jarvis_ia_locale").commande(t),  # « installe une IA gratuite sur mon PC »
+                             lambda: _commande_reglage_micro(t, annoncer),
                              lambda: commande_micro(t),
                              lambda: jarvis_famille.commande_reveil(t),
                              lambda: jarvis_reglages_ui.commande(t),
@@ -2163,6 +2353,11 @@ def commande_instantanee(textes, annoncer=None):
                              lambda: jarvis_web.commande_navigation(t),
                              lambda: _commande_fermer(t),
                              lambda: jarvis_fenetres.commande(t),
+                             lambda: _commande_fermer_absent(t),
+                             lambda: _commande_corbeille(t),
+                             lambda: _commande_mode_avion(t),
+                             lambda: jarvis_reglages.commande_wifi(t),
+                             lambda: _commande_site(t),
                              lambda: _commande_musique(t),
                              lambda: _commande_ouvrir(t),
                              lambda: _commande_capture(t),
@@ -2177,6 +2372,15 @@ def commande_instantanee(textes, annoncer=None):
         except Exception as erreur:
             print("Commande instantanée impossible :", erreur)
             return None
+    # une commande connue à un mot près (« monte le sang ») : « Tu voulais dire : monte le son ? », faite sur « oui »
+    if not confirmation_en_attente():
+        try:
+            import jarvis_proche
+            reponse = jarvis_proche.proposer(textes, demander_confirmation, commande_instantanee)
+            if reponse:
+                return reponse
+        except Exception as erreur:
+            print("Commande la plus proche impossible :", erreur)
     # Jarvis installé sans Claude : une question qu'il ne sait pas traiter est proposée en recherche Google
     for brut in textes:
         if brut:

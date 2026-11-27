@@ -1,6 +1,6 @@
 # Jarvis, a French voice assistant for Windows 11
 
-**Français : [README.md](README.md)** · **Current version: 1.65**
+**Français : [README.md](README.md)** · **Current version: 1.66**
 
 **To install Jarvis** $\color{limegreen}{\textsf{\textbf{(recommended method, it works on every PC)}}}$: open Terminal (Windows key + X, then **Terminal**), paste this line, then press Enter. Checks to make before pasting, explanations and the other method (.exe file): see [Installation](#installation).
 
@@ -42,6 +42,16 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Santé** (health): a one-click check of the microphone, speaker, speech recognition, Claude, connection and disk.
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
+
+## New in 1.66
+
+- **Update blocked by Windows or the antivirus: Jarvis explains what to do.** After two failed attempts for the same version, Jarvis says so, opens Notepad with the steps (the Terminal line, the blue Windows warning, the Windows Security protection history or the antivirus quarantine) and copies the line to paste. Once per version.
+- **"Did you mean…?"**: a short sentence very close to a known command gets a suggestion; "oui" runs it, "non" cancels. Safe commands only.
+- **Many more actions and answers without Claude**: louder/quieter, zoom, the PC's Wi-Fi, emptying the recycle bin (after a clear "yes"), the control panel, common websites, holidays, plurals, cooking conversions.
+- **Disk almost full**: one warning, no nagging.
+- **A free AI on the PC, step by step**: "Jarvis, installe une IA gratuite sur mon PC" checks the PC first, explains size and duration, then guides the Ollama installation. Nothing leaves the PC.
+- **Settings: a single "Assistants" tab**: Claude sits at the top; the other assistants are sorted into free and paid. The "Claude" tab is gone.
+- **Interrupting**: saying "Jarvis" while it speaks stops it; light mode keeps full recognition accuracy; settings texts no longer clipped on small windows.
 
 ## New in 1.65
 

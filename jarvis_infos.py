@@ -272,7 +272,7 @@ _VACANCES = re.compile(
     r"\b(?:on est|est-ce qu'on est|sommes[- ]nous|c'est|est-ce que c'est)(?: bient[oô]t| d[ée]j[aà])? (?:en|les) vacances\b|"
     r"\b(?:quand|quelle date|dans combien)\b.{0,35}\brentr[ée]e\b|\brentr[ée]e\b.{0,25}\b(?:quand|quelle date)\b")
 _FERIE = re.compile(r"\bf[ée]ri[ée]s?\b")
-_QUESTION_FERIE = re.compile(r"\b(prochains?|demain|aujourd'hui|quand|combien|est-ce que|est-ce qu'|reste-t-il|"
+_QUESTION_FERIE = re.compile(r"\b(prochains?|demain|aujourd'hui|quand|combien|est-ce que|est-ce qu'|reste-t-il|y a-t-il|y a t il|"
                              r"il reste|quels? sont|liste)\b")
 # noms du calendrier officiel, dits naturellement (« c'est Noël », « c'est le lundi de Pâques »)
 _NOMS_FERIES = {"Jour de Noël": "Noël", "Lundi de Pâques": "le lundi de Pâques", "Lundi de Pentecôte": "le lundi de Pentecôte",
@@ -320,7 +320,27 @@ def _lire_vacances(zone):
 
 def _nom_vacances(nom):
     nom = nom[0].lower() + nom[1:]
+    nom = re.sub(r"\b[ÉE]t[ée]\b", "été", nom).replace("d'Hiver", "d'hiver").replace("de Printemps", "de printemps")
     return re.sub(r"\b(no[eë]l|toussaint|p[aâ]ques)\b", lambda m: m.group(1).capitalize(), nom)
+
+
+# Une période précise demandée (« les vacances d'été », « de Noël »...) : celle-là, pas simplement la prochaine
+_PERIODES_NOMMEES = ((r"\b(?:ete|grandes vacances)\b", r"\b[ée]t[ée]\b"), (r"\bno[eë]l\b", r"\bno[eë]l\b"),
+                     (r"\b(?:hiver|fevrier|ski)\b", r"\bhiver\b"), (r"\b(?:printemps|paques|avril)\b", r"\bprintemps\b"),
+                     (r"\btoussaint\b", r"\btoussaint\b"))
+
+
+def _periode_nommee(t):
+    simple = _sans_accents_infos(t.lower())
+    for demande, nom in _PERIODES_NOMMEES:
+        if re.search(demande, simple):
+            return nom
+    return None
+
+
+def _sans_accents_infos(texte):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn")
 
 
 def commande_vacances(t):
@@ -341,6 +361,12 @@ def commande_vacances(t):
     periodes = sorted((p for p in periodes if p[2] > aujourd_hui), key=lambda p: p[1])
     if not periodes:
         return "Aucune période de vacances n'est encore publiée pour la suite."
+    voulue = _periode_nommee(t)
+    if voulue:
+        trouvees = [p for p in periodes if re.search(voulue, _sans_accents_infos(p[0].lower()))]
+        if not trouvees:
+            return "Ces vacances-là ne sont pas encore publiées dans le calendrier scolaire."
+        periodes = trouvees
     nom, debut, rentree = periodes[0]
     nom = _nom_vacances(nom)
     reserve = "" if a_jour else " C'est le dernier calendrier que je connais, à vérifier."
@@ -352,9 +378,42 @@ def commande_vacances(t):
     if re.search(r"\brentr[ée]e\b", t):
         return (f"La prochaine rentrée, c'est {_jour_dit(rentree)}, après les {nom}, "
                 f"qui commencent {_jour_dit(debut)}.{reserve}")
+    if voulue:
+        return (f"Les {nom}, {la_zone}, vont du {_jour_dit(debut)} au {_jour_dit(dernier)}"
+                + (f" {debut.year}" if debut.year != aujourd_hui.year else "")
+                + f", {_dans((debut - aujourd_hui).days)}. Rentrée le {_jour_dit(rentree)}.{reserve}")
     debut_phrase = "Non, pas encore. " if re.search(r"\b(?:on est|sommes[- ]nous|c'est)\b.{0,12}\bvacances\b", t) else ""
     return (f"{debut_phrase}Les prochaines vacances, {la_zone}, ce sont les {nom} : du {_jour_dit(debut)} au "
             f"{_jour_dit(dernier)}, {_dans((debut - aujourd_hui).days)}. Rentrée le {_jour_dit(rentree)}.{reserve}")
+
+
+def _feries_du_mois(t, jours, reserve):
+    """« combien de jours fériés en mai ? », « quels sont les jours fériés en novembre 2027 ? »"""
+    simple = _sans_accents_infos(t.lower())
+    noms = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"]
+    m = re.search(r"\b(?:en|au mois d'|au mois de|du mois d'|du mois de|de|d')\s*(" + "|".join(noms) + r")\b(?:\s+(20\d\d))?", simple)
+    if not m:
+        return None
+    mois = noms.index(m.group(1)) + 1
+    aujourd_hui = datetime.date.today()
+    annee = int(m.group(2)) if m.group(2) else (aujourd_hui.year if mois >= aujourd_hui.month else aujourd_hui.year + 1)
+    liste = []
+    for date, nom in sorted(jours.items()):
+        try:
+            jour = datetime.date.fromisoformat(date)
+        except ValueError:
+            continue
+        if jour.year == annee and jour.month == mois:
+            liste.append((jour, nom))
+    nom_mois = MOIS[mois - 1]
+    if not any(d.startswith(str(annee)) for d in jours):
+        return f"Je ne connais pas encore les jours fériés de {annee}."
+    if not liste:
+        return f"Il n'y a aucun jour férié en {nom_mois} {annee}.{reserve}"
+    details = ", ".join(f"{_nom_ferie(nom)} ({_jour_dit(jour)})" for jour, nom in liste)
+    if len(liste) == 1:
+        return f"En {nom_mois} {annee}, il y a un seul jour férié : {details}.{reserve}"
+    return f"En {nom_mois} {annee}, il y a {len(liste)} jours fériés : {details}.{reserve}"
 
 
 def _commande_ferie(t):
@@ -364,6 +423,9 @@ def _commande_ferie(t):
         return "Je n'arrive pas à consulter les jours fériés pour le moment."
     aujourd_hui = datetime.date.today()
     reserve = "" if a_jour else " C'est la dernière liste que je connais, à vérifier."
+    du_mois = _feries_du_mois(t, jours, reserve)
+    if du_mois:
+        return du_mois
     demande = (aujourd_hui + datetime.timedelta(days=1) if re.search(r"\bdemain\b", t)
                else aujourd_hui if re.search(r"\b(aujourd'hui|ce jour)\b", t) else None)
     if demande:

@@ -376,7 +376,7 @@ def _calendrier(s):
                     return (f"Dans {abs(n)} {u.group('u')}, nous serons le {_date_longue(d)}." if n > 0
                             else f"Il y a {abs(n)} {u.group('u')}, nous étions le {_date_longue(d)}.")
     # « combien de jours dans un février de 2018 » : la durée d'un mois, pas un compte à rebours (voir jarvis_savoir)
-    if re.search(r"\bcombien (?:de )?jours (?:y a[- ]t[- ]il |il y a )?(?:dans|en) (?:le mois d[eu'] ?|un |le )?"
+    if re.search(r"\bcombien (?:y a[- ]t[- ]il )?(?:de )?jours? (?:y a[- ]t[- ]il |il y a )?(?:(?:dans|en) (?:le mois d[eu'] ?|un |le )?|d'un |d un )"
                  r"(?:janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)\b", s):
         return None
     # « dans combien de jours c'est Noël », « combien de jours avant le 14 juillet »
@@ -1119,6 +1119,11 @@ def sans_claude(t, brut, demander_confirmation, ouvrir):
         question = re.sub(r"^\W*(?:jarvis\W+)?(?:fais(?:-moi)? une recherche (?:sur |a propos de |pour )?|cherche(?:-moi)?(?: sur (?:internet|google))? |"
                           r"recherche |trouve-moi )", "", brut.strip(" .!?«»\"'"), flags=re.I) or brut
         adresse, quoi = "https://www.google.com/search?q=" + urllib.parse.quote(question.strip()), "cette question"
+
+    # une recherche demandée en toutes lettres (« fais une recherche sur les tortues ») : lancée tout de suite
+    if quoi == "cette question" and re.match(r"^(?:fais|fait|lance) (?:une |moi une )?recherche|^(?:cherche|recherche|trouve)", s):
+        ouvrir(adresse)
+        return "Je lance la recherche sur Google."
 
     def lancer():
         ouvrir(adresse)

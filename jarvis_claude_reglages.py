@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-JARVIS - l'onglet « Claude » des réglages : savoir où en est Claude sur ce PC, l'installer et connecter le compte.
+JARVIS - la partie « Claude » de l'onglet Assistants des réglages : savoir où en est Claude sur ce PC, l'installer et connecter le compte.
 
 Trois états : « absent » (Claude Code n'est pas installé), « deconnecte » (installé, mais pas relié à un compte
 Claude) et « connecte ». Les actions reprennent exactement celles de l'installateur (« Ajouter Claude ») :

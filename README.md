@@ -1,6 +1,6 @@
 # Jarvis, assistant IA de TonyNio
 
-**English: [README.en.md](README.en.md)** · **Version actuelle : 1.65**
+**English: [README.en.md](README.en.md)** · **Version actuelle : 1.66**
 
 **Pour installer Jarvis** $\color{limegreen}{\textsf{\textbf{(méthode recommandée, elle marche sur tous les PC)}}}$ : ouvre le Terminal (touche Windows + X, puis **Terminal**), colle cette ligne, puis appuie sur Entrée. La fenêtre d'installation s'ouvre ; rien n'est installé avant que tu cliques sur « Installer ». Vérifications à faire avant de coller, explications et autre méthode (fichier .exe) : voir [Installation](#installation).
 
@@ -41,6 +41,20 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Système** : démarrage avec Windows, sauvegarde et restauration, et « Par défaut » pour tout remettre comme à l'installation (sans toucher aux profils, mémoires et voix).
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
+
+## Nouveau en 1.66
+
+- **Mise à jour bloquée par Windows ou l'antivirus : Jarvis explique quoi faire.** Si une mise à jour n'arrive pas à s'installer deux fois de suite, Jarvis le dit, ouvre le Bloc-notes avec la marche à suivre (la ligne du Terminal, l'avertissement bleu de Windows, l'historique de protection de Sécurité Windows ou la quarantaine de l'antivirus) et copie déjà la ligne à coller. Une seule fois par version.
+- **« Tu voulais dire… ? »** : quand une phrase courte ressemble de très près à une commande connue (« monte le sang »), Jarvis propose « Tu voulais dire : monte le son ? ». « Oui » la fait, « non » annule. Seulement pour des commandes sans danger.
+- **Beaucoup plus d'actions sans Claude** : « plus fort », « moins fort », « mets le son à fond », zoom avant et arrière, Wi-Fi du PC (activer, couper, état), « vide la corbeille » (après un « oui » franc), « ouvre le panneau de configuration », sites courants (Amazon, Gmail, Leboncoin, CAF, Ameli, impôts, La Poste, Doctolib…).
+- **Plus de réponses sans Claude** : les vacances d'une période précise, les jours fériés d'un mois, le pluriel d'un mot, grammes et tasses, pas en kilomètres, jours d'un mois d'une année, âge d'une personne née telle année.
+- **Disque presque plein** : Jarvis prévient une fois, sans insister (« ne me préviens plus pour le disque » coupe l'alerte).
+- **Une IA gratuite sur le PC, pas à pas** : « Jarvis, installe une IA gratuite sur mon PC » vérifie d'abord si le PC le permet, explique la taille et la durée, puis guide l'installation d'Ollama. Rien ne sort du PC. Sur un petit processeur, Jarvis prévient que ce sera lent.
+- **Réglages : un seul onglet « Assistants »** : Claude est en haut de cet onglet (installer, connecter, changer de compte) ; les autres assistants sont rangés en « Gratuits », puis « Payants » repliés derrière un bouton. L'onglet « Claude » disparaît.
+- **Couper la parole** : dire « Jarvis » pendant qu'il parle l'arrête, phrases d'attente comprises.
+- **Mode léger** : il garde toute la précision de la reconnaissance vocale (les commandes simples partent toujours sans attendre).
+- **Réglages corrigés** : textes de l'onglet Rapports qui ne sont plus coupés sur les petites fenêtres, historique sans les phrases d'attente de Jarvis.
+- **Journal plus clair** : un arrêt venu de l'extérieur n'est plus compté comme un plantage de Jarvis.
 
 ## Nouveau en 1.65
 
@@ -413,7 +427,7 @@ Ne colle jamais dans le Terminal une commande reçue par message, par mail ou tr
 
 Pour avoir la météo de chez toi, dis-lui une fois : « **Jarvis, ma ville est** … » suivi du nom de ta ville.
 
-**Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. Pour ajouter Claude, tu peux aussi dire « Jarvis, ouvre les réglages » et aller dans l'onglet « Claude ». La mise à jour garde tes réglages, sa mémoire et tes rappels.
+**Mettre à jour, réparer, ajouter Claude ou désinstaller :** relance le même fichier. Une copie est aussi rangée dans `C:\Jarvis` (touche Windows + R, tape `C:\Jarvis`, puis Entrée). Un menu te propose de mettre à jour, de désinstaller, ou d'ajouter Claude s'il manque. Pour ajouter Claude, tu peux aussi dire « Jarvis, ouvre les réglages » et aller dans l'onglet « Assistants ». La mise à jour garde tes réglages, sa mémoire et tes rappels.
 
 <a id="desinstaller"></a>**Désinstaller :** dans les réglages de Jarvis, onglet « À propos », clique sur « Désinstaller Jarvis… » (ou relance l'installateur et choisis « Désinstaller »). Une première fenêtre te demande quoi faire de tes fichiers personnels (réglages, profils et voix, mémoire, rappels, notes, listes) : les garder dans un dossier « Jarvis - fichiers personnels » sur le Bureau, ou les supprimer, avec si tu veux une copie compressée. Une dernière fenêtre liste tout ce qui va être retiré : le dossier de Jarvis, ses raccourcis (Bureau et démarrage de Windows), son repère dans le registre, ses fichiers temporaires, ainsi que Python, Claude Code et les composants Microsoft Visual C++. Ces trois derniers sont cochés d'office : **décoche ceux que tu utilises pour autre chose**. Rien n'est supprimé tant que tu n'as pas écrit « confirmer ». Si tu réinstalles Jarvis plus tard, l'installateur te propose de reprendre les fichiers gardés.
 
@@ -680,6 +694,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.66 | Mise à jour bloquée : Jarvis explique comment la débloquer ; « Tu voulais dire… ? » ; plus d'actions et de réponses sans Claude ; alerte disque presque plein ; IA gratuite sur le PC pas à pas (Ollama) ; un seul onglet « Assistants » ; couper la parole avec « Jarvis ». |
 | 1.65 | Mises à jour forcées plus rapides et retentées ; Wikipédia sans Claude ; demandes polies et « oui » franc ; rappels gardés par Windows ; Ctrl + Alt + J ; « règle ton micro » ; installateur (code postal, voix, tutoiement, rapport technique coché) ; rapports toutes les heures ; Groq. |
 | 1.64 | Installateur refait (fenêtres plus claires, consignes « clique sur Oui » en vert) ; ouverture d'applications sans Claude mieux gérée (« lors l'application… », Deezer) ; question d'accueil dite à part ; racine carrée et jours de février corrigés ; Kimi dans les assistants. |
 | 1.63 | « Marque tous mes mails comme lus » (avec confirmation, rien n'est supprimé) ; « Je ne sais pas faire ça. » si la messagerie refuse ; micro perdu : 3 essais puis « Aucun micro détecté », et la fenêtre de discussion reste utilisable sans micro. |
