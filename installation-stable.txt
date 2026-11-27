@@ -1,4 +1,4 @@
 # Version par laquelle commence une PREMIÈRE installation de Jarvis (une mise à jour prend toujours la dernière version publiée).
 # Une seule ligne utile : l'étiquette d'une version déjà publiée sur GitHub, par exemple v1.47.
 # Pour que les nouvelles installations prennent la dernière version : écris latest (ou supprime la ligne).
-v1.47
+v1.64
