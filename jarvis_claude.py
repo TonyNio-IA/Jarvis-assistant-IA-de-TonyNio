@@ -90,7 +90,7 @@ def rapport(nom, *args, **kwargs):
     except Exception as erreur_rapport:
         print("(Rapports :", nom, type(erreur_rapport).__name__, ")")
 
-VERSION = "1.66"              # numéro de version de Jarvis (même numéro que sur GitHub)
+VERSION = "1.67"              # numéro de version de Jarvis (même numéro que sur GitHub)
 
 # ===== Réglages =====
 MODEL_PATH = jarvis_config.chemin("vosk-model-small-fr-0.22")
@@ -1144,7 +1144,7 @@ class ClaudeContinu:
                 return message_sans_claude(), True
             self.utilise = True
             if self.avec_memoire:
-                texte = jarvis_memoire.nouveautes() + texte
+                texte = jarvis_memoire.nouveautes(texte) + texte
             message = {"type": "user", "message": {"role": "user", "content": texte}}
             try:
                 self.proc.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
@@ -2169,6 +2169,55 @@ def conversation(demande, recognizer):
     etat("veille")
 
 
+ECOUTE_OCCUPEE_APRES = 15 * 60     # secondes sans un tour de la boucle d'écoute avant de le noter
+_tour_ecoute = {"quand": 0.0, "fil": None, "note": 0.0}
+
+
+def _battre_ecoute():
+    """Appelé à chaque tour de la boucle d'écoute (avec ou sans micro) : elle vit."""
+    _tour_ecoute["quand"] = time.time()
+    if _tour_ecoute["fil"] is None:
+        _tour_ecoute["fil"] = threading.get_ident()
+
+
+def ou_en_est_l_ecoute():
+    """Où la boucle d'écoute est arrêtée en ce moment : « fichier:ligne fonction », du plus profond au moins profond."""
+    cadre = sys._current_frames().get(_tour_ecoute["fil"])
+    if cadre is None:
+        return "inconnu"
+    import traceback
+    pile = traceback.extract_stack(cadre)[-4:]
+    return " < ".join(f"{os.path.basename(c.filename)}:{c.lineno} {c.name}" for c in reversed(pile))
+
+
+def ecoute_occupee(maintenant=None):
+    """Depuis combien de secondes la boucle d'écoute n'a pas tourné, si c'est plus que ECOUTE_OCCUPEE_APRES ; sinon 0."""
+    if not _tour_ecoute["quand"]:
+        return 0
+    age = (maintenant or time.time()) - _tour_ecoute["quand"]
+    return age if age >= ECOUTE_OCCUPEE_APRES else 0
+
+
+def _surveiller_ecoute(pas=60):
+    """Note une fois, par arrêt, l'endroit où l'écoute est occupée depuis trop longtemps. N'arrête rien."""
+    dernier = time.time()
+    while True:
+        time.sleep(pas)
+        maintenant = time.time()
+        if maintenant - dernier > pas * 3:            # le PC sort de veille : on repart de zéro
+            _tour_ecoute["quand"] = maintenant
+        dernier = maintenant
+        age = ecoute_occupee(maintenant)
+        if age and _tour_ecoute["note"] != _tour_ecoute["quand"]:
+            _tour_ecoute["note"] = _tour_ecoute["quand"]
+            lieu = ou_en_est_l_ecoute()
+            print(f"(Surveillance : l'écoute est occupée depuis {age / 60:.0f} minutes à : {lieu})")
+            try:
+                jarvis_rapports.erreur("ecoute", texte=f"écoute occupée depuis {age / 60:.0f} min à : {lieu}")
+            except Exception:
+                pass
+
+
 def _prochain_bloc(file_audio, debut, deja_recu):
     """Attend le prochain bloc de son du micro. Renvoie (bloc, True), ou (None, False) si le micro n'a encore rien envoyé
     depuis le lancement (Windows peut être occupé : on attend jusqu'à MICRO_MUET_DEMARRAGE secondes).
@@ -2433,7 +2482,10 @@ def main():
     reprise = jarvis_sante.phrase_reprise()
     if reprise:
         print(f"(Relance : {reprise})")
+        if "je suis revenu à la version" in reprise:      # retour à la version d'avant : ça, il faut le dire
+            point_pret.put((reprise, None))
     jarvis_maj.verifier_en_arriere_plan()        # une version plus récente est-elle publiée sur GitHub ?
+    threading.Thread(target=_surveiller_ecoute, daemon=True).start()   # note où l'écoute s'arrête, si elle s'arrête
 
     heure = time.localtime().tm_hour
     if (POINT_DU_JOUR_AUTO and POINT_DU_JOUR_HEURES[0] <= heure < POINT_DU_JOUR_HEURES[1]
@@ -2448,6 +2500,7 @@ def main():
 
     def hors_micro():
         """Sans micro : les demandes écrites, les rappels, les alertes et les mises à jour forcées sont traités."""
+        _battre_ecoute()
         if (jarvis_maj.forcee_en_attente() and time.time() - derniere_activite >= jarvis_maj.calme_requis()
                 and demandes_ecrites.empty() and point_pret.empty() and jarvis_maj.forcee_a_installer()):
             etat("reponse")
@@ -2503,6 +2556,7 @@ def main():
             premier_son_recu = False
             while True:
                 data, premier_son_recu = _prochain_bloc(audio_queue, debut_ecoute, premier_son_recu)
+                _battre_ecoute()
                 if data is None:               # le micro n'a encore rien envoyé : on attend encore, sans relancer Jarvis
                     continue
                 claude.entretenir()

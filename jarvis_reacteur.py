@@ -155,6 +155,25 @@ def _court(texte, en_direct=False):
     return "..." + texte[-41:] if en_direct else texte[:41] + "..."
 
 
+_battement = [0.0]
+
+
+def battre():
+    """Appelé à chaque image : écrit l'heure dans battement.txt toutes les 10 secondes. Le gardien y voit que
+    l'affichage de Jarvis vit toujours ; s'il ne bat plus pendant 5 minutes, il relance Jarvis."""
+    maintenant = time.time()
+    if maintenant - _battement[0] < 10:
+        return
+    _battement[0] = maintenant
+    if not os.environ.get("JARVIS_GARDIEN"):     # lancé sans gardien (essais) : personne ne regarde
+        return
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "battement.txt"), "w") as f:
+            f.write(str(int(maintenant)))
+    except OSError:
+        pass
+
+
 def changer_etat(nom):
     global etat_actuel
     if nom in ETATS:
@@ -251,6 +270,7 @@ class Reacteur:
         os._exit(0)
 
     def dessiner(self):
+        battre()
         if STYLE == "hud":
             self._dessiner_hud()
         else:

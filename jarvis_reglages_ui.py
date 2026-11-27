@@ -181,6 +181,7 @@ REGLAGES = [
     ("taille", "Réacteur", "Taille du réacteur (au prochain démarrage)", "nombre", "reacteur", "TAILLE", (180, 400, 10, "")),
     ("volume_bip", "Son", "Volume du bip de réveil", "nombre", "jarvis_voix", "VOLUME_BIP", (0.05, 1.0, 0.05, "")),
     ("volume_fin", "Son", "Son de fin d'écoute (part du bip)", "nombre", "jarvis_voix", "VOLUME_FIN_ECOUTE", (0.0, 1.5, 0.05, "")),
+    ("delai_suite", "Son", "Enchaîner sans redire « Jarvis » pendant", "nombre", "jarvis_claude", "DELAI_SUITE", (3, 20, 1, "s")),
     ("deux_voix", "Profils", "Histoires à deux voix", "bool", "jarvis_enfant", "DEUX_VOIX", None),
     ("variation", "Son", "Voix légèrement variée d'une phrase à l'autre", "bool", "jarvis_voix", "VARIATION_VOIX", None),
     ("francais", "Profils", "Vidéos des enfants : en français seulement", "bool", "jarvis_enfant", "FRANCAIS_SEULEMENT", None),
@@ -194,6 +195,9 @@ AIDES = {
     "cycle": "Plus le nombre est petit, plus les couleurs défilent vite.",
     "discret": "Quand Jarvis est au repos, le réacteur se réduit pour moins gêner sur le Bureau.",
     "delai_discret": "Temps de repos avant que le réacteur se réduise. À droite du curseur : il ne se réduit jamais.",
+    "delai_suite": "Après une réponse, Jarvis écoute encore ce temps-là : tu peux enchaîner sans redire « Jarvis ». Plus c'est "
+                   "long, plus la conversation est naturelle, mais Jarvis risque de prendre pour lui une phrase dite à quelqu'un "
+                   "d'autre. Il n'écoute jamais de suite quand le PC joue du son.",
     "volume_fin": "Réglé en part du bip de réveil : tout à gauche, ce son est muet.",
     "niveau_alertes": "« jaune » annonce tout, « rouge » seulement les alertes les plus graves.",
 }
@@ -397,6 +401,8 @@ AIDE = [
     ("Bases", "« règle ton micro »", "Jarvis mesure le bruit de la pièce et choisit sa sensibilité tout seul."),
     ("Bases", "« qu'est-ce que tu sais faire ? »", "Le résumé des commandes."),
     ("Bases", "« quand tu entends mes mots, c'est mets-moi »", "Jarvis retient la correction pour la suite. « oublie la correction mes mots »."),
+    ("Bases", "« oui » / « non » après « Tu voulais dire… ? »",
+     "Quand une phrase ressemble de très près à une commande connue, Jarvis la propose au lieu de se tromper."),
     ("Bases", "« premiers pas »", "Rouvre la fenêtre de bienvenue : comment me parler et quoi essayer."),
     ("Bases", "« fais un diagnostic »", "Vérifie le micro, le son, Whisper, Claude et la connexion (onglet Santé)."),
     ("Heure et météo", "« quelle heure est-il ? », « quel jour sommes-nous ? »", ""),
@@ -437,6 +443,17 @@ AIDE = [
     ("PC", "« ouvre le dernier téléchargement »", ""),
     ("PC", "« cherche le fichier facture »", ""),
     ("PC", "« état du PC », « pourquoi ça rame ? »", ""),
+    ("PC", "« plus fort », « moins fort », « mets le son à fond »", ""),
+    ("PC", "« zoom avant », « zoom arrière », « zoom normal »", "Dans le navigateur et la plupart des applications."),
+    ("PC", "« active le Wi-Fi », « coupe le Wi-Fi », « le Wi-Fi est activé ? »", "Le Wi-Fi de ce PC."),
+    ("PC", "« vide la corbeille »", "Jarvis dit ce qu'elle contient, puis la vide seulement après « oui »."),
+    ("PC", "« ouvre le panneau de configuration », « va sur Ameli », « ouvre Leboncoin »",
+     "Sites courants : Amazon, Gmail, CAF, Ameli, impôts, La Poste, Doctolib…"),
+    ("PC", "« ne me préviens plus pour le disque », « préviens-moi pour le disque »",
+     "Jarvis prévient une fois quand le disque est presque plein."),
+    ("PC", "« installe une IA gratuite sur mon PC »",
+     "Jarvis vérifie d'abord si le PC le permet, puis guide l'installation pas à pas. Rien ne sort du PC."),
+    ("PC", "« déconnecte-toi de Claude », « change de compte Claude »", "Ouvre les Réglages, onglet Assistants."),
     ("PC", "« éteins l'ordinateur », « mets l'ordinateur en veille »", "Toujours avec confirmation."),
     ("Textes", "« dicte : je serai là dans dix minutes »", "Tape le texte dans la fenêtre active."),
     ("Textes", "« lis ça », « lis ce que j'ai copié », « traduis le texte copié en anglais »", ""),
@@ -444,6 +461,8 @@ AIDE = [
     ("Textes", "« ajoute du pain à la liste », « lis-moi la liste »", ""),
     ("Cuisine", "« donne-moi la recette des crêpes étape par étape »", "Puis « étape suivante », « répète l'étape »."),
     ("Mémoire", "« retiens que… », « qu'est-ce que tu as retenu ? », « oublie que… »", ""),
+    ("Mémoire", "« qu'est-ce que tu as retenu sur ma voiture ? », « rappelle-moi ce qu'on avait décidé pour la terrasse »",
+     "Jarvis cherche dans ce qu'il a retenu. Tout se voit et se corrige dans Réglages, onglet Historique."),
     ("Modes", "« active le mode nuit »", "Réponses écrites, sans voix ni bip (les rappels sonnent)."),
     ("Modes", "« active le mode cinéma », « active le mode invité »", ""),
     ("Modes", "« mets le réacteur en bleu »", "Thèmes : Vice City, Iron Man, Océan, Forêt, Aurore, Galaxie, bleu, vert, rouge, violet, orange."),
@@ -983,8 +1002,10 @@ def _construire():
             actuel = actuel or noms[0]
             choix(cadre, actuel, noms, lambda n, c=cle, o=options: regler(c, dict(o)[n])).pack(side="right", padx=12, pady=4)
         if cle in AIDES:                       # une courte phrase grise juste sous la carte du réglage
-            tk.Label(page, text=AIDES[cle], bg=PANNEAU, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(560),
-                     justify="left").pack(anchor="w", padx=24, pady=(0, 4))
+            aide = tk.Label(page, text=AIDES[cle], bg=PANNEAU, fg=DISCRET, font=("Segoe UI", 9), wraplength=px(480),
+                            justify="left", anchor="w")
+            aide.pack(fill="x", padx=24, pady=(0, 4))     # passe à la ligne selon la vraie largeur (jamais coupé)
+            aide.bind("<Configure>", lambda e, a=aide: a.config(wraplength=max(60, e.width - 4)), add="+")
 
     def remise_page(onglet, en_plus, refaire):
         """En bas d'une page : « Remettre cette page par défaut » (seulement les réglages de cette page)."""
@@ -1148,6 +1169,9 @@ def _construire():
             r = next(x for x in REGLAGES if x[0] == c)
             reglage(c, r[2], r[3], r[6], "Son")
         section("Écoute")
+        for c in ("delai_suite",):
+            r = next(x for x in REGLAGES if x[0] == c)
+            reglage(c, r[2], r[3], r[6], "Son")
         cadre = ligne()
         tk.Label(cadre, text="Pièce (sensibilité du micro)", bg=PANNEAU2, fg=TEXTE, font=POLICE).pack(side="left", padx=12, pady=9)
         choix(cadre, choix_actuel("micro"), list(SENSIBILITE_MICRO), lambda n: regler("micro", n)).pack(side="right", padx=12, pady=4)
@@ -1228,7 +1252,55 @@ def _construire():
 
     def page_historique():
         vider()
-        titre("Historique", "Les dernières demandes et ce que Jarvis a répondu (journal gardé sur ce PC).")
+        titre("Historique", "Ce que Jarvis a retenu, puis les dernières demandes et ses réponses. Tout reste sur ce PC.")
+        section("Ce que Jarvis a retenu")
+        try:
+            import jarvis_memoire
+            invite = jarvis_memoire._invite()
+        except Exception as erreur:
+            jarvis_memoire, invite = None, False
+            print("Réglages (mémoire) :", erreur)
+        if invite:                                  # mode invité : la mémoire du foyer ne se montre pas
+            tk.Label(page, text="Mode invité : la mémoire n'est pas affichée.", bg=PANNEAU, fg=DISCRET,
+                     font=POLICE).pack(anchor="w", padx=22)
+        elif jarvis_memoire is not None:
+            cadre = ligne()
+            saisie = tk.StringVar(racine)
+
+            def ajouter(*_):
+                texte = saisie.get().strip()
+                if len(texte.split()) >= 2:
+                    jarvis_memoire.retenir(texte)
+                    page_historique()
+
+            bouton(cadre, "Retenir", ajouter).pack(side="right", padx=12, pady=8)
+            champ = tk.Entry(cadre, textvariable=saisie, bg=BORD, fg=TEXTE, insertbackground=TEXTE, relief="flat",
+                             font=POLICE, highlightthickness=1, highlightbackground=SURVOL, highlightcolor=accent["c"])
+            champ.pack(side="left", fill="x", expand=True, padx=12, pady=8, ipady=5)
+            champ.bind("<Return>", ajouter)
+            faits = jarvis_memoire.tous()
+            if not faits:
+                tk.Label(page, text="Rien pour l'instant. Dis « Jarvis, retiens que… », ou écris-le dans la case.",
+                         bg=PANNEAU, fg=DISCRET, font=POLICE, wraplength=px(520), justify="left").pack(anchor="w", padx=22)
+
+            def oublier(texte):
+                jarvis_memoire.oublier_exact(texte)
+                page_historique()
+
+            for nom in [c[0] for c in jarvis_memoire.CATEGORIES] + ["Autre"]:
+                du_rang = [f for f in faits if f["categorie"] == nom]
+                if not du_rang:
+                    continue
+                tk.Label(page, text=f"{nom.upper()}  ({len(du_rang)})", bg=PANNEAU, fg=accent["c"],
+                         font=("Segoe UI Semibold", 9)).pack(anchor="w", padx=22, pady=(10, 2))
+                for f in du_rang:
+                    cadre = ligne()
+                    bouton(cadre, "Oublier", lambda t=f["texte"]: oublier(t)).pack(side="right", padx=12, pady=6)
+                    note = ("   (ancien : Jarvis ne le rappelle plus)" if f["perime"]
+                            else "   (retenu par Jarvis de lui-même)" if f["source"] == "jarvis" else "")
+                    _texte_souple(tk.Label(cadre, text=f["texte"] + note, wraplength=px(400), justify="left", anchor="w",
+                                           bg=PANNEAU2, fg=DISCRET if f["perime"] else TEXTE, font=POLICE))
+        section("Dernières demandes")
         echanges = historique()
         if not echanges:
             tk.Label(page, text="Rien pour l'instant.", bg=PANNEAU, fg=DISCRET, font=POLICE).pack(anchor="w", padx=22)
@@ -2400,8 +2472,19 @@ _CLAUDE_REGLAGE = re.compile(r"\b(?:accède|accéde|accede|acceder|accéder|acc�
                              r"(?:compte )?(?:de )?claude\b")
 
 
+_CLAUDE_COMPTE = re.compile(r"\b(?:d[ée]conn?ecte|d[ée]conn?ecter|d[ée]branche|d[ée]brancher|d[ée]lie|d[ée]lier)(?:-toi|-moi)?\b"
+                            r".{0,25}\bclaude\b|\bchange[rz]?\b.{0,12}\bcompte\b.{0,10}\bclaude\b|"
+                            r"\b(?:un )?autre compte claude\b")
+
+
 def commande(t):
     t = t.replace("’", "'")
+    if _CLAUDE_COMPTE.search(t):
+        # « déconnecte-toi de mon Claude », « change de compte Claude » : jamais fait à la voix, on montre le bouton
+        _fenetre["page"] = "Assistants"
+        ouvrir()
+        return ("J'ouvre mes réglages, onglet Assistants : Claude est tout en haut. Clique sur Changer de compte "
+                "pour te déconnecter ou relier un autre compte.")
     if _CLAUDE_REGLAGE.search(t):
         # « installe Claude », « connecte Claude » : mes réglages s'ouvrent directement sur l'onglet Assistants (Claude en haut)
         _fenetre["page"] = "Assistants"

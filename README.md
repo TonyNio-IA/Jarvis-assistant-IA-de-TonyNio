@@ -42,6 +42,16 @@ Tout se règle sans toucher à un fichier : clic droit sur le réacteur puis « 
 - **Rapports** : aider à améliorer Jarvis (rien, rapport technique ou complet), « Signaler un problème », « Proposer une amélioration », « Voir ce qui partirait » et « Effacer mes données ». Détail : [ce qui est envoyé, et pourquoi](docs/confidentialite.md).
 - **À propos** : la version, les mises à jour, et le bouton « Désinstaller Jarvis… ».
 
+## Nouveau en 1.67 (pré-version, pour les testeurs)
+
+- **Mises à jour plus sûres** : avant de lancer l'installateur téléchargé, Jarvis vérifie son empreinte SHA-256 (celle des notes de version). S'il diffère, il est effacé et rien n'est lancé. Juste avant une mise à jour, Jarvis garde une copie de ses programmes : si la nouvelle version s'arrête trois fois de suite au démarrage, l'ancienne est remise, Jarvis le dit et ne réinstalle pas cette version. Les fichiers personnels ne sont jamais touchés.
+- **Jarvis figé** : si son affichage ne bouge plus pendant 5 minutes, il est arrêté puis relancé tout seul (2 fois par heure au plus).
+- **Mémoire rangée** : plus de limite à 60 faits (500). « Qu'est-ce que tu as retenu sur ma voiture ? », « rappelle-moi ce qu'on avait décidé pour la terrasse ». Dans les Réglages, onglet Historique : tout ce que Jarvis a retenu, rangé par catégorie, avec « Oublier » sur chaque ligne et une case pour ajouter. Avec Claude, seuls les faits récents sont donnés au début ; un fait plus ancien revient quand la demande en parle.
+- **Enchaîner sans redire « Jarvis »** : Réglages, onglet Son, « Écoute » : de 3 à 20 secondes (3 par défaut, comme avant).
+- **« Déconnecte-toi de Claude », « change de compte Claude »** : ouvre les Réglages sur l'onglet Assistants, sans passer par Claude.
+- **Aide complétée** (commandes arrivées en 1.66) et textes d'explication des réglages qui ne sont plus coupés.
+- **Journal** : si l'écoute reste occupée plus de 15 minutes, Jarvis note à quel endroit (pour comprendre les blocages ; il n'arrête rien).
+
 ## Nouveau en 1.66
 
 - **Mise à jour bloquée par Windows ou l'antivirus : Jarvis explique quoi faire.** Si une mise à jour n'arrive pas à s'installer deux fois de suite, Jarvis le dit, ouvre le Bloc-notes avec la marche à suivre (la ligne du Terminal, l'avertissement bleu de Windows, l'historique de protection de Sécurité Windows ou la quarantaine de l'antivirus) et copie déjà la ligne à coller. Une seule fois par version.
@@ -694,6 +704,7 @@ Une idée, un bug, une commande qui manque ? Ouvre une demande dans l'onglet **I
 
 | Version | Contenu |
 |---|---|
+| 1.67 | Pré-version (testeurs) : empreinte SHA-256 vérifiée et retour à la version d'avant si la nouvelle ne démarre pas ; Jarvis figé relancé ; mémoire rangée par catégorie et par sujet ; enchaîner sans redire « Jarvis » (3 à 20 s). |
 | 1.66 | Mise à jour bloquée : Jarvis explique comment la débloquer ; « Tu voulais dire… ? » ; plus d'actions et de réponses sans Claude ; alerte disque presque plein ; IA gratuite sur le PC pas à pas (Ollama) ; un seul onglet « Assistants » ; couper la parole avec « Jarvis ». |
 | 1.65 | Mises à jour forcées plus rapides et retentées ; Wikipédia sans Claude ; demandes polies et « oui » franc ; rappels gardés par Windows ; Ctrl + Alt + J ; « règle ton micro » ; installateur (code postal, voix, tutoiement, rapport technique coché) ; rapports toutes les heures ; Groq. |
 | 1.64 | Installateur refait (fenêtres plus claires, consignes « clique sur Oui » en vert) ; ouverture d'applications sans Claude mieux gérée (« lors l'application… », Deezer) ; question d'accueil dite à part ; racine carrée et jours de février corrigés ; Kimi dans les assistants. |

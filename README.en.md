@@ -43,6 +43,14 @@ Everything can be set without editing a file: right-click the reactor then « R�
 - **Système**: start with Windows, backup and restore, and « Par défaut » to reset the settings (profiles, memories and voices are kept).
 - **À propos** (about): the version, updates, and the « Désinstaller Jarvis… » (uninstall) button.
 
+## New in 1.67 (pre-release, for testers)
+
+- **Safer updates**: the downloaded installer's SHA-256 is checked against the release notes before it runs. Jarvis keeps a copy of its programs before updating: if the new version stops three times in a row at startup, the previous one is restored and that version is not reinstalled. Personal files are never touched.
+- **Frozen Jarvis**: if its display stops for 5 minutes, it is stopped and restarted (twice an hour at most).
+- **Organised memory**: no more 60-fact limit (500); questions by subject; a list by category in Settings > Historique with a "Oublier" button on each line.
+- **Follow-up without saying "Jarvis"**: 3 to 20 seconds, in Settings > Son (3 by default).
+- Help page completed; settings help texts no longer clipped.
+
 ## New in 1.66
 
 - **Update blocked by Windows or the antivirus: Jarvis explains what to do.** After two failed attempts for the same version, Jarvis says so, opens Notepad with the steps (the Terminal line, the blue Windows warning, the Windows Security protection history or the antivirus quarantine) and copies the line to paste. Once per version.

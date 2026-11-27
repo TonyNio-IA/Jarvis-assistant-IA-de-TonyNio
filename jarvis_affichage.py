@@ -1832,6 +1832,7 @@ class Affichage:
         src = self.src
         horloge = pygame.time.Clock()
         while True:
+            src.battre()                           # le gardien voit que l'affichage vit toujours
             self._evenements()
             self.image()
             pygame.display.flip()

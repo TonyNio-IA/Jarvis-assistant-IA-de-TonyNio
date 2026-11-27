@@ -24,6 +24,9 @@ liste.json
 reglages_voix.json
 mise_a_jour.json
 mise_a_jour_echecs.json
+version_precedente/
+retour_version.json
+battement.txt
 enfant.json
 salutation.date
 vigilance.json

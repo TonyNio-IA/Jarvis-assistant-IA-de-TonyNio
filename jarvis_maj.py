@@ -14,6 +14,7 @@ JARVIS - mises à jour depuis GitHub.
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -48,6 +49,9 @@ NOUVEL_ESSAI_TELECHARGEMENT = 5 * 60     # secondes avant de réessayer après u
 NOUVEL_ESSAI_INSTALLATION = 15 * 60      # installateur lancé mais Jarvis tourne toujours : il n'a pas abouti
 DEMARRAGE = time.time()
 DEMARRAGE_SANS_ATTENTE = 3 * 60          # au démarrage de Jarvis, une forcée s'installe sans attendre la veille
+_empreintes = {}         # SHA-256 publiés dans les notes de la version : {"Installer-Jarvis.exe": "ABCD…"}
+DOSSIER_PRECEDENT = jarvis_config.chemin("version_precedente")   # les programmes d'avant, gardés le temps d'une mise à jour
+FICHIER_RETOUR = jarvis_config.chemin("retour_version.json")     # écrit par le gardien s'il a dû revenir en arrière
 _installateur = None     # l'installateur de la version trouvée (une pré-version, pour un testeur)
 _etiquette = None        # son étiquette sur GitHub (« v1.33 ») : l'installateur prend exactement cette version
 
@@ -121,8 +125,10 @@ def verifier():
     _installateur = next((a.get("browser_download_url") for a in derniere.get("assets", [])
                           if a.get("name") == "Installer-Jarvis.exe"), None) or INSTALLATEUR
     version = str(derniere.get("tag_name", "")).lstrip("vV")
+    global _empreintes
+    _empreintes = lire_empreintes(str(derniere.get("body") or ""))
     with _verrou:
-        if _nombres(version) > _nombres(version_actuelle()):
+        if _nombres(version) > _nombres(version_actuelle()) and _nombres(version) != _nombres(version_refusee()):
             titre = str(derniere.get("name") or "").split(":", 1)[-1].strip()
             disponible = (version, titre)
             forcee = MARQUE_FORCEE in str(derniere.get("body") or "") or _forcee_entre(version_actuelle(), version)
@@ -369,6 +375,66 @@ def oublier_echecs():
         pass
 
 
+def lire_empreintes(notes):
+    """Les empreintes SHA-256 écrites dans les notes d'une version : {nom du fichier: empreinte en majuscules}."""
+    return {nom: valeur.upper() for nom, valeur in
+            re.findall(r"\|\s*(Installer-Jarvis\.(?:exe|bat))\s*\|\s*`?([0-9A-Fa-f]{64})`?\s*\|", notes or "")}
+
+
+def _empreinte(chemin):
+    import hashlib
+    h = hashlib.sha256()
+    with open(chemin, "rb") as f:
+        for morceau in iter(lambda: f.read(1 << 20), b""):
+            h.update(morceau)
+    return h.hexdigest().upper()
+
+
+def controler_empreinte(chemin):
+    """Le fichier téléchargé est-il bien celui qui est publié ? Lève ValueError sinon. Sans empreinte publiée
+    (anciennes versions), rien n'est contrôlé, comme avant."""
+    attendue = _empreintes.get(os.path.basename(chemin))
+    if not attendue:
+        return False
+    if _empreinte(chemin) != attendue:
+        try:
+            os.remove(chemin)
+        except OSError:
+            pass
+        raise ValueError("le fichier téléchargé ne correspond pas à celui qui est publié (empreinte SHA-256 différente)")
+    return True
+
+
+def version_refusee():
+    """La version qui ne démarrait pas sur ce PC (le gardien est revenu à la précédente) : on ne la réinstalle pas."""
+    try:
+        with open(FICHIER_RETOUR, encoding="utf-8") as f:
+            return str(json.load(f).get("refusee") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def sauvegarder_version(cible=None):
+    """Avant une mise à jour : copie les programmes actuels (jarvis_*.py, moins de 2 Mo) dans version_precedente.
+    Si la nouvelle version ne démarre pas, le gardien les remet en place. Renvoie le nombre de fichiers copiés."""
+    source = jarvis_config.chemin()
+    try:
+        shutil.rmtree(DOSSIER_PRECEDENT, ignore_errors=True)
+        os.makedirs(DOSSIER_PRECEDENT, exist_ok=True)
+        n = 0
+        for nom in os.listdir(source):
+            if nom.startswith("jarvis_") and nom.endswith(".py"):
+                shutil.copy2(os.path.join(source, nom), os.path.join(DOSSIER_PRECEDENT, nom))
+                n += 1
+        with open(os.path.join(DOSSIER_PRECEDENT, "version.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": version_actuelle(), "vers": cible, "quand": int(time.time()), "fichiers": n}, f)
+        return n
+    except OSError as erreur:
+        _noter("Sauvegarde de la version actuelle impossible :", erreur)
+        shutil.rmtree(DOSSIER_PRECEDENT, ignore_errors=True)      # jamais une sauvegarde à moitié faite
+        return 0
+
+
 def installer():
     """Télécharge l'installateur de la dernière version et le lance en mode « mise à jour », sans question.
     Renvoie la phrase à dire."""
@@ -387,6 +453,8 @@ def installer():
         with open(programme, "rb") as f:
             if f.read(2) != b"MZ" or os.path.getsize(programme) < 50_000:
                 raise ValueError("le fichier téléchargé n'est pas l'installateur")
+        if controler_empreinte(programme):
+            _noter("Mise à jour : empreinte SHA-256 de l'installateur vérifiée.")
     except Exception as erreur:
         _telechargement_rate = True
         _noter("Téléchargement de la mise à jour impossible :", erreur)
@@ -411,6 +479,7 @@ def installer():
         global _echec, _bloquee_par_windows
         # console cachée : seule la fenêtre claire d'avancement se voit (le journal installation.log garde tout)
         drapeaux = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        sauvegarder_version(cible)             # si la nouvelle version ne démarre pas, le gardien revient à celle-ci
         try:
             subprocess.Popen([programme], cwd=dossier, env=environnement, creationflags=drapeaux)
             _noter("Mise à jour : installateur .exe lancé (accepté par Windows).")
@@ -472,6 +541,7 @@ def _telecharger_lot(dossier):
         requete = urllib.request.Request(adresse, headers={"User-Agent": "Jarvis"})
         with urllib.request.urlopen(requete, timeout=60) as r, open(lot, "wb") as f:
             f.write(r.read())
+        controler_empreinte(lot)
         return lot if os.path.getsize(lot) > 20_000 else None
     except Exception as erreur:
         _noter("Téléchargement de l'installateur .bat impossible :", erreur)
