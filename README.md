@@ -393,7 +393,7 @@ Ne colle jamais dans le Terminal une commande reçue par message, par mail ou tr
 
 ### Dans la fenêtre d'installation
 
-1. **Réponds aux questions** : ton prénom, ta ville, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
+1. **Réponds aux questions** : ton prénom, ta ville et son code postal, la voix de Jarvis (homme ou femme), s'il te tutoie ou te vouvoie, et si tu veux utiliser ton abonnement Claude (l'installateur explique ce qu'il apporte ; tu pourras le relier plus tard). La case « rapport technique » est cochée : elle aide à corriger Jarvis, tu peux la décocher. Ensuite, l'installation se fait toute seule (une dizaine de minutes, selon ta connexion et ton PC). Elle met en place :
    - Python 3.14 (depuis python.org), dans ton dossier personnel ;
    - les composants Microsoft Visual C++ : Windows demande ton autorisation, réponds **Oui** (dans la fenêtre de l'installateur, cette consigne est écrite en vert) ;
    - Jarvis, ses modules (y compris ceux de la PlayStation 5), son modèle vocal et celui qui reconnaît qui parle, dans `C:\Jarvis` ;
@@ -511,7 +511,7 @@ Jarvis crée aussi ses propres fichiers au fil de l'usage (mémoire, rappels, no
 - Corrections d'écoute : Jarvis corrige tout seul ses erreurs d'écoute habituelles, et tu peux lui en apprendre : « quand tu entends mes mots, c'est mets-moi », « quelles corrections connais-tu ? », « oublie la correction mes mots ».
 - Diagnostic : « Jarvis, fais un diagnostic » vérifie le micro, le haut-parleur, la reconnaissance vocale, Claude, la connexion et le disque (aussi dans l'onglet Santé des réglages). Après un plantage, il dit au redémarrage ce qui s'est passé.
 - Vidéos des enfants en français seulement (YouTube Kids), réglable dans l'onglet Profils.
-- Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (voix, tutoiement ou vouvoiement, ville, couleurs), puis présente ce qu'il sait faire.
+- Premiers pas : après une nouvelle installation, Jarvis fait connaissance pendant les premières conversations, une question à la fois (couleurs, et la voix, le tutoiement ou la ville s'ils n'ont pas été donnés à l'installation), puis présente ce qu'il sait faire.
 - Mises à jour : au démarrage, Jarvis regarde s'il existe une nouvelle version sur GitHub. S'il en trouve une, il te le dit à ta demande suivante et te demande s'il peut l'installer ; il ne fait rien sans ton « oui ». Tes réglages, ta mémoire, tes rappels et tes listes sont gardés. Aussi à la voix : « Jarvis, cherche les mises à jour », « mets-toi à jour », « quelle est ta version ? ». Seules les mises à jour importantes s'installent sans question, après une minute sans aucune demande (cinq minutes après une demande d'une tablette) : Jarvis le dit à voix haute, puis redémarre.
 - Carburants : « combien coûte le gazole ? », « le prix du sans-plomb 98 » : la station la moins chère près de ta ville (prix officiels). « Mon carburant, c'est le gazole » pour ne plus le préciser.
 - Vacances et jours fériés : « c'est quand les prochaines vacances ? », « c'est quand la rentrée ? », « est-ce que demain est férié ? » (la zone scolaire est retrouvée à partir de ta ville).

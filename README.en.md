@@ -383,7 +383,7 @@ Never paste into the Terminal a command received by message or email, or found o
 
 ### In the installation window
 
-1. **Answer the questions** (in French): your first name, your town, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
+1. **Answer the questions** (in French): your first name, your town and its postal code, Jarvis's voice (male or female), informal or formal address, and whether you want to use your Claude subscription (the installer explains what it adds; you can link it later). The "technical report" box is checked: it helps fix Jarvis, and you can uncheck it. Then setup runs by itself (about ten minutes, depending on your connection and PC). It installs:
    - Python 3.14 (from python.org), in your user folder;
    - the Microsoft Visual C++ components: Windows asks for your permission, answer **Yes** (in the installer window this instruction is written in green);
    - Jarvis, its modules (PlayStation 5 included), its speech model and the one that recognises who is speaking, in `C:\Jarvis`;
